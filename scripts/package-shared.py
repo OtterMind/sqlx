@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Package the JDBC runner, licensed JDBC artifacts and the English Skill; pin upstream JRE assets."""
-import argparse,hashlib,json,urllib.parse,urllib.request,zipfile
+import argparse,hashlib,json,time,urllib.parse,urllib.request,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def get(url):
-    with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'OtterMind-SQLX-release'}),timeout=60) as r:return r.read()
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 OtterMind-SQLX-release'}),timeout=30) as r:return r.read()
+        except (OSError, urllib.error.URLError):
+            if attempt==2:raise
+            time.sleep(attempt+1)
 def main():
     p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.0');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
     records={};base=f'https://github.com/OtterMind/sqlx/releases/download/v{a.version}/'

@@ -5,7 +5,7 @@ members = ["crates/protocol", "crates/cli", "drivers/mysql", "drivers/postgres"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.95"
 license-file = "LICENSE"
 repository = "https://github.com/OtterMind/sqlx"
 authors = ["OtterMind"]

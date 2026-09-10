@@ -135,6 +135,8 @@ async fn execute(binary: PathBuf, args: Vec<String>, request: Request, id: &str)
     let mut failed = false;
     let mut next = 0_usize;
     let mut active = None;
+    let mut active_result: Option<(usize, usize, u64)> = None;
+    let mut next_result = 0;
     let mut stream_error = None;
     loop {
         let line = tokio::select! {
@@ -186,16 +188,50 @@ async fn execute(binary: PathBuf, args: Vec<String>, request: Request, id: &str)
                         bail!("invalid statement sequence");
                     }
                     active = Some(*index);
+                    next_result = 0;
                 }
-                Event::Columns { index, .. }
-                | Event::Row { index, .. }
-                | Event::ResultEnd { index, .. } => {
-                    if active != Some(*index) {
+                Event::Columns {
+                    index,
+                    result,
+                    columns,
+                } => {
+                    if active != Some(*index) || active_result.is_some() || *result != next_result {
                         bail!("result does not belong to active statement");
                     }
+                    active_result = Some((*result, columns.len(), 0));
+                }
+                Event::Row {
+                    index,
+                    result,
+                    values,
+                } => {
+                    let (result_id, width, rows) = active_result
+                        .as_mut()
+                        .context("row arrived without column metadata")?;
+                    if active != Some(*index) || *result_id != *result || *width != values.len() {
+                        bail!("invalid result row");
+                    }
+                    *rows += 1;
+                }
+                Event::ResultEnd {
+                    index,
+                    result,
+                    rows,
+                    ..
+                } => {
+                    let (result_id, _, received) =
+                        active_result.context("result ended without metadata")?;
+                    if active != Some(*index)
+                        || result_id != *result
+                        || rows.parse::<u64>()? != received
+                    {
+                        bail!("incomplete result stream");
+                    }
+                    active_result = None;
+                    next_result += 1;
                 }
                 Event::StatementEnd { index } => {
-                    if active != Some(*index) {
+                    if active != Some(*index) || active_result.is_some() {
                         bail!("invalid statement completion");
                     }
                     active = None;
@@ -212,6 +248,7 @@ async fn execute(binary: PathBuf, args: Vec<String>, request: Request, id: &str)
                     if let Some(i) = index {
                         if active == Some(*i) {
                             active = None;
+                            active_result = None;
                             next = *i + 1;
                         } else if *i >= request.statements.len() {
                             bail!("invalid error statement index");

@@ -21,7 +21,7 @@ def exercise(kind,bin_dir):
             if attempt==59:raise AssertionError(result)
             time.sleep(3)
         if kind=='oracle':
-            statements=['CREATE GLOBAL TEMPORARY TABLE SQLX_TEST_VALUES (id NUMBER(19), amount NUMBER(30,4), label VARCHAR2(100)) ON COMMIT PRESERVE ROWS',"INSERT INTO SQLX_TEST_VALUES VALUES (9007199254740993,123.4500,'hello')",'SELECT id AS DUP, id AS DUP, amount, label FROM SQLX_TEST_VALUES','DROP TABLE SQLX_TEST_VALUES']
+            statements=['CREATE GLOBAL TEMPORARY TABLE SQLX_TEST_VALUES (id NUMBER(19), amount NUMBER(30,4), label VARCHAR2(100)) ON COMMIT PRESERVE ROWS',"INSERT INTO SQLX_TEST_VALUES VALUES (9007199254740993,123.4500,'hello')",'SELECT id AS DUP, id AS DUP, amount, label FROM SQLX_TEST_VALUES','TRUNCATE TABLE SQLX_TEST_VALUES','DROP TABLE SQLX_TEST_VALUES']
         else:
             statements=['CREATE TABLE #sqlx_values (id BIGINT, amount DECIMAL(30,4), label NVARCHAR(100))',"INSERT INTO #sqlx_values VALUES (9007199254740993,123.4500,'hello')",'SELECT id AS DUP,id AS DUP,amount,label FROM #sqlx_values']
         args=['sql','execute','--datasource','fixture']

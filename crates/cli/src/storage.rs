@@ -290,7 +290,13 @@ fn identity(previous: Option<&Identity>) -> Identity {
     } else {
         &[("dmi", "hardware"), ("machine-id", "os")]
     };
-    let resolved = if let Some(old) = previous {
+    let same_source = previous.filter(|old| {
+        old.identity_source == "random"
+            || candidates
+                .iter()
+                .any(|(name, _)| *name == old.identity_source)
+    });
+    let resolved = if let Some(old) = same_source {
         source(&old.identity_source)
             .map(|v| (old.identity_source.clone(), old.identity_scope.clone(), v))
     } else {
@@ -299,7 +305,7 @@ fn identity(previous: Option<&Identity>) -> Identity {
             .find_map(|(name, scope)| source(name).map(|v| ((*name).into(), (*scope).into(), v)))
     };
     let Some((identity_source, identity_scope, raw)) = resolved else {
-        return previous.cloned().unwrap_or_else(|| Identity {
+        return same_source.cloned().unwrap_or_else(|| Identity {
             device_id: Uuid::new_v4().to_string(),
             installation_id: Uuid::new_v4().to_string(),
             identity_version: 1,
