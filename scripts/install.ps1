@@ -7,14 +7,20 @@ $temporary = Join-Path ([IO.Path]::GetTempPath()) ('sqlx-install-' + [guid]::New
 New-Item -ItemType Directory -Path $temporary | Out-Null
 try {
     if (-not $Version) {
-        try { $Version = (Invoke-RestMethod "$releaseBase/latest/download/release-version.txt").Trim() }
+        try {
+            $versionFile = Join-Path $temporary 'release-version.txt'
+            Invoke-WebRequest "$releaseBase/latest/download/release-version.txt" -OutFile $versionFile
+            $Version = (Get-Content -Raw $versionFile).Trim()
+        }
         catch { throw 'No downloadable release is available. See the README source-install instructions.' }
     }
     if ($Version -notmatch '^[0-9][0-9A-Za-z.+-]*$') { throw 'Invalid release version.' }
     $asset = 'sqlx-windows-x64.zip'
     $archive = Join-Path $temporary $asset
     Invoke-WebRequest "$releaseBase/download/v$Version/$asset" -OutFile $archive
-    $checksums = (Invoke-WebRequest "$releaseBase/download/v$Version/SHA256SUMS").Content
+    $checksumFile = Join-Path $temporary 'SHA256SUMS'
+    Invoke-WebRequest "$releaseBase/download/v$Version/SHA256SUMS" -OutFile $checksumFile
+    $checksums = Get-Content -Raw $checksumFile
     $expected = ($checksums -split "`n" | Where-Object { $_.Trim() -match ('^[a-fA-F0-9]{64}\s+' + [regex]::Escape($asset) + '$') }) -replace '\s+.*$', ''
     if (-not $expected -or (Get-FileHash $archive -Algorithm SHA256).Hash -ine $expected.Trim()) { throw 'Download checksum verification failed.' }
     $unpacked = Join-Path $temporary 'unpacked'
