@@ -1,0 +1,277 @@
+use crate::{
+    components::{platform, Components},
+    storage::Datasource,
+};
+use anyhow::{bail, Context, Result};
+use serde_json::json;
+use sqlx_protocol::{Action, Database, Event, Request, VERSION};
+use std::{
+    io::{self, Write},
+    path::PathBuf,
+    process::Stdio,
+};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+pub fn run(
+    root: PathBuf,
+    manifest: String,
+    local: Option<PathBuf>,
+    source: Datasource,
+    action: Action,
+    statements: Vec<String>,
+) -> Result<bool> {
+    let kind = source.connection.database_type;
+    let mut request = Request {
+        protocol_version: VERSION,
+        action,
+        connection: source.connection,
+        statements,
+        driver_jars: vec![],
+        driver_class: String::new(),
+    };
+    let mut args = Vec::new();
+    let native = match kind {
+        Database::Mysql => Some("mysql"),
+        Database::Postgresql => Some("postgres"),
+        _ => None,
+    };
+    let binary = if let Some(dir) = local {
+        if let Some(name) = native {
+            dir.join(format!(
+                "sqlx-driver-{name}{}",
+                std::env::consts::EXE_SUFFIX
+            ))
+        } else {
+            args.extend([
+                "-jar".to_owned(),
+                dir.join("sqlx-jdbc.jar").to_string_lossy().into_owned(),
+            ]);
+            let jar = dir
+                .join(if kind == Database::Oracle {
+                    "ojdbc.jar"
+                } else {
+                    "mssql-jdbc.jar"
+                })
+                .canonicalize()
+                .context("development JDBC driver is missing")?;
+            request.driver_jars.push(jar.to_string_lossy().into_owned());
+            PathBuf::from(std::env::var_os("SQLX_JAVA_BIN").unwrap_or_else(|| "java".into()))
+        }
+    } else {
+        let manager = Components::new(root, manifest);
+        let m = manager.manifest(false)?;
+        let platform = platform()?;
+        if let Some(name) = native {
+            manager.ensure(name, &platform, manager.asset(&m, name, &platform)?)?
+        } else {
+            let java = manager.ensure("java", &platform, manager.asset(&m, "java", &platform)?)?;
+            let runner = manager.ensure("jdbc", "any", manager.asset(&m, "jdbc", "any")?)?;
+            let name = if kind == Database::Oracle {
+                "oracle"
+            } else {
+                "sqlserver"
+            };
+            let driver = manager.ensure(name, "any", manager.asset(&m, name, "any")?)?;
+            args.extend(["-jar".into(), runner.to_string_lossy().into_owned()]);
+            request
+                .driver_jars
+                .push(driver.canonicalize()?.to_string_lossy().into_owned());
+            java
+        }
+    };
+    request.driver_class = match kind {
+        Database::Oracle => "oracle.jdbc.OracleDriver",
+        Database::Sqlserver => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+        _ => "",
+    }
+    .into();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    runtime.block_on(execute(binary, args, request, &source.id))
+}
+
+async fn execute(binary: PathBuf, args: Vec<String>, request: Request, id: &str) -> Result<bool> {
+    let mut child = tokio::process::Command::new(&binary)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .context("cannot start database worker")?;
+    let mut input = child.stdin.take().unwrap();
+    let encoded = serde_json::to_vec(&request)?;
+    let input_task = tokio::spawn(async move {
+        input.write_all(&encoded).await?;
+        input.shutdown().await
+    });
+    let mut errors = child.stderr.take().unwrap();
+    let error_task = tokio::spawn(async move {
+        let mut tail = Vec::new();
+        let mut buffer = [0; 1024];
+        while let Ok(n) = errors.read(&mut buffer).await {
+            if n == 0 {
+                break;
+            }
+            tail.extend_from_slice(&buffer[..n]);
+            if tail.len() > 8192 {
+                tail.drain(..tail.len() - 8192);
+            }
+        }
+        tail
+    });
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let mut output = io::stdout().lock();
+    write!(
+        output,
+        "{{\"protocol_version\":1,\"datasource_id\":{},\"events\":[",
+        serde_json::to_string(id)?
+    )?;
+    let mut first = true;
+    let mut ready = false;
+    let mut connected = false;
+    let mut complete = None;
+    let mut failed = false;
+    let mut next = 0_usize;
+    let mut active = None;
+    let mut stream_error = None;
+    loop {
+        let line = tokio::select! {
+            result=lines.next_line()=>result,
+            _=tokio::signal::ctrl_c()=> {stream_error=Some("execution interrupted; an in-flight write may have completed".to_string());break;}
+        };
+        let line = match line {
+            Ok(Some(line)) => line,
+            Ok(None) => break,
+            Err(e) => {
+                stream_error = Some(e.to_string());
+                break;
+            }
+        };
+        let mut event: Event = match serde_json::from_str(&line) {
+            Ok(e) => e,
+            Err(_) => {
+                stream_error = Some("worker emitted an invalid protocol event".into());
+                break;
+            }
+        };
+        let validation: Result<()> = (|| {
+            if complete.is_some() {
+                bail!("worker emitted data after completion");
+            }
+            if !ready && !matches!(event, Event::Ready { .. }) {
+                bail!("worker handshake missing");
+            }
+            match &mut event {
+                Event::Ready { protocol_version } => {
+                    if ready || *protocol_version != VERSION {
+                        bail!("incompatible worker handshake");
+                    }
+                    ready = true;
+                }
+                Event::Connected => {
+                    if connected {
+                        bail!("duplicate connection event");
+                    }
+                    connected = true;
+                }
+                Event::StatementStart { index } => {
+                    if !connected
+                        || active.is_some()
+                        || *index != next
+                        || *index >= request.statements.len()
+                        || failed
+                    {
+                        bail!("invalid statement sequence");
+                    }
+                    active = Some(*index);
+                }
+                Event::Columns { index, .. }
+                | Event::Row { index, .. }
+                | Event::ResultEnd { index, .. } => {
+                    if active != Some(*index) {
+                        bail!("result does not belong to active statement");
+                    }
+                }
+                Event::StatementEnd { index } => {
+                    if active != Some(*index) {
+                        bail!("invalid statement completion");
+                    }
+                    active = None;
+                    next += 1;
+                }
+                Event::Skipped { index } => {
+                    if !failed || *index != next {
+                        bail!("invalid skipped statement sequence");
+                    }
+                    next += 1;
+                }
+                Event::Error { index, message, .. } => {
+                    failed = true;
+                    if let Some(i) = index {
+                        if active == Some(*i) {
+                            active = None;
+                            next = *i + 1;
+                        } else if *i >= request.statements.len() {
+                            bail!("invalid error statement index");
+                        }
+                    }
+                    *message = sqlx_protocol::redact(message, &request.connection);
+                }
+                Event::Complete { success } => {
+                    if *success
+                        && (!connected
+                            || failed
+                            || active.is_some()
+                            || next != request.statements.len())
+                    {
+                        bail!("worker claimed success before all statements completed");
+                    }
+                    complete = Some(*success);
+                }
+            }
+            Ok(())
+        })();
+        if let Err(e) = validation {
+            stream_error = Some(e.to_string());
+            break;
+        }
+        if !first {
+            output.write_all(b",")?;
+        }
+        first = false;
+        serde_json::to_writer(&mut output, &event)?;
+        output.flush()?;
+    }
+    if stream_error.is_some() {
+        let _ = child.kill().await;
+    }
+    let status = child.wait().await?;
+    let stdin_result = input_task.await?;
+    let stderr = error_task.await?;
+    let success = stream_error.is_none()
+        && complete == Some(true)
+        && status.success()
+        && stdin_result.is_ok();
+    if !success && (stream_error.is_some() || complete.is_none() || complete == Some(true)) {
+        if !first {
+            output.write_all(b",")?;
+        }
+        let message = stream_error
+            .unwrap_or_else(|| "worker exited without a valid successful completion".into());
+        serde_json::to_writer(
+            &mut output,
+            &json!({"event":"error","index":active,"code":"worker.incomplete","message":message,"outcome":if active.is_some(){"unknown"}else{"incomplete"}}),
+        )?;
+    }
+    writeln!(output, "],\"success\":{success}}}")?;
+    output.flush()?;
+    if !stderr.is_empty() {
+        eprintln!(
+            "{}",
+            sqlx_protocol::redact(&String::from_utf8_lossy(&stderr), &request.connection)
+        );
+    }
+    Ok(success)
+}
