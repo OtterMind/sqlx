@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Package the JDBC runner, licensed JDBC artifacts, Skill and default UI plugin; pin upstream JRE assets."""
-import argparse,hashlib,json,time,urllib.parse,urllib.request,zipfile
+import argparse,hashlib,io,json,time,urllib.parse,urllib.request,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def get(url):
@@ -26,7 +26,12 @@ def main():
         'sqlserver':('https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar','mssql-jdbc.jar','https://raw.githubusercontent.com/microsoft/mssql-jdbc/v12.10.1/LICENSE'),
     }
     for name,(url,filename,license_url) in vendors.items():
-        add(name,{filename:get(url),'LICENSE.html' if name=='oracle' else 'LICENSE.txt':get(license_url),'SOURCE.txt':(url+'\n'+license_url+'\n').encode()},filename)
+        driver=get(url)
+        if name=='oracle':
+            # Preserve the license shipped with this exact driver; the HTML page blocks automated downloads.
+            with zipfile.ZipFile(io.BytesIO(driver)) as jar:license_text=jar.read('META-INF/license.txt')
+        else:license_text=get(license_url)
+        add(name,{filename:driver,'LICENSE.txt':license_text,'SOURCE.txt':(url+'\n'+license_url+'\n').encode()},filename)
     for platform,os_name,arch in [('macos-arm64','mac','aarch64'),('macos-x64','mac','x64'),('windows-x64','windows','x64'),('linux-arm64','linux','aarch64'),('linux-x64','linux','x64')]:
         params=urllib.parse.urlencode(dict(architecture=arch,image_type='jre',os=os_name,vendor='eclipse'))
         releases=json.loads(get('https://api.adoptium.net/v3/assets/latest/17/hotspot?'+params))
