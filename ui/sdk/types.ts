@@ -1,0 +1,89 @@
+/** Browser API v1. No saved password or local encryption key is returned by these APIs. */
+export const UI_API_VERSION = 1;
+export type DatabaseType = "mysql" | "postgresql" | "oracle" | "sqlserver";
+export interface ConnectionFields {
+  database_type: DatabaseType;
+  host: string;
+  port: number;
+  database: string;
+  service: string;
+  username: string;
+  tls: "disable" | "verify-full";
+}
+export interface SetupStatus {
+  request_id: string;
+  status: "waiting_for_user" | "saving" | "completed" | "cancelled" | "expired";
+  error: string | null;
+  datasource_id: string | null;
+}
+export interface SetupView extends SetupStatus {
+  name: string;
+  connection: ConnectionFields;
+  editing: boolean;
+}
+export interface SetupSubmission {
+  name: string;
+  connection: ConnectionFields & { password: string };
+  password_action: "keep" | "replace" | "clear";
+}
+export interface Column {
+  name: string;
+  database_type: string;
+  encoding: string;
+}
+export interface ResultTable {
+  statement: number;
+  result: number;
+  columns: Column[];
+  rows: number;
+  affected_rows: string | null;
+  complete: boolean;
+}
+export interface ResultEvent {
+  event: string;
+  index?: number | null;
+  message?: string;
+  outcome?: string;
+  code?: string;
+}
+export interface ResultMetadata {
+  result_id: string;
+  datasource_id: string;
+  datasource_name: string;
+  statements: string[];
+  created_at: number;
+  status:
+    "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
+  duration_ms: number;
+  tables: ResultTable[];
+  events: ResultEvent[];
+}
+export interface ResultPage {
+  rows: unknown[][];
+  offset: number;
+  next_offset: number;
+  total_rows: number;
+  complete: boolean;
+}
+export interface WorkspaceEntry {
+  id: string;
+  name: string;
+  status: string;
+  created_at?: number;
+}
+export interface Workspace {
+  setups: WorkspaceEntry[];
+  results: WorkspaceEntry[];
+}
+
+export interface PluginManifest {
+  schema_version: 1;
+  id: string;
+  name: string;
+  version: string;
+  api_version: 1;
+  cli_compat: string;
+  entrypoint: string;
+  capabilities: string[];
+  description: string;
+}

@@ -8,7 +8,7 @@ def main():
         if set(components)&set(fragment):raise ValueError('duplicate manifest components')
         components.update(fragment)
     platforms=['macos-arm64','macos-x64','windows-x64','linux-arm64','linux-x64']
-    required={f'{kind}:{platform}' for kind in ['cli','mysql','postgres','ui','java'] for platform in platforms}|{f'{kind}:any' for kind in ['jdbc','oracle','sqlserver','skill']}
+    required={f'{kind}:{platform}' for kind in ['cli','mysql','postgres','ui','java'] for platform in platforms}|{f'{kind}:any' for kind in ['jdbc','oracle','sqlserver','skill','ui-default']}
     if set(components)!=required:raise ValueError(f'incomplete platform manifest: {sorted(required-set(components))}')
     (a.directory/'manifest.json').write_text(json.dumps(dict(schema_version=1,components=components),indent=2)+'\n')
     (a.directory/'release-version.txt').write_text(a.version+'\n')

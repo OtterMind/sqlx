@@ -11,10 +11,15 @@ def main():
         os_name='windows' if os.name=='nt' else 'macos' if platform.system()=='Darwin' else 'linux';arch='arm64' if platform.machine().lower() in ['arm64','aarch64'] else 'x64'
         archive=web/'ui.zip'
         with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:z.write(ROOT/'target/debug'/('sqlx-ui'+suffix),'sqlx-ui'+suffix)
+        plugin_archive=web/'plugin.zip'
+        with zipfile.ZipFile(plugin_archive,'w',zipfile.ZIP_DEFLATED) as z:
+            for file in (ROOT/'ui/dist').rglob('*'):
+                if file.is_file():z.write(file,str(file.relative_to(ROOT/'ui/dist')))
         server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(web)));thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         origin=f'http://127.0.0.1:{server.server_port}'
         asset=dict(version='0.2.0',url=origin+'/ui.zip',sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),archive='zip',entrypoint='sqlx-ui'+suffix,cli_compat='>=0.2.0, <0.3.0',protocol_version=1)
-        (web/'manifest.json').write_text(json.dumps(dict(schema_version=1,components={f'ui:{os_name}-{arch}':asset})))
+        plugin_asset=dict(asset,url=origin+'/plugin.zip',sha256=hashlib.sha256(plugin_archive.read_bytes()).hexdigest(),entrypoint='ui-plugin.json')
+        (web/'manifest.json').write_text(json.dumps(dict(schema_version=1,components={f'ui:{os_name}-{arch}':asset,'ui-default:any':plugin_asset})))
         env=os.environ.copy();env.pop('SQLX_WORKER_DIR',None);env.update(SQLX_DATA_DIR=str(data),SQLX_MANIFEST=origin+'/manifest.json')
         cli=ROOT/'target/debug'/('sqlx'+suffix)
         def call(*args):
@@ -24,6 +29,8 @@ def main():
             assert (data/'engines/ui'/f'{os_name}-{arch}'/'0.2.0'/('sqlx-ui'+suffix)).exists()
             _,log=call('ui');assert 'Downloading' not in log
             assert call('ui','status')[0]['status']=='running'
+            plugins=call('ui','plugin','list')[0]['plugins'];assert len(plugins)==1 and plugins[0]['active']
+            assert (data/'plugins/ui/default/0.2.0/index.html').exists()
             print('UI download: platform package verified, extracted, launched and reused without worker overrides')
         finally:
             call('ui','stop')

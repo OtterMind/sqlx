@@ -8,6 +8,7 @@ def main():
         data=Path(directory);cli=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx')
         env=os.environ.copy();env.update(SQLX_DATA_DIR=str(data),SQLX_WORKER_DIR=str(ROOT/'target/debug'))
         def call(*args):
+            print("UI lifecycle: " + " ".join(args[:3]), flush=True)
             result=subprocess.run([str(cli),'--no-open',*args],env=env,capture_output=True,text=True,timeout=30)
             assert result.returncode==0,result.stdout+result.stderr
             return json.loads(result.stdout)['data']
@@ -18,12 +19,14 @@ def main():
                 time.sleep(.05)
             raise AssertionError('UI did not exit')
         try:
+            call('ui','plugin','install','--path',str(ROOT/'ui/dist'))
+            call('ui','plugin','use','default')
             first=call('ui');assert '#token=' in first['url']
             state=json.loads((data/'ui/state.json').read_text())
             assert call('ui','status')['pid']==state['pid']
             call('ui');assert json.loads((data/'ui/state.json').read_text())['instance']==state['instance']
             http=urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            try:http.open(state['origin']+'/api/home')
+            try:http.open(state['origin']+'/api/home',timeout=10)
             except urllib.error.HTTPError as e:assert e.code==403
             else:raise AssertionError('unauthenticated access succeeded')
             stop();assert call('ui','status')['status']=='stopped'

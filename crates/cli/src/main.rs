@@ -1,5 +1,5 @@
 mod skill;
-use sqlx_core::{components, execution, storage, ui};
+use sqlx_core::{components, execution, plugins, storage, ui};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -57,6 +57,38 @@ enum Commands {
 enum UiCommand {
     Status,
     Stop,
+    /// Install and select community UI plugins.
+    Plugin {
+        #[command(subcommand)]
+        command: UiPluginCommand,
+    },
+}
+#[derive(Subcommand)]
+enum UiPluginCommand {
+    List,
+    Install {
+        #[arg(long, conflicts_with = "url", required_unless_present = "url")]
+        path: Option<PathBuf>,
+        #[arg(
+            long,
+            conflicts_with = "path",
+            requires = "sha256",
+            required_unless_present = "path"
+        )]
+        url: Option<String>,
+        #[arg(long, requires = "url")]
+        sha256: Option<String>,
+    },
+    Use {
+        id: String,
+        #[arg(long)]
+        version: Option<String>,
+    },
+    Remove {
+        id: String,
+        #[arg(long)]
+        version: String,
+    },
 }
 #[derive(Subcommand)]
 enum DatasourceCommand {
@@ -381,6 +413,43 @@ fn run(cli: Cli) -> Result<bool> {
             print(value);
         }
         Commands::Ui { command } => match command {
+            Some(UiCommand::Plugin { command }) => {
+                {
+                    Store::open(root.clone())?;
+                }
+                match command {
+                    UiPluginCommand::List => print(json!({"plugins":plugins::list(&root)?})),
+                    UiPluginCommand::Install { path, url, sha256 } => {
+                        let manifest = if let Some(path) = path {
+                            plugins::install(&root, &path)?
+                        } else {
+                            plugins::install_url(
+                                &root,
+                                &url.context("plugin URL is required")?,
+                                &sha256.context("plugin SHA-256 is required")?,
+                            )?
+                        };
+                        print(
+                            json!({"installed":manifest,"next":"Select it with sqlx ui plugin use <id>"}),
+                        );
+                    }
+                    UiPluginCommand::Use { id, version } => {
+                        let selected = plugins::activate(&root, &id, version.as_deref())?;
+                        print(json!({"active":selected,"reload_pages":true}));
+                    }
+                    UiPluginCommand::Remove { id, version } => {
+                        let ui_dir = root.join("ui");
+                        std::fs::create_dir_all(&ui_dir)?;
+                        let lock = storage::open_private(&ui_dir.join("startup.lock"))?;
+                        fs2::FileExt::lock_exclusive(&lock)?;
+                        if ui::UiClient::existing(&root)?.is_some() {
+                            bail!("stop the UI service before removing a plugin so open pages keep their assets");
+                        }
+                        plugins::remove(&root, &id, &version)?;
+                        print(json!({"removed":id,"version":version}));
+                    }
+                }
+            }
             None => {
                 let client = ui::UiClient::start(root, cli.manifest, cli.worker_dir)?;
                 print(json!({"url": client.page("/", !cli.no_open)?, "status": "running"}));

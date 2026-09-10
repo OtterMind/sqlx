@@ -11,3 +11,5 @@ __pycache__/
 /ui/node_modules/
 /ui/dist/
 /.playwright-cli/
+
+/examples/*/dist/

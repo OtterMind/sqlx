@@ -1,6 +1,6 @@
 # Local credential and result pages
 
-These commands require SQLX 0.2.0. The page is served by a separately downloaded local component, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+These commands require SQLX 0.2.0. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
 
 ## Ask the user for a password without putting it in the conversation
 
@@ -61,3 +61,19 @@ sqlx ui stop
 **Purpose and result:** The first command opens recent local requests/results, the second reports whether the service is running, and the third stops it and cancels active work. The service also exits after 30 idle minutes when no task is active. Closing a browser tab does not cancel a query.
 
 Launch links contain a short-lived one-use token in the URL fragment; the page exchanges it for a local browser session. Do not publish those links or credentials externally. The service validates local authentication and request origins. Credential entry avoids sending the password through normal agent arguments and responses, but it does not isolate secrets from an agent with the same user's file or browser access.
+
+## Select a UI plugin
+
+**Purpose:** Use an interface the user has chosen while keeping saved datasources and cached executions.
+
+```sh
+sqlx ui plugin install --url <plugin-zip-url> --sha256 <published-sha256>
+sqlx ui plugin list
+sqlx ui plugin use <plugin-id>
+```
+
+**Replace:** Use the author's release ZIP URL, independently obtained SHA-256, and installed plugin ID. For a local build, use `sqlx ui plugin install --path <built-directory>` instead. API/CLI compatibility and content integrity are checked. Installation does not change the active interface. `use` optionally accepts `--version <version>`; otherwise it selects the highest installed compatible version. Reload the page after switching. Existing result IDs and setup requests are preserved, and SQL is not rerun.
+
+The first UI launch automatically installs and selects the default interface if none is selected. Return to it with `sqlx ui plugin use default` once installed. A plugin can read entered credentials and browser-visible results, so install one only when its source is trusted by the user. A checksum does not establish author trust. Do not replace the user's selected UI as a side effect of ordinary database work.
+
+To remove an inactive version, run `sqlx ui stop`, then `sqlx ui plugin remove <plugin-id> --version <version>`. Stop cancels active work and loses unfinished setup requests, so do not stop the service casually just to remove an old plugin. Contributor documentation: [UI plugin guide](https://github.com/OtterMind/sqlx/blob/main/docs/ui-plugins.md).

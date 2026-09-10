@@ -1477,6 +1477,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+ "windows-sys 0.61.2",
  "zip",
 ]
 

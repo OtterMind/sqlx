@@ -9,40 +9,12 @@ import {
   statusBadge,
 } from "./components";
 
-interface Column {
-  name: string;
-  database_type: string;
-  encoding: string;
-}
-interface Table {
-  statement: number;
-  result: number;
-  columns: Column[];
-  rows: number;
-  complete: boolean;
-  affected_rows: string | null;
-}
-interface ResultEvent {
-  event: string;
-  index?: number;
-  message?: string;
-  outcome?: string;
-}
-interface Metadata {
-  datasource_name: string;
-  statements: string[];
-  status: string;
-  duration_ms: number;
-  tables: Table[];
-  events: ResultEvent[];
-}
-interface Page {
-  rows: unknown[][];
-  offset: number;
-  next_offset: number;
-  total_rows: number;
-  complete: boolean;
-}
+import type {
+  ResultTable as Table,
+  ResultMetadata as Metadata,
+  ResultPage as Page,
+} from "../sdk/types";
+
 const running = (status: string) => status === "running" || status === "queued";
 
 export async function resultPage(root: HTMLElement, id: string): Promise<void> {
@@ -76,8 +48,7 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
       .join("\n\n"),
   );
   const copySql = button("Copy SQL", "button text-button");
-  copySql.onclick = () =>
-    void copy(meta.statements.join("\n"), copySql);
+  copySql.onclick = () => void copy(meta.statements.join("\n"), copySql);
   sqlDetails.append(sql, copySql);
   const errors = element("div", "result-errors");
   const card = element("section", "card result-card");

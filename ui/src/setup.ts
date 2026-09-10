@@ -9,24 +9,7 @@ import {
   statusBadge,
 } from "./components";
 
-interface Connection {
-  database_type: string;
-  host: string;
-  port: number;
-  database: string;
-  service: string;
-  username: string;
-  tls: string;
-}
-interface Setup {
-  request_id: string;
-  name: string;
-  connection: Connection;
-  editing: boolean;
-  status: string;
-  error: string | null;
-  datasource_id: string | null;
-}
+import type { SetupView as Setup } from "../sdk/types";
 
 export async function setupPage(root: HTMLElement, id: string): Promise<void> {
   const setup = await api<Setup>(`/setups/${id}`);

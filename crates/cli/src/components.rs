@@ -92,6 +92,7 @@ impl Components {
         validate_asset(asset)?;
         let category = match name {
             "skill" => "skills",
+            "ui-default" => "plugin-packages",
             "java" => "runtimes",
             "jdbc" | "ui" => "engines",
             _ => "drivers",
@@ -160,6 +161,24 @@ impl Components {
         fs::rename(stage.path(), &target)?;
         Ok(target.join(&asset.entrypoint))
     }
+}
+pub fn download_plugin(url: &str, sha256: &str, parent: &Path) -> Result<tempfile::TempDir> {
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        bail!("a valid SHA-256 is required for a plugin download");
+    }
+    fs::create_dir_all(parent)?;
+    let mut file = tempfile::NamedTempFile::new_in(parent)?;
+    client()?
+        .get(valid_url(url)?)
+        .send()?
+        .error_for_status()?
+        .copy_to(&mut file)?;
+    if hash(file.path())? != sha256.to_ascii_lowercase() {
+        bail!("UI plugin checksum mismatch");
+    }
+    let unpacked = tempfile::tempdir_in(parent)?;
+    unzip(file.path(), unpacked.path())?;
+    Ok(unpacked)
 }
 fn client() -> Result<reqwest::blocking::Client> {
     Ok(reqwest::blocking::Client::builder()

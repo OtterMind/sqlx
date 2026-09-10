@@ -40,6 +40,9 @@ def main():
         draft_args=['datasource','add','--ui','--name','ui-fixture','--type','postgresql','--host','127.0.0.1','--port','25432','--database','sqlx_test','--tls','disable','--username-env','SQLX_UI_TEST_USER']
         connection=dict(database_type='postgresql',host='127.0.0.1',port=25432,database='sqlx_test',service='',username='postgres',password='sqlx_test_only_password',tls='disable',properties={})
         try:
+            command('ui','plugin','install','--path',str(ROOT/'ui/dist'))
+            command('ui','plugin','use','default')
+            command('ui','plugin','install','--path',str(ROOT/'examples/terminal-ui/dist'))
             setup=command(*draft_args);parsed=urllib.parse.urlsplit(setup['url']);origin=parsed.scheme+'://'+parsed.netloc
             authorize(setup['url']);id=setup['request_id']
             assert command('datasource','list')['datasources']==[]
@@ -79,6 +82,8 @@ def main():
             try:
                 view=command('sql','execute','--datasource',source_id,'--sql',f"SELECT nextval('{sequence}') AS execution, n AS id, 9007199254740993::bigint AS exact, '<script>alert(1)</script>' AS content FROM generate_series(1,251) n ORDER BY n",'--view')
                 metadata=wait_result(view['result_id']);assert metadata['status']=='completed';assert metadata['tables'][0]['rows']==251
+                command('ui','plugin','use','terminal')
+                assert request('/plugin')['id']=='terminal'
                 for _ in range(3):
                     page=request('/results/'+view['result_id']+'/rows?statement=0&result=0&offset=200&limit=100');assert len(page['rows'])==51 and page['rows'][0][2]=='9007199254740993'
                 check=subprocess.run([str(cli),'sql','execute','--datasource',source_id,'--sql',f'SELECT last_value FROM {sequence}'],env=env,capture_output=True,text=True,check=True)

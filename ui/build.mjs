@@ -1,9 +1,25 @@
 import { build } from "esbuild";
-await build({
-  entryPoints: ["src/app.ts"],
-  bundle: true,
-  format: "esm",
-  target: "es2022",
-  outfile: "dist/app.js",
-  minify: true,
-});
+import { copyFile, mkdir, rm } from "node:fs/promises";
+for (const [source, entrypoint] of [
+  [".", "src/app.ts"],
+  ["../examples/terminal-ui", "app.ts"],
+]) {
+  const output = `${source}/dist`;
+  await rm(output, { recursive: true, force: true });
+  await mkdir(output, { recursive: true });
+  await build({
+    entryPoints: [`${source}/${entrypoint}`],
+    bundle: true,
+    format: "esm",
+    target: "es2022",
+    outfile: `${output}/app.js`,
+    minify: true,
+  });
+  await Promise.all([
+    copyFile(`${source}/index.html`, `${output}/index.html`),
+    copyFile(`${source}/style.css`, `${output}/app.css`),
+    copyFile(`${source}/ui-plugin.json`, `${output}/ui-plugin.json`),
+    copyFile("../LICENSE", `${output}/LICENSE`),
+    copyFile("../NOTICE", `${output}/NOTICE`),
+  ]);
+}

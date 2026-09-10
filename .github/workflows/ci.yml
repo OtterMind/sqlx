@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   rust:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +35,7 @@ jobs:
       - run: python tests/installers.py
       - run: python tests/ui_lifecycle.py
       - run: python tests/ui_distribution.py
+      - run: python tests/ui_plugins.py
   databases:
     runs-on: ubuntu-24.04
     steps:

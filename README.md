@@ -130,9 +130,25 @@ sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id"
 
 SQLX executes once and returns a result URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Refreshing, paging, or reopening the page reads the same cached result rather than executing the SQL again. Results are retained locally for 24 hours, with owner-restricted permissions. The usual CLI execution mode still streams complete JSON to stdout.
 
-`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. A local UI component is downloaded only when needed. Setup links expire after five minutes unless already exchanged for a browser session; unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
+`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. The local UI service and default UI plugin are separate packages, downloaded only when needed. Setup links expire after five minutes unless already exchanged for a browser session; unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
 
 Password entry through the page keeps credentials out of the normal agent conversation and tool response. It does not isolate credentials from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
+
+### Choose your UI
+
+The default interface is a plugin. You can install a community interface and switch without changing saved connections or rerunning queries:
+
+```sh
+sqlx ui plugin install --url <plugin-zip-url> --sha256 <published-sha256>
+sqlx ui plugin list
+sqlx ui plugin use <plugin-id>
+```
+
+Installation does not activate a plugin. After selecting it, reload an open page or run `sqlx ui`. To return to the default interface, run `sqlx ui plugin use default`. To remove an inactive version, stop the service with `sqlx ui stop`, then run `sqlx ui plugin remove <plugin-id> --version <version>`.
+
+Plugins run locally and can access entered credentials and displayed data. Install interfaces from authors you trust; a checksum verifies the downloaded bytes, not the author's trustworthiness. SQLX validates API/CLI compatibility and preserves installed versions.
+
+To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), [typed browser SDK](ui/sdk/client.ts), and independent [terminal UI example](examples/terminal-ui/). Any framework that produces static browser assets can use the API. No Node.js runtime is needed by users.
 
 ## First connection and query
 
@@ -201,7 +217,7 @@ The [database references](skills/sqlx/references/) explain each SQL operation's 
 
 ## Build from source
 
-Source development requires Git, Rust 1.95, Node.js 22, and the platform's native build tools. Node.js only builds the bundled UI assets; release users do not need it. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
+Source development requires Git, Rust 1.95, Node.js 22, and the platform's native build tools. Node.js only builds UI plugin assets; release users do not need it. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
 
 On macOS or Linux:
 
@@ -215,6 +231,8 @@ export PATH="$PWD/target/release:$PATH"
 export SQLX_WORKER_DIR="$PWD/target/release"
 sqlx --version
 sqlx init
+sqlx ui plugin install --path ui/dist
+sqlx ui plugin use default
 ```
 
 On Windows PowerShell:
@@ -229,6 +247,8 @@ $env:Path = "$PWD\target\release;$env:Path"
 $env:SQLX_WORKER_DIR = "$PWD\target\release"
 sqlx --version
 sqlx init
+sqlx ui plugin install --path ui/dist
+sqlx ui plugin use default
 ```
 
 Keep the checkout at that location, or copy the CLI and both native workers into a dedicated directory and update PATH and `SQLX_WORKER_DIR` accordingly. Add these settings to future sessions when needed. This source-build setup makes MySQL and PostgreSQL usable without a published worker manifest.
@@ -263,6 +283,9 @@ cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 mvn -B -f java/jdbc/pom.xml verify
 python3 tests/distribution.py
+python3 tests/ui_lifecycle.py
+python3 tests/ui_distribution.py
+python3 tests/ui_plugins.py
 docker compose -f tests/compose.yaml up -d --wait
 python3 tests/integration.py
 python3 tests/ui_api.py

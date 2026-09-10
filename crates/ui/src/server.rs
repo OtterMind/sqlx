@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use sqlx_core::{
     execution,
+    plugins::{self, Plugin},
     storage::{Datasource, Store},
     ui::{SetupRequest, UiState, ViewRequest},
 };
@@ -38,6 +39,7 @@ type Local = Arc<App>;
 
 pub struct App {
     pub state: UiState,
+    plugin_cache: Mutex<HashMap<String, Arc<Plugin>>>,
     pub root: PathBuf,
     manifest: String,
     workers: Option<PathBuf>,
@@ -151,7 +153,14 @@ impl App {
                 }
             }
         }
+        let plugin = Arc::new(plugins::active(&root)?);
+        let mut plugin_cache = HashMap::new();
+        plugin_cache.insert(
+            format!("{}/{}", plugin.manifest.id, plugin.manifest.version),
+            plugin.clone(),
+        );
         Ok(Self {
+            plugin_cache: Mutex::new(plugin_cache),
             state,
             root,
             manifest,
@@ -289,7 +298,7 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
     let mut response = next.run(request).await;
     let h = response.headers_mut();
     h.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
-    h.insert(header::CONTENT_SECURITY_POLICY,"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'".parse().unwrap());
+    h.insert(header::CONTENT_SECURITY_POLICY,"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'self'; frame-ancestors 'none'; form-action 'self'".parse().unwrap());
     h.insert("referrer-policy", "no-referrer".parse().unwrap());
     h.insert("x-content-type-options", "nosniff".parse().unwrap());
     response
@@ -300,8 +309,8 @@ pub fn router(app: Local) -> Router {
         .route("/", get(index))
         .route("/setup/{id}", get(index))
         .route("/result/{id}", get(index))
-        .route("/app.js", get(script))
-        .route("/app.css", get(styles))
+        .route("/_ui/{plugin}/{version}/{*asset}", get(plugin_asset))
+        .route("/api/plugin", get(active_plugin))
         .route("/api/health", get(health))
         .route("/api/tickets", post(ticket))
         .route("/api/session", post(session))
@@ -319,20 +328,56 @@ pub fn router(app: Local) -> Router {
         .layer(middleware::from_fn_with_state(app.clone(), protect))
         .with_state(app)
 }
-async fn index() -> Html<&'static str> {
-    Html(include_str!("../../../ui/index.html"))
+async fn index(State(app): State<Local>) -> std::result::Result<Html<String>, ApiError> {
+    Ok(Html(current_plugin(&app)?.html().map_err(internal)?))
 }
-async fn script() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
-        include_str!("../../../ui/dist/app.js"),
-    )
+async fn plugin_asset(
+    State(app): State<Local>,
+    Path((id, version, asset)): Path<(String, String, String)>,
+) -> std::result::Result<Response, ApiError> {
+    let plugin = cached_plugin(&app, &id, &version)?;
+    let bytes = plugin.read(&asset).map_err(|_| missing())?;
+    let mime = match std::path::Path::new(&asset)
+        .extension()
+        .and_then(|s| s.to_str())
+    {
+        Some("js" | "mjs") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("html") => "text/html; charset=utf-8",
+        Some("json" | "map") => "application/json",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("ico") => "image/x-icon",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        _ => "text/plain; charset=utf-8",
+    };
+    Ok(([(header::CONTENT_TYPE, mime)], bytes).into_response())
 }
-async fn styles() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
-        include_str!("../../../ui/style.css"),
-    )
+fn cached_plugin(app: &App, id: &str, version: &str) -> std::result::Result<Arc<Plugin>, ApiError> {
+    let key = format!("{id}/{version}");
+    let mut cache = app.plugin_cache.lock().unwrap();
+    if let Some(plugin) = cache.get(&key) {
+        return Ok(plugin.clone());
+    }
+    let plugin = Arc::new(plugins::load(&app.root, id, version).map_err(|_| missing())?);
+    cache.insert(key, plugin.clone());
+    Ok(plugin)
+}
+fn current_plugin(app: &App) -> std::result::Result<Arc<Plugin>, ApiError> {
+    let selection = plugins::selected(&app.root)
+        .map_err(internal)?
+        .ok_or_else(missing)?;
+    cached_plugin(app, &selection.id, &selection.version)
+}
+async fn active_plugin(State(app): State<Local>) -> std::result::Result<Json<Value>, ApiError> {
+    Ok(Json(
+        serde_json::to_value(&current_plugin(&app)?.manifest).unwrap(),
+    ))
 }
 async fn health(State(app): State<Local>) -> Json<Value> {
     Json(json!({"protocol":app.state.protocol,"instance":app.state.instance}))
@@ -840,6 +885,9 @@ mod tests {
             token: token(),
             pid: 1,
         };
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/dist");
+        let plugin = plugins::install(dir.path(), &source).unwrap();
+        plugins::activate(dir.path(), &plugin.id, Some(&plugin.version)).unwrap();
         let app = Arc::new(
             App::new(
                 state,
