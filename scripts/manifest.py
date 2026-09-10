@@ -2,13 +2,13 @@
 import argparse,hashlib,json
 from pathlib import Path
 def main():
-    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.1.0');a=p.parse_args();components={}
+    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.2.0');a=p.parse_args();components={}
     for path in sorted(a.directory.glob('metadata-*.json')):
         fragment=json.loads(path.read_text())
         if set(components)&set(fragment):raise ValueError('duplicate manifest components')
         components.update(fragment)
     platforms=['macos-arm64','macos-x64','windows-x64','linux-arm64','linux-x64']
-    required={f'{kind}:{platform}' for kind in ['cli','mysql','postgres','java'] for platform in platforms}|{f'{kind}:any' for kind in ['jdbc','oracle','sqlserver','skill']}
+    required={f'{kind}:{platform}' for kind in ['cli','mysql','postgres','ui','java'] for platform in platforms}|{f'{kind}:any' for kind in ['jdbc','oracle','sqlserver','skill']}
     if set(components)!=required:raise ValueError(f'incomplete platform manifest: {sorted(required-set(components))}')
     (a.directory/'manifest.json').write_text(json.dumps(dict(schema_version=1,components=components),indent=2)+'\n')
     (a.directory/'release-version.txt').write_text(a.version+'\n')

@@ -1,0 +1,12 @@
+{
+  "name": "sqlx-local-ui",
+  "private": true,
+  "version": "0.2.0",
+  "scripts": {
+    "build": "tsc --noEmit && node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  }
+}

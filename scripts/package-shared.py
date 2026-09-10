@@ -11,13 +11,13 @@ def get(url):
             if attempt==2:raise
             time.sleep(attempt+1)
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.0');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+    p=argparse.ArgumentParser();p.add_argument('--version',default='0.2.0');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
     records={};base=f'https://github.com/OtterMind/sqlx/releases/download/v{a.version}/'
     def add(name,entries,entrypoint):
         path=a.output/f'{name}-{a.version}.zip'
         with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED) as z:
             for filename,body in entries.items():z.writestr(filename,body)
-        records[f'{name}:any']=dict(version=a.version,url=base+path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest(),archive='zip',entrypoint=entrypoint,cli_compat='>=0.1.0, <0.2.0',protocol_version=1)
+        records[f'{name}:any']=dict(version=a.version,url=base+path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest(),archive='zip',entrypoint=entrypoint,cli_compat='>=0.2.0, <0.3.0',protocol_version=1)
     add('jdbc',{'sqlx-jdbc.jar':(ROOT/f'java/jdbc/target/sqlx-jdbc-{a.version}.jar').read_bytes(),'LICENSE':(ROOT/'LICENSE').read_bytes(),'NOTICE':(ROOT/'NOTICE').read_bytes()},'sqlx-jdbc.jar')
     skill=ROOT/'skills/sqlx';add('skill',{str(f.relative_to(skill)).replace('\\','/'):f.read_bytes() for f in skill.rglob('*') if f.is_file()},'SKILL.md')
     vendors={
@@ -33,7 +33,7 @@ def main():
         folder=release+'-jre'
         entry=folder+('/Contents/Home/bin/java' if os_name=='mac' else '/bin/java.exe' if os_name=='windows' else '/bin/java')
         version=item['version']['semver']
-        records[f'java:{platform}']=dict(version=version,url=package['link'],sha256=package['checksum'],archive='zip' if package['name'].endswith('.zip') else 'tar.gz',entrypoint=entry,cli_compat='>=0.1.0, <0.2.0',protocol_version=1)
+        records[f'java:{platform}']=dict(version=version,url=package['link'],sha256=package['checksum'],archive='zip' if package['name'].endswith('.zip') else 'tar.gz',entrypoint=entry,cli_compat='>=0.2.0, <0.3.0',protocol_version=1)
     (a.output/'metadata-shared.json').write_text(json.dumps(records,indent=2)+'\n')
     print('Packaged JDBC, Skill and vendor driver assets; pinned five official JRE downloads')
 if __name__=='__main__':main()

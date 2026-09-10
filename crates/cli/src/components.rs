@@ -93,7 +93,7 @@ impl Components {
         let category = match name {
             "skill" => "skills",
             "java" => "runtimes",
-            "jdbc" => "engines",
+            "jdbc" | "ui" => "engines",
             _ => "drivers",
         };
         let component_name = if name == "skill" { "sqlx" } else { name };
@@ -145,7 +145,7 @@ impl Components {
             bail!("component entrypoint escapes archive");
         }
         #[cfg(unix)]
-        if name == "mysql" || name == "postgres" || name == "java" {
+        if name == "mysql" || name == "postgres" || name == "java" || name == "ui" {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&entry, fs::Permissions::from_mode(0o700))?;
         }

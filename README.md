@@ -100,6 +100,40 @@ After your agent discovers the Skill, you can ask:
 
 The Skill includes [CLI installation instructions](skills/sqlx/references/install-cli.md), so the agent can check its environment and follow the appropriate installation path.
 
+## Local browser pages (0.2.0 development)
+
+These commands are being developed for 0.2.0 and are not included in the published 0.1.0 release. Build this branch from source to try them before 0.2.0 is released.
+
+Let the user enter the password directly in a local page. The CLI pre-fills the known connection settings:
+
+```sh
+sqlx datasource add --ui --name dev --type postgresql --host db.example.com --port 5432 --database app
+```
+
+The command returns immediately with a page URL and `request_id`. The user fills in their credentials and chooses **Save & connect**. SQLX verifies the connection and encrypts the saved configuration. The agent checks completion without receiving the password:
+
+```sh
+sqlx datasource setup-status --request-id <request-id>
+```
+
+To edit an existing connection while keeping its saved password unless explicitly replaced:
+
+```sh
+sqlx datasource update --id dev --ui
+```
+
+To send an already written query to a results page:
+
+```sh
+sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id" --view
+```
+
+SQLX executes once and returns a result URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Refreshing, paging, or reopening the page reads the same cached result rather than executing the SQL again. Results are retained locally for 24 hours, with owner-restricted permissions. The usual CLI execution mode still streams complete JSON to stdout.
+
+`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. A local UI component is downloaded only when needed. Setup links expire after five minutes unless already exchanged for a browser session; unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
+
+Password entry through the page keeps credentials out of the normal agent conversation and tool response. It does not isolate credentials from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
+
 ## First connection and query
 
 Create a PostgreSQL connection. Replace the host and database with your own values; an interactive terminal prompts for the username and password:
@@ -167,13 +201,15 @@ The [database references](skills/sqlx/references/) explain each SQL operation's 
 
 ## Build from source
 
-Source development requires Git, Rust 1.95, and the platform's native build tools. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
+Source development requires Git, Rust 1.95, Node.js 22, and the platform's native build tools. Node.js only builds the bundled UI assets; release users do not need it. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
 
 On macOS or Linux:
 
 ```sh
 git clone https://github.com/OtterMind/sqlx.git
 cd sqlx
+npm --prefix ui ci
+npm --prefix ui run build
 cargo build --workspace --release --locked
 export PATH="$PWD/target/release:$PATH"
 export SQLX_WORKER_DIR="$PWD/target/release"
@@ -186,6 +222,8 @@ On Windows PowerShell:
 ```powershell
 git clone https://github.com/OtterMind/sqlx.git
 Set-Location sqlx
+npm --prefix ui ci
+npm --prefix ui run build
 cargo build --workspace --release --locked
 $env:Path = "$PWD\target\release;$env:Path"
 $env:SQLX_WORKER_DIR = "$PWD\target\release"
@@ -199,7 +237,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.0.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.2.0.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -208,7 +246,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.0.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.2.0.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```
@@ -218,6 +256,8 @@ Java 17 must be on PATH, or `SQLX_JAVA_BIN` can point to its executable. These m
 ## Development and validation
 
 ```sh
+npm --prefix ui ci
+npm --prefix ui run build
 cargo build --workspace --locked
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -225,6 +265,7 @@ mvn -B -f java/jdbc/pom.xml verify
 python3 tests/distribution.py
 docker compose -f tests/compose.yaml up -d --wait
 python3 tests/integration.py
+python3 tests/ui_api.py
 docker compose -f tests/compose.yaml down -v
 ```
 
