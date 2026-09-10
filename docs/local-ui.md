@@ -12,7 +12,7 @@ The CLI launches a separately downloadable `sqlx-ui` process on loopback. UI ass
 
 ## Credentials and local authentication
 
-The server binds an OS-selected port on `127.0.0.1`. A private state file contains its instance ID and CLI control token. The CLI verifies the authenticated instance before reusing it. Browser launch links carry a one-use, five-minute bootstrap token in the fragment. The page removes the fragment and exchanges it for an HttpOnly, SameSite=Strict cookie. Cookies are named per server instance, so unrelated local ports do not share authorization.
+The server binds an OS-selected port on `127.0.0.1`. A private state file contains its instance ID and CLI control token. The CLI verifies the authenticated instance before reusing it. Browser launch links carry a one-use, five-minute bootstrap token in the fragment. The page removes the fragment and exchanges it for an HttpOnly, SameSite=Strict cookie. Cookies are named per server instance so separate SQLX services do not overwrite each other's sessions; requests still require the instance's authenticated API and origin checks.
 
 The server validates Host and Origin, requires a custom header for browser API calls, and separates CLI-only control endpoints from browser endpoints. Pages and scripts are served locally with a restrictive CSP; SQL, errors, and result values are rendered as text. No password is placed in URL parameters, browser storage, request logs, status responses, or persisted setup drafts.
 

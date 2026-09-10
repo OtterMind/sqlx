@@ -150,7 +150,7 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
     element(
       "p",
       "",
-      "Once the connection is saved, your agent can continue using its datasource ID. Your password stays out of the conversation.",
+      "Once saved, your agent can use this connection without asking for your password.",
     ),
     element("hr"),
     element("h3", "", "What happens next"),
@@ -171,7 +171,7 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
       (next.status === "saving"
         ? "Checking the connection… Required drivers may download on the first connection."
         : next.status === "completed"
-          ? `Connected and saved. Your agent can continue. Datasource ID: ${next.datasource_id}`
+          ? "Connected and saved. Return to your agent to continue."
           : next.status === "cancelled"
             ? "Setup cancelled. Nothing was saved."
             : next.status === "expired"
