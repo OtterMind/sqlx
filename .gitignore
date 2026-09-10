@@ -1,0 +1,7 @@
+/target/
+**/target/
+/dist/
+.DS_Store
+.env
+*.log
+/.sqlx/

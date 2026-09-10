@@ -1,0 +1,10 @@
+SQLX
+Copyright 2026 爱獭科技（杭州）有限公司 / OtterMind.
+
+Database connection, result conversion, and JDBC loading code is adapted from
+OtterMind/Chat2DB-Rust, commit e17ee8be373407e193e7e12da0dcd3b5b4b5550b.
+These adaptations replace product-specific storage and session integrations
+with standalone worker processes and complete streamed SQL results.
+The retained LICENSE governs the derived code. Third-party dependencies keep
+their own licenses. SQLX is a public source repository; its license contains
+additional conditions beyond the standard Apache License 2.0.
