@@ -4,13 +4,13 @@ Connect to MySQL, PostgreSQL, Oracle, and SQL Server from your terminal or agent
 
 Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let your agent set up the CLI.
 
-> **Preview status:** the first release packages are being validated and are not published yet. [Build from source](#build-from-source) works now. The prebuilt installers below become available when the first [GitHub Release](https://github.com/OtterMind/sqlx/releases) is published; they report an explicit error until then.
+Download prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), or use the installers below. See [build from source](#build-from-source) for development.
 
 ## Install the CLI
 
 ### macOS and Linux
 
-Once a release is available, run:
+Run:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OtterMind/sqlx/main/scripts/install.sh | sh
@@ -23,7 +23,7 @@ The installer selects your platform, downloads the executable from GitHub Releas
 
 ### Windows x64
 
-Run in PowerShell once a release is available:
+Run in PowerShell:
 
 ```powershell
 $installer = Join-Path $env:TEMP 'sqlx-install.ps1'
@@ -59,7 +59,7 @@ sqlx skill install --path /path/to/agent/skills/sqlx
 sqlx skill status
 ```
 
-The CLI downloads the Skill from GitHub Releases. Reload skills or start a new agent session according to your agent's discovery mechanism. Later, `sqlx skill update` updates managed installations while preserving local edits. This download path requires a published release.
+The CLI downloads the Skill from GitHub Releases. Reload skills or start a new agent session according to your agent's discovery mechanism. Later, `sqlx skill update` updates managed installations while preserving local edits.
 
 ### If you want to install the Skill first
 
@@ -96,7 +96,7 @@ After your agent discovers the Skill, you can ask:
 
 > Use the SQLX skill to install the OtterMind SQLX CLI if needed, then help me add and test a PostgreSQL connection. Ask me for missing connection details.
 
-The Skill includes [CLI installation instructions](skills/sqlx/references/install-cli.md), so the agent can check its environment and follow the appropriate installation path. Before the first binary release, it can use the source-build path below.
+The Skill includes [CLI installation instructions](skills/sqlx/references/install-cli.md), so the agent can check its environment and follow the appropriate installation path.
 
 ## First connection and query
 
@@ -165,7 +165,7 @@ The [database references](skills/sqlx/references/) explain each SQL operation's 
 
 ## Build from source
 
-This is the installation path available before the first binary release. It requires Git, Rust 1.95, and the platform's native build tools. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
+Source development requires Git, Rust 1.95, and the platform's native build tools. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
 
 On macOS or Linux:
 
