@@ -24,6 +24,7 @@ jobs:
       - run: cargo test --workspace --locked
       - run: cargo build --workspace --locked
       - run: python tests/distribution.py
+      - run: python tests/installers.py
   databases:
     runs-on: ubuntu-24.04
     steps:

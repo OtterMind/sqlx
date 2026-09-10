@@ -1,15 +1,114 @@
 # SQLX
 
-A Rust database CLI for agents, with encrypted user-level datasources and independently downloaded database workers.
+Connect to MySQL, PostgreSQL, Oracle, and SQL Server from your terminal or agent. Save encrypted connections, run one or more SQL statements, and receive complete structured results.
 
-| Database | Worker |
-|---|---|
-| MySQL | Native Rust (`mysql_async`) |
-| PostgreSQL | Native Rust (`tokio-postgres`) |
-| Oracle | Official JDBC Thin driver through a Java worker |
-| SQL Server | Official Microsoft JDBC driver through a Java worker |
+Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let your agent set up the CLI.
 
-The initial implementation is available as source. No binary release is published yet. CI validates the five target platforms and runs isolated database integration tests; consult the actual workflow results before treating a target as verified.
+> **Preview status:** the first release packages are being validated and are not published yet. [Build from source](#build-from-source) works now. The prebuilt installers below become available when the first [GitHub Release](https://github.com/OtterMind/sqlx/releases) is published; they report an explicit error until then.
+
+## Install the CLI
+
+### macOS and Linux
+
+Once a release is available, run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/OtterMind/sqlx/main/scripts/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+sqlx --version
+sqlx init
+```
+
+The installer selects your platform, downloads the executable from GitHub Releases, and verifies its SHA-256. It installs to `~/.local/bin`. Add that directory to your shell's persistent PATH for future sessions. Set `SQLX_INSTALL_DIR` to choose another directory or `SQLX_VERSION` to select a release version.
+
+### Windows x64
+
+Run in PowerShell once a release is available:
+
+```powershell
+$installer = Join-Path $env:TEMP 'sqlx-install.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/OtterMind/sqlx/main/scripts/install.ps1' -OutFile $installer
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer
+$env:Path = "$env:LOCALAPPDATA\Programs\SQLX;$env:Path"
+sqlx --version
+sqlx init
+```
+
+Add `%LOCALAPPDATA%\Programs\SQLX` to your user PATH for future sessions. The installer verifies the download before installing. Both installers preserve an unrelated executable already named `sqlx`; use a different install directory in that case.
+
+Prebuilt targets are macOS ARM64/x64, Linux ARM64/x64, and Windows x64. The initial Linux build baseline is Ubuntu 24.04; older distributions have not been verified. Release users do not need to install Rust, Node.js, Java, or database drivers separately. Database workers and a private JRE are downloaded only when needed.
+
+## Install the Skill
+
+### If the CLI is already installed
+
+Choose the agent you use:
+
+```sh
+# Codex
+sqlx skill install --target codex
+
+# Claude Code
+sqlx skill install --target claude
+```
+
+For another agent, provide its complete skill directory:
+
+```sh
+sqlx skill install --path /path/to/agent/skills/sqlx
+sqlx skill status
+```
+
+The CLI downloads the Skill from GitHub Releases. Reload skills or start a new agent session according to your agent's discovery mechanism. Later, `sqlx skill update` updates managed installations while preserving local edits. This download path requires a published release.
+
+### If you want to install the Skill first
+
+The Skill source is available now and does not require the CLI. On macOS or Linux, install it for Codex with:
+
+```sh
+sqlx_checkout="$(mktemp -d)"
+git clone --depth 1 https://github.com/OtterMind/sqlx.git "$sqlx_checkout"
+mkdir -p "$HOME/.agents/skills"
+if [ ! -e "$HOME/.agents/skills/sqlx" ]; then
+  cp -R "$sqlx_checkout/skills/sqlx" "$HOME/.agents/skills/sqlx"
+else
+  echo "Skill directory already exists; existing files were preserved."
+fi
+```
+
+For Claude Code, use `~/.claude/skills/sqlx` as the destination. On Windows, the equivalent PowerShell steps for Codex are:
+
+```powershell
+$checkout = Join-Path $env:TEMP ('sqlx-skill-' + [guid]::NewGuid())
+git clone --depth 1 https://github.com/OtterMind/sqlx.git $checkout
+$skillRoot = Join-Path $env:USERPROFILE '.agents\skills'
+New-Item -ItemType Directory -Force $skillRoot | Out-Null
+if (-not (Test-Path (Join-Path $skillRoot 'sqlx'))) {
+  Copy-Item -Recurse (Join-Path $checkout 'skills\sqlx') $skillRoot
+} else {
+  Write-Output 'Skill directory already exists; existing files were preserved.'
+}
+```
+
+For another agent, copy the entire `skills/sqlx` folder, including `references`, into the agent's supported skill directory. Manual source installations remain manually managed; the CLI will not overwrite them as if it owned them.
+
+After your agent discovers the Skill, you can ask:
+
+> Use the SQLX skill to install the OtterMind SQLX CLI if needed, then help me add and test a PostgreSQL connection. Ask me for missing connection details.
+
+The Skill includes [CLI installation instructions](skills/sqlx/references/install-cli.md), so the agent can check its environment and follow the appropriate installation path. Before the first binary release, it can use the source-build path below.
+
+## First connection and query
+
+Create a PostgreSQL connection. Replace the host and database with your own values; an interactive terminal prompts for the username and password:
+
+```sh
+sqlx datasource add --name dev --type postgresql --host db.example.com --port 5432 --database app
+sqlx datasource test --id dev
+sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELECT 1"
+```
+
+For an agent or script, provide credentials through environment variables or a connection JSON object on stdin, as described below. TLS verifies the database certificate by default; use `--tls disable` only for a connection explicitly intended to be unencrypted.
 
 ## Commands
 
@@ -56,15 +155,63 @@ SQL output is one JSON object containing `protocol_version`, `datasource_id`, an
 
 Rows are streamed without a CLI row limit or silent truncation. The agent's own tool output limits still apply. Check the final success flag and exit status. An incomplete response or unknown write outcome must not trigger automatic replay.
 
-## Installation and resources
+## Local data and downloaded resources
 
-Release targets are macOS ARM64/x64, Windows x64, and Linux ARM64/x64. The main binary has no database-driver dependencies. First connection downloads the required worker; JDBC connections also obtain a compatible private JRE and official driver. Skill content is a separate cross-platform package.
+User data lives in `~/.sqlx/`. Use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key. Back up the key together with the encrypted data; losing the key prevents decryption. Device identity is generated locally, and this version does not upload device information.
 
-Resources are selected from a versioned GitHub Release manifest and verified using SHA-256. Use `--manifest <https-url>` for a selected release or a local test server. Installed components are reused, and their recorded file hashes are checked before execution. `sqlx skill update` refreshes the manifest and updates compatible managed installations without overwriting local edits.
+The main executable contains no database drivers. MySQL and PostgreSQL use separate native Rust workers; Oracle and SQL Server use a separate JDBC worker. Downloaded resources are selected from a compatible GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
 
-User data defaults to `~/.sqlx/`; `--data-dir` or `SQLX_DATA_DIR` selects another directory. Datasources use AES-256-GCM with a separately generated local key and owner-restricted file permissions. Keep the key with encrypted data when backing up. Possession of both allows decryption. Device IDs are derived locally from available hardware/system identifiers, with an installation fallback; keys are never derived from hardware. This version does not upload device information.
+The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result, and official documentation link.
 
-The [English Skill](skills/sqlx/SKILL.md) can also be installed first. It explains how an agent can install the CLI before using it. Each [database reference](skills/sqlx/references/) explains every SQL operation separately and links to its official documentation.
+## Build from source
+
+This is the installation path available before the first binary release. It requires Git, Rust 1.95, and the platform's native build tools. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
+
+On macOS or Linux:
+
+```sh
+git clone https://github.com/OtterMind/sqlx.git
+cd sqlx
+cargo build --workspace --release --locked
+export PATH="$PWD/target/release:$PATH"
+export SQLX_WORKER_DIR="$PWD/target/release"
+sqlx --version
+sqlx init
+```
+
+On Windows PowerShell:
+
+```powershell
+git clone https://github.com/OtterMind/sqlx.git
+Set-Location sqlx
+cargo build --workspace --release --locked
+$env:Path = "$PWD\target\release;$env:Path"
+$env:SQLX_WORKER_DIR = "$PWD\target\release"
+sqlx --version
+sqlx init
+```
+
+Keep the checkout at that location, or copy the CLI and both native workers into a dedicated directory and update PATH and `SQLX_WORKER_DIR` accordingly. Add these settings to future sessions when needed. This source-build setup makes MySQL and PostgreSQL usable without a published worker manifest.
+
+For Oracle and SQL Server, build the JDBC worker and place its driver JARs alongside those workers. On macOS or Linux:
+
+```sh
+mvn -B -f java/jdbc/pom.xml package
+cp java/jdbc/target/sqlx-jdbc-0.1.0.jar target/release/sqlx-jdbc.jar
+curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
+curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
+```
+
+On Windows PowerShell:
+
+```powershell
+mvn -B -f java/jdbc/pom.xml package
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.0.jar target/release/sqlx-jdbc.jar
+Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
+Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
+```
+
+Java 17 must be on PATH, or `SQLX_JAVA_BIN` can point to its executable. These manual dependencies are only needed for source development; a binary release downloads its private Java runtime and drivers automatically.
 
 ## Development and validation
 
