@@ -5,3 +5,5 @@
 .env
 *.log
 /.sqlx/
+__pycache__/
+*.pyc
