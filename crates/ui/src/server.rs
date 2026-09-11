@@ -1141,12 +1141,13 @@ mod tests {
                 .body(Body::empty())
                 .unwrap()
         };
+        let requested_at = now();
         let response = router(app.clone()).oneshot(request()).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let renewed = response.headers()[header::SET_COOKIE].to_str().unwrap();
         assert!(renewed.contains("Max-Age=43200"));
         assert!(renewed.contains("HttpOnly; SameSite=Strict"));
-        assert!(app.sessions.lock().unwrap()[&session] >= now() + SESSION_TTL - 1);
+        assert!(app.sessions.lock().unwrap()[&session] >= requested_at + SESSION_TTL);
         app.sessions
             .lock()
             .unwrap()

@@ -1,6 +1,6 @@
 import { refreshResult } from "../sdk/client";
 import type { ResultMetadata } from "../sdk/types";
-import { button, element, message } from "./components";
+import { button, choiceMenu, element, message, svgIcon } from "./components";
 
 /** The browser owns the interval; the service owns each explicitly started execution. */
 export function refreshControls(
@@ -9,22 +9,32 @@ export function refreshControls(
   poll: () => Promise<void>,
 ) {
   const controls = element("div", "refresh-controls");
-  const refresh = button("Refresh data", "button secondary");
+  const group = element("div", "refresh-button");
+  const refresh = button("", "button secondary refresh-main");
+  const caption = element("span", "", "Refresh");
+  refresh.append(svgIcon("M20 11a8 8 0 1 0-2.3 6 M20 4v7h-7"), caption);
+  refresh.setAttribute("aria-label", "Refresh data");
   refresh.title = "Run all original SQL statements again";
-  const label = element("label", "auto-refresh", "Auto refresh");
-  const interval = element("select");
-  interval.setAttribute("aria-label", "Auto refresh interval");
-  for (const seconds of [0, 5, 10, 30, 60]) {
-    const option = element("option", "", seconds ? `Every ${seconds}s` : "Off");
-    option.value = String(seconds);
-    interval.append(option);
-  }
-  label.append(interval);
+  const interval = choiceMenu(
+    "Auto refresh interval",
+    [0, 5, 10, 30, 60].map((seconds) => [
+      String(seconds),
+      seconds ? `Every ${seconds}s` : "Manual refresh",
+    ]),
+    () => {
+      clear();
+      renderButton();
+      schedule();
+    },
+    signal,
+  );
+  interval.element.classList.add("refresh-options");
+  group.append(refresh, interval.element);
   const updated = element("span", "muted");
   const feedback = element("p", "feedback refresh-feedback");
   feedback.setAttribute("role", "status");
   feedback.hidden = true;
-  controls.append(refresh, label, updated);
+  controls.append(group, updated);
   let latest: ResultMetadata;
   let pending = false;
   let unresolvedRequest: string | undefined;
@@ -41,6 +51,15 @@ export function refreshControls(
       latest?.status === "running" ||
       latest?.refresh?.status === "running"
     );
+  }
+  function renderButton() {
+    refresh.disabled = busy();
+    refresh.setAttribute(
+      "aria-busy",
+      String(pending || latest?.refresh?.status === "running"),
+    );
+    caption.textContent =
+      interval.value === "0" ? "Refresh" : `Refresh · ${interval.value}s`;
   }
   function schedule() {
     if (
@@ -62,6 +81,7 @@ export function refreshControls(
   function stop(error: string) {
     clear();
     interval.value = "0";
+    renderButton();
     feedback.hidden = false;
     feedback.className = "feedback error refresh-feedback";
     feedback.textContent = `${error} Auto refresh is off. The previous result is preserved.`;
@@ -70,11 +90,6 @@ export function refreshControls(
     latest = meta;
     if (meta.refresh?.request_id === unresolvedRequest)
       unresolvedRequest = undefined;
-    refresh.disabled = busy();
-    refresh.textContent =
-      pending || meta.refresh?.status === "running"
-        ? "Refreshing…"
-        : "Refresh data";
     updated.textContent = `Updated ${new Date(meta.created_at * 1000 + meta.duration_ms).toLocaleTimeString()}`;
     if (
       meta.refresh &&
@@ -85,6 +100,7 @@ export function refreshControls(
       if (meta.refresh.status !== "completed")
         stop(meta.refresh.error ?? "Refresh did not finish.");
     }
+    renderButton();
     if (busy()) clear();
     else schedule();
   }
@@ -107,10 +123,6 @@ export function refreshControls(
     }
   }
   refresh.onclick = () => void execute();
-  interval.onchange = () => {
-    clear();
-    schedule();
-  };
   const visibility = () => {
     clear();
     schedule();

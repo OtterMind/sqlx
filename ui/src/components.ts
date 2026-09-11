@@ -13,6 +13,122 @@ export function button(text: string, className = "button"): HTMLButtonElement {
   node.type = "button";
   return node;
 }
+export function svgIcon(path: string): SVGSVGElement {
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  for (const [name, value] of Object.entries({
+    viewBox: "0 0 24 24",
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "1.8",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "aria-hidden": "true",
+  }))
+    icon.setAttribute(name, value);
+  const line = document.createElementNS(icon.namespaceURI, "path");
+  line.setAttribute("d", path);
+  icon.append(line);
+  return icon;
+}
+export function choiceMenu(
+  label: string,
+  choices: [string, string][],
+  onChange: () => void,
+  signal: AbortSignal,
+) {
+  const container = element("div", "choice-menu");
+  const trigger = button("", "choice-menu-trigger");
+  trigger.append(svgIcon("m7 10 5 5 5-5"));
+  trigger.setAttribute("aria-label", label);
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+  const menu = element("div", "choice-menu-options");
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", label);
+  menu.hidden = true;
+  let value = choices[0][0];
+  const items = choices.map(([value, text]) => {
+    const item = button(text, "choice-menu-item");
+    item.setAttribute("role", "menuitemradio");
+    item.tabIndex = -1;
+    item.onclick = () => {
+      setValue(value);
+      close(true);
+      onChange();
+    };
+    menu.append(item);
+    return { value, text, item };
+  });
+  function setValue(next: string) {
+    value = next;
+    for (const entry of items) {
+      entry.item.setAttribute("aria-checked", String(entry.value === value));
+      if (entry.value === value) trigger.title = `${label}: ${entry.text}`;
+    }
+  }
+  function close(focus = false) {
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    if (focus) trigger.focus();
+  }
+  function open() {
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    items.find((entry) => entry.value === value)!.item.focus();
+  }
+  trigger.onclick = () => (menu.hidden ? open() : close());
+  trigger.onkeydown = (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      open();
+    }
+  };
+  menu.onkeydown = (event) => {
+    const index = items.findIndex(
+      (entry) => entry.item === document.activeElement,
+    );
+    const next =
+      event.key === "ArrowDown"
+        ? (index + 1) % items.length
+        : event.key === "ArrowUp"
+          ? (index + items.length - 1) % items.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? items.length - 1
+              : undefined;
+    if (next !== undefined) {
+      event.preventDefault();
+      items[next].item.focus();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      close(true);
+    } else if (event.key === "Tab") close();
+  };
+  const outside = (event: PointerEvent) => {
+    if (event.target instanceof Node && !container.contains(event.target))
+      close();
+  };
+  document.addEventListener("pointerdown", outside);
+  signal.addEventListener(
+    "abort",
+    () => document.removeEventListener("pointerdown", outside),
+    { once: true },
+  );
+  container.append(trigger, menu);
+  setValue(value);
+  return {
+    element: container,
+    get value() {
+      return value;
+    },
+    set value(next: string) {
+      setValue(next);
+    },
+  };
+}
 export function heading(title: string, subtitle?: string): HTMLElement {
   const node = element("section", "page-heading");
   node.append(element("h1", "", title));
