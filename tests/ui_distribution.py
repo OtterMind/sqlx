@@ -18,7 +18,8 @@ def main():
         server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(web)));thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         origin=f'http://127.0.0.1:{server.server_port}'
         asset=dict(version='0.1.1',url=origin+'/ui.zip',sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),archive='zip',entrypoint='sqlx-ui'+suffix,cli_compat='>=0.1.1, <0.2.0',protocol_version=1)
-        plugin_asset=dict(asset,url=origin+'/plugin.zip',sha256=hashlib.sha256(plugin_archive.read_bytes()).hexdigest(),entrypoint='ui-plugin.json')
+        plugin_version=json.loads((ROOT/'ui/dist/ui-plugin.json').read_text())['version']
+        plugin_asset=dict(asset,version=plugin_version,url=origin+'/plugin.zip',sha256=hashlib.sha256(plugin_archive.read_bytes()).hexdigest(),entrypoint='ui-plugin.json')
         (web/'manifest.json').write_text(json.dumps(dict(schema_version=1,components={f'ui:{os_name}-{arch}':asset,'ui-default:any':plugin_asset})))
         env=os.environ.copy();env.pop('SQLX_WORKER_DIR',None);env.update(SQLX_DATA_DIR=str(data),SQLX_MANIFEST=origin+'/manifest.json')
         # An upgrade must not reuse 0.1.0's indefinitely cached manifest, which has no UI.
@@ -34,7 +35,7 @@ def main():
             _,log=call('ui');assert 'Downloading' not in log
             assert call('ui','status')[0]['status']=='running'
             plugins=call('ui','plugin','list')[0]['plugins'];assert len(plugins)==1 and plugins[0]['active']
-            assert (data/'plugins/ui/default/0.1.1/index.html').exists()
+            assert (data/'plugins/ui/default'/plugin_version/'index.html').exists()
             print('UI download: platform package verified, extracted, launched and reused without worker overrides')
         finally:
             call('ui','stop')

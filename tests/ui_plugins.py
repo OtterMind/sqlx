@@ -67,6 +67,8 @@ def main():
             command("ui", "plugin", "install", "--path", str(source))  # Same content is idempotent.
             (source / "app.css").write_text("body {}")
             command("ui", "plugin", "install", "--path", str(source), ok=False)
+            default_version=json.loads((ROOT / "ui/dist/ui-plugin.json").read_text())["version"]
+            default_base=f"/_ui/default/{default_version}"
             command("ui", "plugin", "install", "--path", str(ROOT / "ui/dist"))
             command("ui", "plugin", "use", "default")
             launch = command("ui")["url"]
@@ -87,12 +89,12 @@ def main():
                 return raw
 
             request("/api/session", {"token": token})
-            assert b"/_ui/default/0.1.1/" in request("/")
-            old_script = request("/_ui/default/0.1.1/app.js")
+            assert (default_base+"/").encode() in request("/")
+            old_script = request(default_base+"/app.js")
             command("ui", "plugin", "use", "terminal")
             assert json.loads(request("/api/plugin"))["id"] == "terminal"
             assert b"/_ui/terminal/0.1.1/" in request("/")
-            assert request("/_ui/default/0.1.1/app.js") == old_script
+            assert request(default_base+"/app.js") == old_script
             request("/api/plugins/activate", {"id": "default", "version": "0.1.1"}, expected=404)
             request("/_ui/terminal/0.1.1/.sqlx-ui-receipt.json", expected=404)
             request("/_ui/terminal/0.1.1/%2e%2e/%2e%2e/active.json", expected=404)
@@ -101,7 +103,7 @@ def main():
             asset.write_bytes(b"tampered")
             request("/_ui/terminal/0.1.1/app.js", expected=404)
             asset.write_bytes(previous)
-            command("ui", "plugin", "remove", "default", "--version", "0.1.1", ok=False)
+            command("ui", "plugin", "remove", "default", "--version", default_version, ok=False)
             command("ui", "stop")
             for _ in range(200):
                 if not (data / "ui/state.json").exists():

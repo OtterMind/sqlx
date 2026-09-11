@@ -30,7 +30,7 @@ A setup request lives in server memory for up to 30 minutes. Save first checks t
 
 Worker events go through the same validator as stdout execution. UI mode writes row JSONL plus fixed-width offset indexes to owner-restricted files under `results/<id>/`. Metadata records statement/result boundaries and exact column types. Pages read a bounded row window without repeating SQL or scanning preceding rows. Large cells remain complete and can be opened in a value dialog.
 
-Completed results survive UI service restarts for 24 hours. Unconfirmed active results recover as interrupted; they are never replayed. Refresh, pagination, and reopening a link are read operations. The service exits after 30 idle minutes with no active task. Explicit shutdown cancels active workers and preserves their outcome state.
+Completed results survive UI service restarts for 24 hours. Unconfirmed active results recover as interrupted; they are never replayed. Refresh, pagination, and reopening a link are read operations. The service exits after 30 idle minutes with no active task. The default UI sends an authenticated read every 30 seconds while its page is open, so viewing a completed result is treated as activity. A lost connection shows a retry action; retries only reload page data and never rerun SQL. Explicit shutdown cancels active workers and preserves their outcome state.
 
 ## Validation
 

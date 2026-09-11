@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { pollLater } from "./navigation";
 import {
   button,
   element,
@@ -11,22 +12,28 @@ import {
 
 import type { SetupView as Setup } from "../sdk/types";
 
-export async function setupPage(root: HTMLElement, id: string): Promise<void> {
-  const setup = await api<Setup>(`/setups/${id}`);
+export async function setupPage(
+  root: HTMLElement,
+  id: string,
+  onStatusChange: (status: string) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const setup = await api<Setup>(`/setups/${id}`, undefined, signal);
+  signal.throwIfAborted();
+  root.className = "setup-page";
   root.replaceChildren(
-    heading(
-      "CONNECT A DATASOURCE",
-      setup.editing ? "Update your connection" : "One last step to connect",
-      "Your connection details are ready. Add your credentials below to continue.",
-    ),
+    heading(setup.editing ? "Edit connection" : "Connect datasource"),
   );
-  const layout = element("div", "setup-layout");
   const card = element("section", "card setup-card");
   const form = element("form");
   const intro = element("div", "card-heading");
   const status = element("div");
   status.append(statusBadge(setup.status));
-  intro.append(element("h2", "", "Database credentials"), status);
+  const identity = element("div", "connection-identity");
+  identity.append(element("h2", "", setup.name));
+  const context = element("p", "connection-context");
+  identity.append(context);
+  intro.append(identity, status);
   const fields = element("fieldset");
   const grid = element("div", "field-grid");
   const name = field("Connection name", "name", setup.name);
@@ -60,6 +67,13 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
   username.input.autocomplete = "username";
   const password = field("Password", "password", "", "password");
   password.input.autocomplete = "current-password";
+  signal.addEventListener(
+    "abort",
+    () => {
+      password.input.value = "";
+    },
+    { once: true },
+  );
   const passwordAction = selectField(
     "Password handling",
     "password_action",
@@ -87,21 +101,17 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
     database.wrapper,
     service.wrapper,
     tls.wrapper,
+  );
+  const credentials = element("div", "credentials");
+  credentials.append(
+    username.wrapper,
     passwordAction.wrapper,
+    password.wrapper,
   );
-  const credentials = element("div", "field-grid");
-  credentials.append(username.wrapper, password.wrapper);
   const details = element("details", "connection-details");
-  details.append(
-    element(
-      "summary",
-      "",
-      `${kind.input.selectedOptions[0].text} · ${setup.connection.host}:${setup.connection.port} · ${setup.connection.database || setup.connection.service}`,
-    ),
-    grid,
-  );
-  if (setup.editing) details.open = true;
+  details.append(element("summary", "", "Connection settings"), grid);
   const adjust = () => {
+    context.textContent = `${kind.input.selectedOptions[0].text} · ${host.input.value}:${port.input.value} · ${kind.input.value === "oracle" ? service.input.value : database.input.value}`;
     service.wrapper.hidden = kind.input.value !== "oracle";
     service.input.required = kind.input.value === "oracle";
     database.wrapper.hidden = kind.input.value === "oracle";
@@ -110,11 +120,21 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
   };
   kind.input.onchange = adjust;
   passwordAction.input.onchange = adjust;
+  for (const input of [host.input, port.input, database.input, service.input])
+    input.oninput = adjust;
+  // Reveal invalid advanced fields so native validation can focus them.
+  form.addEventListener(
+    "invalid",
+    () => {
+      details.open = true;
+    },
+    true,
+  );
   adjust();
   const notice = element(
     "p",
     "privacy-note",
-    "Your password is sent directly to the local SQLX service. It is not returned to your agent.",
+    "Your password is saved locally and is not sent to your agent.",
   );
   const feedback = element("div", "feedback");
   feedback.setAttribute("role", "status");
@@ -122,30 +142,14 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
   const save = button("Save & connect");
   save.type = "submit";
   const cancel = button("Cancel", "button secondary");
-  actions.append(save, cancel);
-  fields.append(details, credentials, notice, actions);
+  actions.append(cancel, save);
+  fields.append(credentials, notice, details, actions);
   form.append(fields, feedback);
   card.append(intro, form);
-  const aside = element("aside", "aside");
-  aside.append(
-    element("div", "aside-icon", "↗"),
-    element("h2", "", "Ready for your agent"),
-    element(
-      "p",
-      "",
-      "Once saved, your agent can use this connection without asking for your password.",
-    ),
-    element("hr"),
-    element("h3", "", "What happens next"),
-    element(
-      "p",
-      "",
-      "SQLX checks the connection, encrypts your saved credentials, and marks this setup complete.",
-    ),
-  );
-  layout.append(card, aside);
-  root.append(layout);
+  root.append(card);
   function update(next: Pick<Setup, "status" | "error" | "datasource_id">) {
+    if (signal.aborted) return;
+    onStatusChange(next.status);
     status.replaceChildren(statusBadge(next.status));
     fields.disabled = next.status !== "waiting_for_user";
     feedback.className = next.error ? "feedback error" : "feedback";
@@ -162,17 +166,20 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
               : "");
   }
   async function poll(): Promise<void> {
+    if (signal.aborted) return;
     try {
-      const next = await api<Setup>(`/setups/${id}/status`);
+      const next = await api<Setup>(`/setups/${id}/status`, undefined, signal);
       update(next);
-      if (next.status === "saving") setTimeout(() => void poll(), 800);
+      if (next.status === "saving") pollLater(signal, poll);
     } catch (error) {
+      if (signal.aborted) return;
       feedback.className = "feedback error";
       feedback.textContent = message(error);
     }
   }
   form.onsubmit = async (event) => {
     event.preventDefault();
+    if (signal.aborted) return;
     if (!form.reportValidity()) return;
     const connection = {
       database_type: kind.input.value,
@@ -198,6 +205,7 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
       update(next);
       if (next.status === "saving") void poll();
     } catch (error) {
+      if (signal.aborted) return;
       password.input.value = "";
       fields.disabled = false;
       feedback.className = "feedback error";
@@ -207,10 +215,12 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
     }
   };
   cancel.onclick = async () => {
+    if (signal.aborted) return;
     fields.disabled = true;
     try {
       update(await api<Setup>(`/setups/${id}/cancel`, {}));
     } catch (error) {
+      if (signal.aborted) return;
       fields.disabled = false;
       feedback.className = "feedback error";
       feedback.textContent = message(error);
@@ -222,5 +232,5 @@ export async function setupPage(root: HTMLElement, id: string): Promise<void> {
     (passwordAction.input.value === "replace" && username.input.value
       ? password.input
       : username.input
-    ).focus();
+    ).setAttribute("data-initial-focus", "");
 }

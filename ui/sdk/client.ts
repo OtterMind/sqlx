@@ -9,7 +9,20 @@ import type {
 } from "./types";
 export * from "./types";
 
-export async function api<T>(path: string, body?: unknown): Promise<T> {
+export class ServiceUnavailableError extends Error {
+  constructor() {
+    super(
+      "Cannot reach the local SQLX service. Retry the connection. If it has stopped, run sqlx ui --no-open and open its URL in this tab.",
+    );
+    this.name = "ServiceUnavailableError";
+  }
+}
+
+export async function api<T>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
@@ -19,6 +32,10 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
     credentials: "same-origin",
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
+    signal,
+  }).catch((error: unknown) => {
+    if (signal?.aborted) throw error;
+    throw new ServiceUnavailableError();
   });
   if (!response.ok) {
     const value = await response.json().catch(() => null);

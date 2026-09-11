@@ -1,1 +1,1 @@
-export { api, authenticate } from "../sdk/client";
+export { api, authenticate, ServiceUnavailableError } from "../sdk/client";

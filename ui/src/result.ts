@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { pollLater } from "./navigation";
 import {
   button,
   copy,
@@ -17,8 +18,14 @@ import type {
 
 const running = (status: string) => status === "running" || status === "queued";
 
-export async function resultPage(root: HTMLElement, id: string): Promise<void> {
-  let meta = await api<Metadata>(`/results/${id}`);
+export async function resultPage(
+  root: HTMLElement,
+  id: string,
+  onStatusChange: (status: string) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  let meta = await api<Metadata>(`/results/${id}`, undefined, signal);
+  signal.throwIfAborted();
   let selected = 0;
   let offset = 0;
   let history: number[] = [];
@@ -26,20 +33,19 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
   let pageSerial = 0;
   let pageLimit = 100;
   let lastState = "";
-  root.replaceChildren(
-    heading(
-      "QUERY RESULTS",
-      meta.datasource_name,
-      "Your query runs once. Browse its results here without running it again.",
-    ),
-  );
+  root.className = "results-page";
+  const pageHeading = heading(meta.datasource_name, "Query results");
+  root.replaceChildren(pageHeading);
   const toolbar = element("div", "result-toolbar");
   const status = element("div");
   const cancel = button("Cancel query", "button secondary");
   const elapsed = element("span", "muted");
   toolbar.append(status, elapsed, cancel);
+  pageHeading.append(toolbar);
   const sqlDetails = element("details", "sql-details");
-  sqlDetails.append(element("summary", "", "View SQL"));
+  const sqlSummary = element("summary", "", "SQL");
+  sqlSummary.append(element("span", "sql-readonly", "Read only"));
+  sqlDetails.append(sqlSummary);
   const sql = element(
     "pre",
     "",
@@ -49,12 +55,17 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
   );
   const copySql = button("Copy SQL", "button text-button");
   copySql.onclick = () => void copy(meta.statements.join("\n"), copySql);
-  sqlDetails.append(sql, copySql);
+  sqlDetails.append(copySql, sql);
   const errors = element("div", "result-errors");
   const card = element("section", "card result-card");
   const tabs = element("div", "tabs");
   tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "Result sets");
   const viewport = element("div", "table-viewport");
+  viewport.tabIndex = 0;
+  viewport.id = "result-table";
+  viewport.setAttribute("role", "tabpanel");
+  viewport.setAttribute("aria-label", "Query result table");
   const pagination = element("div", "pagination");
   const count = element("span", "muted");
   const controls = element("div", "page-controls");
@@ -71,7 +82,7 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
   controls.append(size, previous, next);
   pagination.append(count, controls);
   card.append(tabs, viewport, pagination);
-  root.append(toolbar, sqlDetails, errors, card);
+  root.append(sqlDetails, errors, card);
   function messages() {
     errors.replaceChildren();
     for (const event of meta.events) {
@@ -102,12 +113,34 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
       );
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", String(i === selected));
-      tab.onclick = () => {
-        selected = i;
+      tab.tabIndex = i === selected ? 0 : -1;
+      tab.id = `result-tab-${i}`;
+      tab.setAttribute("aria-controls", "result-table");
+      const select = (index: number) => {
+        selected = index;
         offset = 0;
         history = [];
         renderTabs();
         void loadPage();
+        (tabs.children[index] as HTMLButtonElement).focus();
+      };
+      tab.onclick = () => select(i);
+      tab.onkeydown = (event) => {
+        const count = meta.tables.length;
+        const index =
+          event.key === "ArrowRight"
+            ? (i + 1) % count
+            : event.key === "ArrowLeft"
+              ? (i + count - 1) % count
+              : event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? count - 1
+                  : undefined;
+        if (index !== undefined) {
+          event.preventDefault();
+          select(index);
+        }
       };
       tabs.append(tab);
     });
@@ -132,9 +165,16 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
     }
     head.append(titles);
     node.append(head);
+    const numberHeading = element("th", "row-number", "#");
+    numberHeading.scope = "col";
+    numberHeading.setAttribute("aria-label", "Row number");
+    titles.prepend(numberHeading);
     const body = element("tbody");
-    for (const row of rows) {
+    for (const [index, row] of rows.entries()) {
       const tr = element("tr");
+      const rowNumber = element("th", "row-number", String(offset + index + 1));
+      rowNumber.scope = "row";
+      tr.append(rowNumber);
       for (const value of row) {
         const td = element("td");
         if (value === null) td.append(element("span", "null-value", "NULL"));
@@ -160,8 +200,11 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
     return node;
   }
   async function loadPage() {
+    if (signal.aborted) return;
     const serial = ++pageSerial;
     const table = meta.tables[selected];
+    if (table)
+      viewport.setAttribute("aria-labelledby", `result-tab-${selected}`);
     previous.disabled = !history.length;
     next.disabled = true;
     if (!table) {
@@ -193,8 +236,10 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
     try {
       const page = await api<Page>(
         `/results/${id}/rows?statement=${table.statement}&result=${table.result}&offset=${offset}&limit=${pageLimit}`,
+        undefined,
+        signal,
       );
-      if (serial !== pageSerial) return;
+      if (signal.aborted || serial !== pageSerial) return;
       viewport.replaceChildren(
         page.rows.length
           ? tableNode(table, page.rows)
@@ -209,7 +254,7 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
       previous.disabled = !history.length;
       count.textContent = `${page.rows.length ? offset + 1 : 0}–${nextOffset} of ${page.total_rows.toLocaleString()} rows${page.complete ? "" : " · loading"}`;
     } catch (error) {
-      if (serial === pageSerial)
+      if (!signal.aborted && serial === pageSerial)
         viewport.replaceChildren(
           element("p", "feedback error", message(error)),
         );
@@ -231,21 +276,26 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
     void loadPage();
   };
   cancel.onclick = async () => {
+    if (signal.aborted) return;
     cancel.disabled = true;
     try {
       await api(`/results/${id}/cancel`, {});
       cancel.textContent = "Cancelling…";
     } catch (error) {
+      if (signal.aborted) return;
       errors.append(element("p", "feedback error", message(error)));
     }
   };
   async function refresh() {
+    if (signal.aborted) return;
     try {
-      meta = await api<Metadata>(`/results/${id}`);
+      meta = await api<Metadata>(`/results/${id}`, undefined, signal);
+      signal.throwIfAborted();
       status.replaceChildren(statusBadge(meta.status));
-      elapsed.textContent = meta.duration_ms
-        ? `${(meta.duration_ms / 1000).toFixed(2)}s`
-        : "Preparing your query";
+      onStatusChange(meta.status);
+      elapsed.textContent = running(meta.status)
+        ? "Executing…"
+        : `${(meta.duration_ms / 1000).toFixed(2)}s`;
       cancel.hidden = !running(meta.status);
       const state = JSON.stringify([meta.status, meta.tables]);
       if (state !== lastState) {
@@ -254,8 +304,9 @@ export async function resultPage(root: HTMLElement, id: string): Promise<void> {
         messages();
         await loadPage();
       }
-      if (running(meta.status)) setTimeout(() => void refresh(), 800);
+      if (running(meta.status)) pollLater(signal, refresh);
     } catch (error) {
+      if (signal.aborted) return;
       errors.replaceChildren(element("p", "feedback error", message(error)));
     }
   }

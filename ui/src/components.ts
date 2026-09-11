@@ -13,17 +13,10 @@ export function button(text: string, className = "button"): HTMLButtonElement {
   node.type = "button";
   return node;
 }
-export function heading(
-  eyebrow: string,
-  title: string,
-  subtitle: string,
-): HTMLElement {
+export function heading(title: string, subtitle?: string): HTMLElement {
   const node = element("section", "page-heading");
-  node.append(
-    element("p", "eyebrow", eyebrow),
-    element("h1", "", title),
-    element("p", "subtitle", subtitle),
-  );
+  node.append(element("h1", "", title));
+  if (subtitle) node.append(element("p", "subtitle", subtitle));
   return node;
 }
 export function message(error: unknown): string {

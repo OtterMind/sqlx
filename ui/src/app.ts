@@ -1,68 +1,155 @@
-import { api, authenticate } from "./api";
-import { element, heading, message, statusBadge } from "./components";
+import { api, authenticate, ServiceUnavailableError } from "./api";
+import { button, element, heading, message, statusBadge } from "./components";
 import { setupPage } from "./setup";
 import { resultPage } from "./result";
+import { initializeTheme } from "./theme";
+import { startNavigation } from "./navigation";
+import { keepConnectionAlive } from "./connection";
 
-interface Entry {
-  id: string;
-  name: string;
-  status: string;
-  created_at?: number;
-}
-async function home(root: HTMLElement) {
-  const data = await api<{ setups: Entry[]; results: Entry[] }>("/home");
-  root.replaceChildren(
-    heading(
-      "LOCAL WORKSPACE",
-      "Your database, in view.",
-      "Complete a connection request or return to a recent query result.",
-    ),
+import type { Workspace, WorkspaceEntry } from "../sdk/types";
+
+function entryList(
+  title: string,
+  entries: WorkspaceEntry[],
+  kind: "setup" | "result",
+  compact = false,
+) {
+  const section = element(
+    "section",
+    compact ? "sidebar-section" : "card home-section",
   );
-  for (const [title, entries, kind] of [
-    ["Connection requests", data.setups, "setup"],
-    ["Query results", data.results, "result"],
-  ] as const) {
-    const section = element("section", "card home-section");
-    section.append(element("h2", "", title));
-    if (!entries.length)
-      section.append(
+  const header = element("div", "section-heading");
+  header.append(
+    element("h2", "", title),
+    element("span", "entry-count", String(entries.length)),
+  );
+  section.append(header);
+  if (!entries.length)
+    section.append(
+      element(
+        "p",
+        "muted",
+        kind === "setup" ? "No connection requests" : "No query results yet",
+      ),
+    );
+  for (const entry of [...entries].sort(
+    (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0),
+  )) {
+    const link = element("a", compact ? "sidebar-entry" : "home-entry");
+    link.href = `/${kind}/${entry.id}`;
+    if (location.pathname === link.pathname)
+      link.setAttribute("aria-current", "page");
+    const name = element("span", "entry-name", entry.name);
+    name.title = entry.name;
+    const context = element("span", "entry-context");
+    context.append(statusBadge(entry.status));
+    if (entry.created_at)
+      context.append(
         element(
-          "p",
-          "muted",
-          kind === "setup"
-            ? "Ask your agent to create a connection with --ui."
-            : "Run a query with --view to see its results here.",
+          "time",
+          "entry-time",
+          new Date(entry.created_at * 1000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         ),
       );
-    for (const entry of [...entries].sort(
-      (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0),
-    )) {
-      const link = element("a", "home-entry");
-      link.href = `/${kind}/${entry.id}`;
-      link.append(element("span", "", entry.name), statusBadge(entry.status));
-      section.append(link);
-    }
-    root.append(section);
+    link.append(name, context);
+    section.append(link);
   }
+  return section;
 }
+function renderSidebar(data: Workspace) {
+  const sidebar = document.getElementById("sidebar")!;
+  const overview = element("a", "workspace-overview", "Workspace");
+  overview.href = "/";
+  if (location.pathname === "/") overview.setAttribute("aria-current", "page");
+  sidebar.replaceChildren(
+    overview,
+    entryList("Connection requests", data.setups, "setup", true),
+    entryList("Query history", data.results, "result", true),
+  );
+}
+function homePage(root: HTMLElement, data: Workspace) {
+  root.className = "workspace-page";
+  root.replaceChildren(
+    heading(
+      "Workspace",
+      "Select a connection request or query result to get started.",
+    ),
+    entryList("Connection requests", data.setups, "setup"),
+    entryList("Recent results", data.results, "result"),
+  );
+}
+
 async function start() {
+  initializeTheme();
   const root = document.getElementById("app")!;
-  try {
-    await authenticate();
-    const route = location.pathname.split("/").filter(Boolean);
-    if (route[0] === "setup" && route[1]) await setupPage(root, route[1]);
-    else if (route[0] === "result" && route[1])
-      await resultPage(root, route[1]);
-    else await home(root);
-  } catch (error) {
-    root.replaceChildren(
+  let retryPage = () => location.reload();
+  const unavailable = (target: HTMLElement, error: unknown) => {
+    const retry = button("Retry", "button secondary");
+    retry.onclick = () => retryPage();
+    target.className = "workspace-page";
+    target.replaceChildren(
       heading(
-        "SQLX",
-        "This page is unavailable",
-        "Open a new page from your terminal or agent.",
+        error instanceof ServiceUnavailableError
+          ? "Connection unavailable"
+          : "This page is unavailable",
+        "Your saved connections and completed results are preserved.",
       ),
       element("p", "feedback error", message(error)),
+      retry,
     );
+  };
+  try {
+    await authenticate();
+  } catch (error) {
+    unavailable(root, error);
+    return;
   }
+  retryPage = startNavigation(async (url, signal) => {
+    root.inert = true;
+    root.setAttribute("aria-busy", "true");
+    for (const dialog of document.querySelectorAll<HTMLDialogElement>(
+      ".value-dialog",
+    ))
+      dialog.close();
+    // Prepare the new pane offscreen, keeping the current view visible until ready.
+    const pane = element("div");
+    try {
+      const data = await api<Workspace>("/home", undefined, signal);
+      signal.throwIfAborted();
+      renderSidebar(data);
+      const route = url.pathname.split("/").filter(Boolean);
+      const updateStatus = (entries: WorkspaceEntry[]) => (status: string) => {
+        if (signal.aborted) return;
+        const entry = entries.find((entry) => entry.id === route[1]);
+        if (entry && entry.status !== status) {
+          entry.status = status;
+          renderSidebar(data);
+        }
+      };
+      if (route[0] === "setup" && route[1])
+        await setupPage(pane, route[1], updateStatus(data.setups), signal);
+      else if (route[0] === "result" && route[1])
+        await resultPage(pane, route[1], updateStatus(data.results), signal);
+      else if (url.pathname === "/") homePage(pane, data);
+      else throw new Error("This page does not exist.");
+      signal.throwIfAborted();
+      root.className = pane.className;
+      root.replaceChildren(...pane.childNodes);
+      root.scrollTop = 0;
+    } catch (error) {
+      if (!signal.aborted) unavailable(root, error);
+    } finally {
+      if (!signal.aborted) {
+        root.inert = false;
+        root.removeAttribute("aria-busy");
+        const focus = root.querySelector<HTMLElement>("[data-initial-focus]");
+        if (focus) focus.focus();
+      }
+    }
+  });
+  keepConnectionAlive(() => retryPage());
 }
 void start();

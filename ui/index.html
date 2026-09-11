@@ -10,17 +10,65 @@
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/" aria-label="SQLX home"
-        ><span class="mark">S</span>SQLX<span class="brand-sub"
-          >Local workspace</span
-        ></a
-      ><span class="local-badge"><span></span>On this computer</span>
+      <a class="brand" href="/" aria-label="SQLX home">
+        <svg
+          class="mark"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          aria-hidden="true"
+        >
+          <ellipse cx="12" cy="5" rx="8" ry="3" />
+          <path
+            d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"
+          />
+        </svg>
+        SQLX
+      </a>
+      <a class="workspace-link" href="/">Workspace</a>
+      <button
+        id="theme-toggle"
+        class="theme-toggle"
+        type="button"
+        aria-label="Switch color theme"
+      >
+        <svg
+          class="theme-sun"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="4" />
+          <path
+            d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+          />
+        </svg>
+        <svg
+          class="theme-moon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20.5 13.4A8.5 8.5 0 0 1 10.6 3.5a8.5 8.5 0 1 0 9.9 9.9Z" />
+        </svg>
+      </button>
     </header>
-    <main id="app" aria-live="polite">
-      <p class="loading">Opening your workspace…</p>
-    </main>
-    <footer>
-      SQLX connects directly to your databases. This page is served locally.
-    </footer>
+    <div class="workbench">
+      <aside
+        id="sidebar"
+        class="workspace-sidebar"
+        aria-label="Workspace navigation"
+      ></aside>
+      <main id="app" aria-live="polite">
+        <p class="loading">Opening your workspace…</p>
+      </main>
+    </div>
   </body>
 </html>
