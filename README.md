@@ -6,7 +6,7 @@ Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let y
 
 Download prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), or use the installers below. See [build from source](#build-from-source) for development.
 
-The [v0.1.1 release acceptance report](docs/release-acceptance-v0.1.1.md) records public-download installation, upgrade from 0.1.0, browser and plugin workflows, and tests against four local databases, including the scope and limits of validation.
+The [v0.1.2 release acceptance report](docs/release-acceptance-v0.1.2.md) records public-download installation, upgrade from 0.1.1, executable replacement/recovery, browser workflows, and the scope and limits of validation. The [v0.1.1 report](docs/release-acceptance-v0.1.1.md) includes the earlier four-database and UI-plugin acceptance.
 
 ## Install the CLI
 
