@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   rust:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -19,12 +20,22 @@ jobs:
           toolchain: 1.95.0
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo build --workspace --locked
       - run: python tests/distribution.py
       - run: python tests/installers.py
+      - run: python tests/ui_lifecycle.py
+      - run: python tests/ui_distribution.py
+      - run: python tests/ui_plugins.py
   databases:
     runs-on: ubuntu-24.04
     steps:
@@ -33,9 +44,17 @@ jobs:
         with:
           toolchain: 1.95.0
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
       - run: cargo build --workspace --locked
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 180
       - run: python3 tests/integration.py
+      - run: python3 tests/ui_api.py
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
   jdbc:
@@ -62,6 +81,13 @@ jobs:
         with:
           toolchain: 1.95.0
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
       - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
         with:
           distribution: temurin

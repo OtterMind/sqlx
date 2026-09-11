@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "terminal",
+  "name": "SQLX Terminal",
+  "version": "0.1.1",
+  "api_version": 1,
+  "cli_compat": ">=0.1.1, <0.2.0",
+  "entrypoint": "index.html",
+  "capabilities": ["workspace", "datasource-setup", "query-results"],
+  "description": "A compact terminal-style interface built with the public SQLX browser SDK."
+}

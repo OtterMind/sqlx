@@ -1,7 +1,5 @@
-mod components;
-mod execution;
 mod skill;
-mod storage;
+use sqlx_core::{components, execution, plugins, storage, ui};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -28,6 +26,9 @@ struct Cli {
     /// Use locally built workers for development instead of release downloads.
     #[arg(long, global = true, env = "SQLX_WORKER_DIR", hide = true)]
     worker_dir: Option<PathBuf>,
+    /// Return the local page URL without opening a browser.
+    #[arg(long, global = true)]
+    no_open: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -46,12 +47,57 @@ enum Commands {
         #[command(subcommand)]
         command: SkillCommand,
     },
+    /// Open or manage the local browser companion.
+    Ui {
+        #[command(subcommand)]
+        command: Option<UiCommand>,
+    },
+}
+#[derive(Subcommand)]
+enum UiCommand {
+    Status,
+    Stop,
+    /// Install and select community UI plugins.
+    Plugin {
+        #[command(subcommand)]
+        command: UiPluginCommand,
+    },
+}
+#[derive(Subcommand)]
+enum UiPluginCommand {
+    List,
+    Install {
+        #[arg(long, conflicts_with = "url", required_unless_present = "url")]
+        path: Option<PathBuf>,
+        #[arg(
+            long,
+            conflicts_with = "path",
+            requires = "sha256",
+            required_unless_present = "path"
+        )]
+        url: Option<String>,
+        #[arg(long, requires = "url")]
+        sha256: Option<String>,
+    },
+    Use {
+        id: String,
+        #[arg(long)]
+        version: Option<String>,
+    },
+    Remove {
+        id: String,
+        #[arg(long)]
+        version: String,
+    },
 }
 #[derive(Subcommand)]
 enum DatasourceCommand {
     Add {
         #[arg(long)]
         name: String,
+        /// Let the user enter credentials in a local browser form.
+        #[arg(long)]
+        ui: bool,
         #[command(flatten)]
         connection: ConnectionArgs,
     },
@@ -65,6 +111,8 @@ enum DatasourceCommand {
         id: String,
         #[arg(long)]
         name: Option<String>,
+        #[arg(long)]
+        ui: bool,
         #[command(flatten)]
         connection: ConnectionArgs,
     },
@@ -75,6 +123,11 @@ enum DatasourceCommand {
     Test {
         #[arg(long)]
         id: String,
+    },
+    /// Check a browser setup request without retrieving credentials.
+    SetupStatus {
+        #[arg(long)]
+        request_id: String,
     },
 }
 #[derive(Args, Default)]
@@ -110,6 +163,9 @@ enum SqlCommand {
         datasource: String,
         #[arg(long = "sql", required = true, allow_hyphen_values = true)]
         statements: Vec<String>,
+        /// Execute once in the local UI service and open a paginated result page.
+        #[arg(long)]
+        view: bool,
     },
 }
 #[derive(Subcommand)]
@@ -149,9 +205,38 @@ fn run(cli: Cli) -> Result<bool> {
             print(json!({"initialized":true,"identity":store.identity}));
         }
         Commands::Datasource { command } => match command {
-            DatasourceCommand::Add { name, connection } => {
+            DatasourceCommand::Add {
+                name,
+                connection,
+                ui: use_ui,
+            } => {
                 validate_name(&name)?;
-                let connection = connection.resolve(None)?;
+                if use_ui {
+                    let connection = connection.draft(None)?;
+                    let client = ui::UiClient::start(root, cli.manifest, cli.worker_dir)?;
+                    let mut result = client.post(
+                        "/api/setups",
+                        &ui::SetupRequest {
+                            name,
+                            source_id: None,
+                            connection,
+                        },
+                    )?;
+                    result["url"] = client
+                        .page(
+                            &format!(
+                                "/setup/{}",
+                                result["request_id"]
+                                    .as_str()
+                                    .context("missing request id")?
+                            ),
+                            !cli.no_open,
+                        )?
+                        .into();
+                    print(result);
+                    return Ok(true);
+                }
+                let connection = connection.resolve(None, true)?;
                 connection.validate()?;
                 let store = Store::open(root)?;
                 let mut sources = store.load()?;
@@ -182,7 +267,39 @@ fn run(cli: Cli) -> Result<bool> {
                 id,
                 name,
                 connection,
+                ui: use_ui,
             } => {
+                if use_ui {
+                    let existing = {
+                        let store = Store::open(root.clone())?;
+                        store.find(&id)?
+                    };
+                    let name = name.unwrap_or(existing.name);
+                    validate_name(&name)?;
+                    let connection = connection.draft(Some(existing.connection))?;
+                    let client = ui::UiClient::start(root, cli.manifest, cli.worker_dir)?;
+                    let mut result = client.post(
+                        "/api/setups",
+                        &ui::SetupRequest {
+                            name,
+                            source_id: Some(existing.id),
+                            connection,
+                        },
+                    )?;
+                    result["url"] = client
+                        .page(
+                            &format!(
+                                "/setup/{}",
+                                result["request_id"]
+                                    .as_str()
+                                    .context("missing request id")?
+                            ),
+                            !cli.no_open,
+                        )?
+                        .into();
+                    print(result);
+                    return Ok(true);
+                }
                 let store = Store::open(root)?;
                 let mut sources = store.load()?;
                 let index = sources
@@ -200,7 +317,7 @@ fn run(cli: Cli) -> Result<bool> {
                     }
                     sources[index].name = name;
                 }
-                let c = connection.resolve(Some(sources[index].connection.clone()))?;
+                let c = connection.resolve(Some(sources[index].connection.clone()), true)?;
                 c.validate()?;
                 sources[index].connection = c;
                 store.save(&sources)?;
@@ -228,12 +345,19 @@ fn run(cli: Cli) -> Result<bool> {
                     vec![],
                 );
             }
+            DatasourceCommand::SetupStatus { request_id } => {
+                uuid::Uuid::parse_str(&request_id).context("invalid setup request ID")?;
+                let client = ui::UiClient::existing(&root)?
+                    .context("local UI is not running; the setup request has expired")?;
+                print(client.get(&format!("/api/setups/{request_id}/status"))?);
+            }
         },
         Commands::Sql {
             command:
                 SqlCommand::Execute {
                     datasource,
                     statements,
+                    view,
                 },
         } => {
             if statements.iter().any(|s| s.trim().is_empty()) {
@@ -243,6 +367,28 @@ fn run(cli: Cli) -> Result<bool> {
                 let store = Store::open(root.clone())?;
                 store.find(&datasource)?
             };
+            if view {
+                let client = ui::UiClient::start(root, cli.manifest, cli.worker_dir)?;
+                let mut result = client.post(
+                    "/api/results",
+                    &ui::ViewRequest {
+                        request_id: uuid::Uuid::new_v4().to_string(),
+                        datasource: source.id,
+                        statements,
+                    },
+                )?;
+                result["url"] = client
+                    .page(
+                        &format!(
+                            "/result/{}",
+                            result["result_id"].as_str().context("missing result id")?
+                        ),
+                        !cli.no_open,
+                    )?
+                    .into();
+                print(result);
+                return Ok(true);
+            }
             return execution::run(
                 root,
                 cli.manifest,
@@ -266,6 +412,65 @@ fn run(cli: Cli) -> Result<bool> {
             };
             print(value);
         }
+        Commands::Ui { command } => match command {
+            Some(UiCommand::Plugin { command }) => {
+                {
+                    Store::open(root.clone())?;
+                }
+                match command {
+                    UiPluginCommand::List => print(json!({"plugins":plugins::list(&root)?})),
+                    UiPluginCommand::Install { path, url, sha256 } => {
+                        let manifest = if let Some(path) = path {
+                            plugins::install(&root, &path)?
+                        } else {
+                            plugins::install_url(
+                                &root,
+                                &url.context("plugin URL is required")?,
+                                &sha256.context("plugin SHA-256 is required")?,
+                            )?
+                        };
+                        print(
+                            json!({"installed":manifest,"next":"Select it with sqlx ui plugin use <id>"}),
+                        );
+                    }
+                    UiPluginCommand::Use { id, version } => {
+                        let selected = plugins::activate(&root, &id, version.as_deref())?;
+                        print(json!({"active":selected,"reload_pages":true}));
+                    }
+                    UiPluginCommand::Remove { id, version } => {
+                        let ui_dir = root.join("ui");
+                        std::fs::create_dir_all(&ui_dir)?;
+                        let lock = storage::open_private(&ui_dir.join("startup.lock"))?;
+                        fs2::FileExt::lock_exclusive(&lock)?;
+                        if ui::UiClient::existing(&root)?.is_some() {
+                            bail!("stop the UI service before removing a plugin so open pages keep their assets");
+                        }
+                        plugins::remove(&root, &id, &version)?;
+                        print(json!({"removed":id,"version":version}));
+                    }
+                }
+            }
+            None => {
+                let client = ui::UiClient::start(root, cli.manifest, cli.worker_dir)?;
+                print(json!({"url": client.page("/", !cli.no_open)?, "status": "running"}));
+            }
+            Some(UiCommand::Status) => {
+                let state = ui::UiClient::existing(&root)?;
+                print(match state {
+                    Some(c) => {
+                        json!({"status":"running","origin":c.state.origin,"pid":c.state.pid})
+                    }
+                    None => json!({"status":"stopped"}),
+                });
+            }
+            Some(UiCommand::Stop) => {
+                if let Some(client) = ui::UiClient::existing(&root)? {
+                    print(client.post("/api/stop", &json!({}))?);
+                } else {
+                    print(json!({"status":"stopped"}));
+                }
+            }
+        },
     }
     Ok(true)
 }
@@ -279,7 +484,15 @@ fn validate_name(name: &str) -> Result<()> {
     Ok(())
 }
 impl ConnectionArgs {
-    fn resolve(self, existing: Option<Connection>) -> Result<Connection> {
+    fn draft(self, existing: Option<Connection>) -> Result<Connection> {
+        if self.password_env.is_some() || self.connection_stdin {
+            bail!("--ui receives passwords in the browser; omit --password-env and --connection-stdin");
+        }
+        let mut connection = self.resolve(existing, false)?;
+        connection.password.clear();
+        Ok(connection)
+    }
+    fn resolve(self, existing: Option<Connection>, prompt: bool) -> Result<Connection> {
         if self.connection_stdin {
             if self.database_type.is_some()
                 || self.host.is_some()
@@ -347,7 +560,7 @@ impl ConnectionArgs {
         if let Some(name) = self.username_env {
             c.username =
                 std::env::var(&name).context("username environment variable is unavailable")?;
-        } else if is_new {
+        } else if is_new && prompt {
             if !io::stdin().is_terminal() {
                 bail!("use --username-env and --password-env, or --connection-stdin for noninteractive creation");
             }
@@ -356,7 +569,7 @@ impl ConnectionArgs {
         if let Some(name) = self.password_env {
             c.password =
                 std::env::var(&name).context("password environment variable is unavailable")?;
-        } else if is_new {
+        } else if is_new && prompt {
             if !io::stdin().is_terminal() {
                 bail!("use --password-env or --connection-stdin for noninteractive creation");
             }

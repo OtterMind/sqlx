@@ -7,3 +7,9 @@
 /.sqlx/
 __pycache__/
 *.pyc
+
+/ui/node_modules/
+/ui/dist/
+/.playwright-cli/
+
+/examples/*/dist/

@@ -50,8 +50,9 @@ impl Components {
         let dir = self.root.join("manifests");
         fs::create_dir_all(&dir)?;
         let cache = dir.join(format!(
-            "{}.json",
-            hex::encode(Sha256::digest(self.source.as_bytes()))
+            "{}-{}.json",
+            hex::encode(Sha256::digest(self.source.as_bytes())),
+            env!("CARGO_PKG_VERSION")
         ));
         let bytes = if cache.exists() && !refresh {
             fs::read(&cache)?
@@ -92,8 +93,9 @@ impl Components {
         validate_asset(asset)?;
         let category = match name {
             "skill" => "skills",
+            "ui-default" => "plugin-packages",
             "java" => "runtimes",
-            "jdbc" => "engines",
+            "jdbc" | "ui" => "engines",
             _ => "drivers",
         };
         let component_name = if name == "skill" { "sqlx" } else { name };
@@ -145,7 +147,7 @@ impl Components {
             bail!("component entrypoint escapes archive");
         }
         #[cfg(unix)]
-        if name == "mysql" || name == "postgres" || name == "java" {
+        if name == "mysql" || name == "postgres" || name == "java" || name == "ui" {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&entry, fs::Permissions::from_mode(0o700))?;
         }
@@ -160,6 +162,24 @@ impl Components {
         fs::rename(stage.path(), &target)?;
         Ok(target.join(&asset.entrypoint))
     }
+}
+pub fn download_plugin(url: &str, sha256: &str, parent: &Path) -> Result<tempfile::TempDir> {
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+        bail!("a valid SHA-256 is required for a plugin download");
+    }
+    fs::create_dir_all(parent)?;
+    let mut file = tempfile::NamedTempFile::new_in(parent)?;
+    client()?
+        .get(valid_url(url)?)
+        .send()?
+        .error_for_status()?
+        .copy_to(&mut file)?;
+    if hash(file.path())? != sha256.to_ascii_lowercase() {
+        bail!("UI plugin checksum mismatch");
+    }
+    let unpacked = tempfile::tempdir_in(parent)?;
+    unzip(file.path(), unpacked.path())?;
+    Ok(unpacked)
 }
 fn client() -> Result<reqwest::blocking::Client> {
     Ok(reqwest::blocking::Client::builder()
