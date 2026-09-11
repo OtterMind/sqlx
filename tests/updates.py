@@ -27,6 +27,14 @@ PLATFORM = OS + "-" + ARCH
 def main():
     with tempfile.TemporaryDirectory(prefix="sqlx-updates-") as directory:
         root = Path(directory)
+        fixture_cli = root / NAME
+        shutil.copy2(CLI, fixture_cli)
+        if OS == "linux":
+            # Release binaries are stripped. Hashing 80+ MB of debug symbols with
+            # an unoptimized ARM SHA implementation exhausts the test timeout.
+            # Strip only the disposable copy; preserve all replacement assertions.
+            subprocess.run(["strip", "--strip-debug", str(fixture_cli)], check=True)
+        print(f"CLI fixture: {CLI.stat().st_size} -> {fixture_cli.stat().st_size} bytes", flush=True)
         web = root / "web"
         web.mkdir()
         requests = []
@@ -96,7 +104,7 @@ def main():
             case = root / name
             target = case / "installed" / NAME
             target.parent.mkdir(parents=True)
-            shutil.copy2(CLI, target)
+            shutil.copy2(fixture_cli, target)
             env = dict(os.environ, SQLX_UPDATE_DIR=str(case / "update-state"), SQLX_UPDATE_RELEASE_BASE=base,
                        SQLX_DATA_DIR=str(case / "data"), SQLX_NO_UPDATE_CHECK="1", NO_PROXY="127.0.0.1,localhost")
             return case, target, env
@@ -176,11 +184,11 @@ def main():
                     os.close(master)
                     os.close(slave)
 
-            archive = publish(CLI, CURRENT)
+            archive = publish(fixture_cli, CURRENT)
             count = len([path for path in requests if path.endswith(".zip")])
             assert call(target, env, "update", "install")["status"] == "up_to_date"
             assert len([path for path in requests if path.endswith(".zip")]) == count
-            publish(CLI, "0.1.1")
+            publish(fixture_cli, "0.1.1")
             assert call(target, env, "update", "install", "--version", "0.1.1", ok=False)["error"]["code"] == "update.downgrade_not_supported"
             unchanged(target, before)
             # A cached success must not hide a failed fresh check.
