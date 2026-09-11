@@ -102,7 +102,27 @@ def main():
             return case, target, env
 
         def call(target, env, *args, ok=True):
-            result = subprocess.run([str(target), *args], env=env, capture_output=True, text=True, timeout=35)
+            started = time.monotonic()
+            with subprocess.Popen([str(target), *args], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+                while True:
+                    try:
+                        out, err = process.communicate(timeout=5)
+                        break
+                    except subprocess.TimeoutExpired:
+                        elapsed = time.monotonic() - started
+                        records = [json.loads(p.read_text()) for p in Path(env["SQLX_UPDATE_DIR"]).glob("*/install.json")]
+                        diagnostic = dict(case=target.parent.parent.name, elapsed=round(elapsed, 1),
+                                          executable_bytes=target.stat().st_size, install=records,
+                                          requests=requests[-4:])
+                        if platform.system() == "Linux":
+                            stat = Path(f"/proc/{process.pid}/stat").read_text().rsplit(")", 1)[1].split()
+                            diagnostic["cpu_seconds"] = round((int(stat[11]) + int(stat[12])) / os.sysconf("SC_CLK_TCK"), 1)
+                        print(json.dumps(diagnostic), flush=True)
+                        if elapsed >= 35:
+                            process.kill()
+                            out, err = process.communicate(timeout=5)
+                            raise AssertionError(f"update command timed out: {out} {err}")
+                result = subprocess.CompletedProcess(process.args, process.returncode, out, err)
             if not result.stdout.strip() and ok:
                 assert result.returncode == 0, result.stderr
                 return None
