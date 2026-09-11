@@ -81,6 +81,55 @@ main {
   max-width: 640px;
   padding-top: 36px;
 }
+.datasource-details {
+  display: grid;
+  grid-template-columns: minmax(100px, 140px) minmax(0, 1fr);
+  gap: 16px;
+  margin: 0;
+  font-size: 13px;
+}
+.datasource-details dt {
+  color: var(--muted);
+}
+.datasource-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.entry-context.datasource-context {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-datasource-link {
+  color: var(--accent);
+}
+.refresh-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.auto-refresh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.auto-refresh select {
+  width: auto;
+}
+.refresh-controls > .muted {
+  margin-left: auto;
+  font-size: 12px;
+}
+.refresh-feedback {
+  margin: 0 0 12px;
+}
 .results-page {
   height: 100%;
   display: flex;

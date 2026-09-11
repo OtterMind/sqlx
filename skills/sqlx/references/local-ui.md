@@ -1,6 +1,12 @@
 # Local credential and result pages
 
-These commands require SQLX 0.1.1. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+Basic local-page commands require SQLX 0.1.1; saved-datasource browsing, data refresh and session renewal below require 0.1.3. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+
+## Deliver the page link
+
+Read the successful command's returned `url` and include the exact value as a clickable link in the user-facing response, whether automatic browser launch succeeded or `--no-open` was used. Keep the path and authorization fragment intact. A status message or request ID does not tell the user where to go. Never use a bare origin such as `http://127.0.0.1:12345/` in place of a returned launch URL.
+
+Keep the user's one-use link unconsumed when testing in an agent-controlled browser. If it was used, or five minutes have passed, run `sqlx ui --no-open` and provide the fresh workspace link; existing query history remains available without running the SQL again. Once authorized, ordinary page reloads use the browser session and do not depend on the original launch token.
 
 ## Ask the user for a password without putting it in the conversation
 
@@ -46,9 +52,9 @@ sqlx sql execute --datasource <datasource-id> --sql "SELECT id, name FROM users 
 
 **Replace:** The datasource ID and query. Repeat `--sql` for multiple complete statements in one connection, following normal CLI execution semantics.
 
-**Result:** A local URL and `result_id`. Execution starts in the UI service once; the page automatically shows progress and then results. It includes per-statement/result-set tabs, exact values, pagination, full cell inspection, and errors with skipped statements. Browsing, refreshing, and reopening do not rerun SQL. Requesting a new execution through the CLI is an explicit new operation.
+**Result:** A local URL and `result_id`. Execution starts in the UI service once; the page automatically shows progress and then results. It includes per-statement/result-set tabs, exact values, pagination, full cell inspection, and errors with skipped statements. Browser reload, pagination and reopening read the cached snapshot. **Refresh data** reruns the exact original SQL batch, in order, against the saved datasource; it does not rewrite or classify SQL. The optional 5/10/30/60-second interval repeats this operation only while enabled on the visible page. It waits for completion before scheduling the next run and stops on failure. Closing, navigating away from or reloading the page disables the interval.
 
-Rows remain complete in the local cache, while the browser loads only a page at a time. Cached results expire after 24 hours. Completed results can be viewed after restarting the UI service; unfinished results recover as interrupted and are never automatically replayed. A cancelled or disconnected write can still have an unknown database outcome.
+Rows remain complete in a local snapshot, while the browser loads only a page at a time. A successful data refresh atomically replaces the snapshot at the same page URL without adding a query-history entry. Failed or cancelled refreshes preserve the preceding snapshot; they do not roll back database writes. Reusing a refresh request ID reads its prior outcome and never submits the batch again. Cached results expire after 24 hours. Completed results can be viewed after restarting the UI service; unfinished results recover as interrupted and are never automatically replayed. A cancelled or disconnected write can still have an unknown database outcome.
 
 ## Manage the companion
 
@@ -60,7 +66,7 @@ sqlx ui stop
 
 **Purpose and result:** The first command opens recent local requests/results, the second reports whether the service is running, and the third stops it and cancels active work. The service also exits after 30 idle minutes when no task is active. Closing a browser tab does not cancel a query.
 
-Launch links contain a short-lived one-use token in the URL fragment; the page exchanges it for a local browser session. Do not publish those links or credentials externally. The service validates local authentication and request origins. Credential entry avoids sending the password through normal agent arguments and responses, but it does not isolate secrets from an agent with the same user's file or browser access.
+Launch links contain a five-minute, one-use token in the URL fragment; the page exchanges it for a local browser session. Five minutes is the opening deadline, not a page lifetime. In 0.1.3, authenticated API activity renews both the server session and browser cookie for another 12 hours. The page's 30-second heartbeat keeps the service and session active without executing SQL. An expired session or restarted service requires a fresh launch link. Do not publish those links or credentials externally. The service validates local authentication and request origins. Credential entry avoids sending the password through normal agent arguments and responses, but it does not isolate secrets from an agent with the same user's file or browser access.
 
 ## Select a UI plugin
 

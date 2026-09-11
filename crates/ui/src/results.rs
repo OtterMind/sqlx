@@ -37,10 +37,21 @@ pub struct Metadata {
     pub duration_ms: u64,
     pub tables: Vec<Table>,
     pub events: Vec<Value>,
+    #[serde(default)]
+    pub snapshot: Option<String>,
+    #[serde(default)]
+    pub refresh: Option<Refresh>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Refresh {
+    pub request_id: String,
+    pub status: String,
+    pub error: Option<String>,
 }
 pub struct ResultStore {
     pub metadata: Metadata,
     dir: PathBuf,
+    metadata_path: PathBuf,
     active: Option<RowWriter>,
 }
 struct RowWriter {
@@ -81,7 +92,10 @@ impl ResultStore {
                 duration_ms: 0,
                 tables: vec![],
                 events: vec![],
+                snapshot: None,
+                refresh: None,
             },
+            metadata_path: dir.join("metadata.json"),
             dir,
             active: None,
         };
@@ -92,10 +106,22 @@ impl ResultStore {
         if fs::symlink_metadata(path)?.file_type().is_symlink() {
             bail!("invalid result directory");
         }
-        let metadata: Metadata = serde_json::from_slice(&fs::read(path.join("metadata.json"))?)?;
+        let metadata_path = path.join("metadata.json");
+        let metadata: Metadata = serde_json::from_slice(&fs::read(&metadata_path)?)?;
+        let dir = if let Some(snapshot) = &metadata.snapshot {
+            uuid::Uuid::parse_str(snapshot)?;
+            let dir = path.join("snapshots").join(snapshot);
+            if fs::symlink_metadata(&dir)?.file_type().is_symlink() {
+                bail!("invalid snapshot directory");
+            }
+            dir
+        } else {
+            path.into()
+        };
         let mut store = Self {
             metadata,
-            dir: path.into(),
+            dir,
+            metadata_path,
             active: None,
         };
         if matches!(store.metadata.status.as_str(), "running" | "queued") {
@@ -111,7 +137,126 @@ impl ResultStore {
             store.metadata.events.push(serde_json::json!({"event":"error","code":"ui.interrupted","message":"The UI service stopped before execution was confirmed. This query was not rerun.","outcome":"unknown"}));
             store.persist()?;
         }
+        if let Some(refresh) = &mut store.metadata.refresh {
+            if refresh.status == "running" {
+                refresh.status = "interrupted".into();
+                refresh.error =
+                    Some("Refresh was interrupted. The previous result is preserved.".into());
+                store.persist()?;
+                store.persist_refresh()?;
+            }
+        }
         Ok(store)
+    }
+    pub fn begin_refresh(&mut self, request_id: &str, source_name: String) -> Result<Self> {
+        uuid::Uuid::parse_str(request_id)?;
+        let dir = self
+            .metadata_path
+            .parent()
+            .context("missing result directory")?
+            .join("snapshots")
+            .join(request_id);
+        fs::create_dir_all(&dir)?;
+        restrict(&dir, true)?;
+        let mut metadata = self.metadata.clone();
+        metadata.datasource_name = source_name;
+        metadata.created_at = now();
+        metadata.snapshot = Some(request_id.into());
+        metadata.refresh = None;
+        metadata.status = "queued".into();
+        metadata.tables.clear();
+        metadata.events.clear();
+        metadata.duration_ms = 0;
+        let next = Self {
+            metadata,
+            metadata_path: dir.join("metadata.json"),
+            dir,
+            active: None,
+        };
+        if let Err(error) = next.persist() {
+            next.discard_refresh();
+            return Err(error);
+        }
+        self.metadata.refresh = Some(Refresh {
+            request_id: request_id.into(),
+            status: "running".into(),
+            error: None,
+        });
+        if let Err(error) = self.persist_refresh().and_then(|_| self.persist()) {
+            let _ = self.fail_refresh(
+                "failed",
+                "Refresh could not start. The previous result is preserved.".into(),
+            );
+            next.discard_refresh();
+            return Err(error);
+        }
+        Ok(next)
+    }
+    pub fn refresh_record(&self, request_id: &str) -> Result<Option<Refresh>> {
+        uuid::Uuid::parse_str(request_id)?;
+        if let Some(refresh) = &self.metadata.refresh {
+            if refresh.request_id == request_id {
+                return Ok(Some(refresh.clone()));
+            }
+        }
+        let path = self
+            .metadata_path
+            .parent()
+            .context("missing result directory")?
+            .join("refreshes")
+            .join(format!("{request_id}.json"));
+        if !path.exists() {
+            return Ok(None);
+        }
+        Ok(Some(serde_json::from_slice(&fs::read(path)?)?))
+    }
+    fn persist_refresh(&self) -> Result<()> {
+        if let Some(refresh) = &self.metadata.refresh {
+            let dir = self
+                .metadata_path
+                .parent()
+                .context("missing result directory")?
+                .join("refreshes");
+            fs::create_dir_all(&dir)?;
+            restrict(&dir, true)?;
+            atomic_write(
+                &dir.join(format!("{}.json", refresh.request_id)),
+                &serde_json::to_vec(refresh)?,
+            )?;
+        }
+        Ok(())
+    }
+    pub fn fail_refresh(&mut self, status: &str, error: String) -> Result<()> {
+        if let Some(refresh) = &mut self.metadata.refresh {
+            refresh.status = status.into();
+            refresh.error = Some(error);
+        }
+        self.persist()?;
+        self.persist_refresh()
+    }
+    pub fn commit_refresh(&mut self, mut next: Self) -> Result<()> {
+        next.metadata.refresh = self.metadata.refresh.clone();
+        if let Some(refresh) = &mut next.metadata.refresh {
+            refresh.status = "completed".into();
+        }
+        next.metadata_path = self.metadata_path.clone();
+        // Publish the complete snapshot with one atomic metadata write. Failed
+        // refreshes never replace the previous rows or their on-disk pointer.
+        if let Err(error) = next.persist() {
+            next.discard_refresh();
+            return Err(error);
+        }
+        if next.persist_refresh().is_err() {
+            eprintln!("Could not persist refresh history");
+        }
+        let previous = std::mem::replace(self, next);
+        if previous.metadata.snapshot.is_some() {
+            let _ = fs::remove_dir_all(previous.dir);
+        }
+        Ok(())
+    }
+    pub fn discard_refresh(self) {
+        let _ = fs::remove_dir_all(self.dir);
     }
     pub fn record(&mut self, event: Event) -> Result<()> {
         match &event {
@@ -253,23 +398,150 @@ impl ResultStore {
         Ok(page)
     }
     pub fn expired(&self) -> bool {
-        now().saturating_sub(self.metadata.created_at) > RETENTION_SECONDS
+        self.metadata
+            .refresh
+            .as_ref()
+            .is_none_or(|r| r.status != "running")
+            && now().saturating_sub(self.metadata.created_at) > RETENTION_SECONDS
     }
     pub fn remove(&self) -> Result<()> {
-        fs::remove_dir_all(&self.dir)?;
+        fs::remove_dir_all(
+            self.metadata_path
+                .parent()
+                .context("missing result directory")?,
+        )?;
         Ok(())
     }
     fn persist(&self) -> Result<()> {
-        atomic_write(
-            &self.dir.join("metadata.json"),
-            &serde_json::to_vec(&self.metadata)?,
-        )
+        atomic_write(&self.metadata_path, &serde_json::to_vec(&self.metadata)?)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn row(store: &mut ResultStore, value: &str) {
+        store
+            .record(Event::Columns {
+                index: 0,
+                result: 0,
+                columns: vec![Column {
+                    name: "value".into(),
+                    database_type: "int8".into(),
+                    encoding: "string".into(),
+                }],
+            })
+            .unwrap();
+        store
+            .record(Event::Row {
+                index: 0,
+                result: 0,
+                values: vec![Value::String(value.into())],
+            })
+            .unwrap();
+        store
+            .record(Event::ResultEnd {
+                index: 0,
+                result: 0,
+                rows: "1".into(),
+                affected_rows: None,
+            })
+            .unwrap();
+        store.finish(true, false, 1, None).unwrap();
+    }
+    #[test]
+    fn failed_refresh_preparation_keeps_rows_and_does_not_leave_a_running_request() {
+        let root = tempfile::tempdir().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let mut store = ResultStore::create(
+            root.path(),
+            &id,
+            "source".into(),
+            "test".into(),
+            vec!["SELECT 1".into()],
+        )
+        .unwrap();
+        row(&mut store, "1");
+        let blocked = root.path().join("results").join(&id).join("refreshes");
+        fs::write(&blocked, "not a directory").unwrap();
+        let request = uuid::Uuid::new_v4().to_string();
+        assert!(store.begin_refresh(&request, "test".into()).is_err());
+        assert_eq!(store.metadata.refresh.as_ref().unwrap().status, "failed");
+        assert_eq!(store.page(0, 0, 0, 100).unwrap().rows[0][0], "1");
+        assert!(!root
+            .path()
+            .join("results")
+            .join(&id)
+            .join("snapshots")
+            .join(request)
+            .exists());
+        fs::remove_file(blocked).unwrap();
+        let next = uuid::Uuid::new_v4().to_string();
+        let mut staged = store.begin_refresh(&next, "test".into()).unwrap();
+        row(&mut staged, "2");
+        store.commit_refresh(staged).unwrap();
+        assert_eq!(store.page(0, 0, 0, 100).unwrap().rows[0][0], "2");
+    }
+    #[test]
+    fn refresh_publishes_complete_snapshots_and_preserves_previous_rows_on_failure() {
+        let root = tempfile::tempdir().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let mut store = ResultStore::create(
+            root.path(),
+            &id,
+            "source".into(),
+            "test".into(),
+            vec!["SELECT 1".into()],
+        )
+        .unwrap();
+        row(&mut store, "1");
+        let first = uuid::Uuid::new_v4().to_string();
+        let mut staged = store.begin_refresh(&first, "test".into()).unwrap();
+        row(&mut staged, "2");
+        assert_eq!(store.page(0, 0, 0, 100).unwrap().rows[0][0], "1");
+        store.commit_refresh(staged).unwrap();
+        assert_eq!(store.page(0, 0, 0, 100).unwrap().rows[0][0], "2");
+        let mut store = ResultStore::recover(&root.path().join("results").join(&id)).unwrap();
+        assert_eq!(store.metadata.snapshot.as_deref(), Some(first.as_str()));
+        assert_eq!(store.page(0, 0, 0, 100).unwrap().rows[0][0], "2");
+        let failed = uuid::Uuid::new_v4().to_string();
+        let staged = store.begin_refresh(&failed, "test".into()).unwrap();
+        store
+            .fail_refresh("failed", "Database unavailable".into())
+            .unwrap();
+        staged.discard_refresh();
+        assert_eq!(
+            store.refresh_record(&first).unwrap().unwrap().status,
+            "completed"
+        );
+        assert_eq!(
+            store.refresh_record(&failed).unwrap().unwrap().status,
+            "failed"
+        );
+        let third = uuid::Uuid::new_v4().to_string();
+        let mut staged = store.begin_refresh(&third, "test".into()).unwrap();
+        row(&mut staged, "3");
+        store.commit_refresh(staged).unwrap();
+        assert!(!root
+            .path()
+            .join("results")
+            .join(&id)
+            .join("snapshots")
+            .join(&first)
+            .exists());
+        let interrupted = uuid::Uuid::new_v4().to_string();
+        let _staged = store.begin_refresh(&interrupted, "test".into()).unwrap();
+        let store = ResultStore::recover(&root.path().join("results").join(&id)).unwrap();
+        assert_eq!(
+            store.refresh_record(&interrupted).unwrap().unwrap().status,
+            "interrupted"
+        );
+        assert_eq!(store.page(0, 0, 0, 100).unwrap().rows[0][0], "3");
+        assert_eq!(
+            store.refresh_record(&first).unwrap().unwrap().status,
+            "completed"
+        );
+    }
     #[test]
     fn pages_preserve_types_and_recovery_does_not_rerun() {
         let root = tempfile::tempdir().unwrap();

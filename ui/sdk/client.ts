@@ -6,6 +6,9 @@ import type {
   SetupView,
   ResultMetadata,
   ResultPage,
+  Datasource,
+  ConnectionTest,
+  ResultRefresh,
 } from "./types";
 export * from "./types";
 
@@ -66,6 +69,12 @@ export async function authenticate(): Promise<void> {
 }
 
 export const getWorkspace = () => api<Workspace>("/home");
+export const getDatasource = (id: string) =>
+  api<Datasource>(`/datasources/${encodeURIComponent(id)}`);
+export const editDatasource = (id: string) =>
+  api<SetupStatus>(`/datasources/${encodeURIComponent(id)}/edit`, {});
+export const testDatasource = (id: string) =>
+  api<ConnectionTest>(`/datasources/${encodeURIComponent(id)}/test`, {});
 export const getSetup = (id: string) =>
   api<SetupView>(`/setups/${encodeURIComponent(id)}`);
 export const getSetupStatus = (id: string) =>
@@ -76,6 +85,10 @@ export const cancelSetup = (id: string) =>
   api<SetupStatus>(`/setups/${encodeURIComponent(id)}/cancel`, {});
 export const getResult = (id: string) =>
   api<ResultMetadata>(`/results/${encodeURIComponent(id)}`);
+export const refreshResult = (id: string, requestId: string) =>
+  api<ResultRefresh>(`/results/${encodeURIComponent(id)}/refresh`, {
+    request_id: requestId,
+  });
 export const getRows = (
   id: string,
   statement: number,

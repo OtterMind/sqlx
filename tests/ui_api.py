@@ -37,6 +37,12 @@ def main():
                 if result['status'] not in ['running','queued']:return result
                 time.sleep(.1)
             raise AssertionError(result)
+        def wait_refresh(id):
+            for _ in range(200):
+                result=request('/results/'+id)
+                if result['refresh']['status']!='running':return result
+                time.sleep(.05)
+            raise AssertionError(result)
         draft_args=['datasource','add','--ui','--name','ui-fixture','--type','postgresql','--host','127.0.0.1','--port','25432','--database','sqlx_test','--tls','disable','--username-env','SQLX_UI_TEST_USER']
         connection=dict(database_type='postgresql',host='127.0.0.1',port=25432,database='sqlx_test',service='',username='postgres',password='sqlx_test_only_password',tls='disable',properties={})
         try:
@@ -57,6 +63,19 @@ def main():
             assert command('datasource','list')['datasources']==[]
             request('/setups/'+id,dict(name='ui-fixture',connection=connection,password_action='replace'))
             saved=wait_setup(id,'completed');source_id=saved['datasource_id'];assert source_id
+            # Saved connections remain visible after the transient setup finishes.
+            listed=request('/home')['datasources'];assert len(listed)==1 and listed[0]['id']==source_id
+            details=request('/datasources/'+source_id);assert details==listed[0]
+            assert not {'username','password','properties'} & details['connection'].keys()
+            before=(data/'datasources.enc').read_bytes()
+            assert request('/datasources/'+source_id+'/test',{})['connected']
+            assert request('/home')['results']==[], 'connection testing executed SQL for a result page'
+            draft=request('/datasources/'+source_id+'/edit',{})
+            assert request('/setups/'+draft['request_id'])['editing']
+            request('/setups/'+draft['request_id']+'/cancel',{})
+            assert (data/'datasources.enc').read_bytes()==before, 'read/test/cancel rewrote stored credentials'
+            request('/datasources/'+source_id+'/edit',{},extra={'Origin':'https://unrelated.example'},expected=403)
+            request('/datasources/'+str(uuid.uuid4()),expected=404)
             request('/setups/'+id,dict(name='ui-fixture',connection=connection,password_action='replace'),expected=409)
             public=command('datasource','show','--id',source_id);assert 'password' not in public['connection']
             for file in data.rglob('*'):
@@ -66,12 +85,13 @@ def main():
             assert wait_setup(cancelled['request_id'],'cancelled')['datasource_id'] is None
             assert len(command('datasource','list')['datasources'])==1
             # Editing with an empty password field preserves the existing secret.
-            edit=command('datasource','update','--id',source_id,'--ui')
+            edit=request('/datasources/'+source_id+'/edit',{})
             request('/setups/'+edit['request_id'],dict(name='ui-renamed',connection=dict(connection,password=''),password_action='keep'))
             assert wait_setup(edit['request_id'],'completed')['datasource_id']==source_id
             command('datasource','test','--id',source_id)
+            assert request('/home')['datasources'][0]['name']=='ui-renamed'
             # A stale form cannot overwrite a concurrent CLI edit.
-            stale=command('datasource','update','--id',source_id,'--ui')
+            stale=request('/datasources/'+source_id+'/edit',{})
             command('datasource','update','--id',source_id,'--name','concurrent-name')
             request('/setups/'+stale['request_id'],dict(name='stale-name',connection=dict(connection,password=''),password_action='keep'))
             assert 'changed' in wait_setup(stale['request_id'],'waiting_for_user')['error']
@@ -103,7 +123,42 @@ def main():
                 slow=command('sql','execute','--datasource',source_id,'--sql','SELECT pg_sleep(30)','--view')
                 request('/results/'+slow['result_id']+'/cancel',{});assert wait_result(slow['result_id'])['status']=='cancelled'
             finally:command('sql','execute','--datasource',source_id,'--sql',f'DROP SEQUENCE {sequence}')
+            # Refresh reexecutes the exact SQL batch, including an explicit write.
+            # Repeated request IDs cannot execute that write a second time.
+            counter='ui_refresh_'+uuid.uuid4().hex[:10]
+            command('sql','execute','--datasource',source_id,'--sql',f'CREATE TABLE {counter} (value integer NOT NULL)','--sql',f'INSERT INTO {counter} VALUES (0)')
+            try:
+                statements=[f'UPDATE {counter} SET value=value+1 RETURNING value',f'SELECT value, pg_sleep(0.2) FROM {counter}']
+                viewed=command('sql','execute','--datasource',source_id,'--sql',statements[0],'--sql',statements[1],'--view')
+                rid=viewed['result_id'];assert wait_result(rid)['status']=='completed'
+                before_count=len(request('/home')['results'])
+                first=str(uuid.uuid4());second=str(uuid.uuid4())
+                request('/results/'+rid+'/refresh',{'request_id':first})
+                request('/results/'+rid+'/refresh',{'request_id':str(uuid.uuid4())},expected=409)
+                refreshed=wait_refresh(rid);assert refreshed['refresh']['status']=='completed'
+                assert refreshed['statements']==statements and refreshed['result_id']==rid
+                assert request('/results/'+rid+'/rows?statement=0&result=0&offset=0&limit=100')['rows']==[['2']]
+                request('/results/'+rid+'/rows?statement=0&result=0&offset=0&limit=100&snapshot=initial',expected=400)
+                request('/results/'+rid+'/refresh',{'request_id':second});assert wait_refresh(rid)['refresh']['status']=='completed'
+                assert request('/results/'+rid+'/refresh',{'request_id':first})['status']=='completed'
+                assert request('/results/'+rid+'/rows?statement=0&result=0&offset=0&limit=100')['rows']==[['3']]
+                assert len(request('/home')['results'])==before_count, 'refresh duplicated query history'
+                request('/results/'+rid+'/refresh',{'request_id':str(uuid.uuid4())},extra={'Origin':'https://unrelated.example'},expected=403)
+                request('/results/'+rid+'/refresh',{'request_id':str(uuid.uuid4())})
+                request('/results/'+rid+'/cancel',{})
+                cancelled=wait_refresh(rid);assert cancelled['refresh']['status']=='cancelled'
+                assert cancelled['snapshot']==second
+                command('sql','execute','--datasource',source_id,'--sql',f'DROP TABLE {counter}')
+                failed_id=str(uuid.uuid4());request('/results/'+rid+'/refresh',{'request_id':failed_id})
+                failed=wait_refresh(rid);assert failed['refresh']['status']=='failed' and failed['snapshot']==second
+                assert request('/results/'+rid+'/rows?statement=0&result=0&offset=0&limit=100')['rows']==[['3']]
+                assert request('/results/'+rid+'/refresh',{'request_id':failed_id})['status']=='failed'
+            finally:command('sql','execute','--datasource',source_id,'--sql',f'DROP TABLE IF EXISTS {counter}')
             command('datasource','remove','--id',source_id)
+            assert request('/home')['datasources']==[]
+            request('/datasources/'+source_id,expected=404)
+            request('/datasources/'+source_id+'/edit',{},expected=404)
+            request('/datasources/'+source_id+'/test',{},expected=404)
             print('UI API: authentication, form-only credentials, retry/cancel/edit/CAS, complete indexed pages, no re-execution, restart recovery and cancellation passed')
         finally:
             command('ui','stop')

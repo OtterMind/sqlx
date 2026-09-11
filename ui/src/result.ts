@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { pollLater } from "./navigation";
+import { refreshControls } from "./refresh";
 import {
   button,
   copy,
@@ -37,6 +38,8 @@ export async function resultPage(
   const pageHeading = heading(meta.datasource_name, "Query results");
   root.replaceChildren(pageHeading);
   const toolbar = element("div", "result-toolbar");
+  const refreshUi = refreshControls(id, signal, refresh);
+  refreshUi.update(meta);
   const status = element("div");
   const cancel = button("Cancel query", "button secondary");
   const elapsed = element("span", "muted");
@@ -82,7 +85,7 @@ export async function resultPage(
   controls.append(size, previous, next);
   pagination.append(count, controls);
   card.append(tabs, viewport, pagination);
-  root.append(sqlDetails, errors, card);
+  root.append(sqlDetails, refreshUi.controls, refreshUi.feedback, errors, card);
   function messages() {
     errors.replaceChildren();
     for (const event of meta.events) {
@@ -235,7 +238,7 @@ export async function resultPage(
     }
     try {
       const page = await api<Page>(
-        `/results/${id}/rows?statement=${table.statement}&result=${table.result}&offset=${offset}&limit=${pageLimit}`,
+        `/results/${id}/rows?statement=${table.statement}&result=${table.result}&offset=${offset}&limit=${pageLimit}&snapshot=${encodeURIComponent(meta.snapshot ?? "initial")}`,
         undefined,
         signal,
       );
@@ -289,24 +292,39 @@ export async function resultPage(
   async function refresh() {
     if (signal.aborted) return;
     try {
+      const previousSnapshot = meta.snapshot;
       meta = await api<Metadata>(`/results/${id}`, undefined, signal);
       signal.throwIfAborted();
-      status.replaceChildren(statusBadge(meta.status));
+      if (previousSnapshot !== meta.snapshot) {
+        selected = Math.max(0, Math.min(selected, meta.tables.length - 1));
+        offset = 0;
+        history = [];
+        ++pageSerial;
+      }
+      const refreshing = meta.refresh?.status === "running";
+      status.replaceChildren(
+        statusBadge(refreshing ? "refreshing" : meta.status),
+      );
       onStatusChange(meta.status);
+      pageHeading.querySelector("h1")!.textContent = meta.datasource_name;
       elapsed.textContent = running(meta.status)
         ? "Executing…"
         : `${(meta.duration_ms / 1000).toFixed(2)}s`;
-      cancel.hidden = !running(meta.status);
-      const state = JSON.stringify([meta.status, meta.tables]);
+      cancel.hidden = !running(meta.status) && !refreshing;
+      cancel.disabled = false;
+      cancel.textContent = refreshing ? "Cancel refresh" : "Cancel query";
+      refreshUi.update(meta);
+      const state = JSON.stringify([meta.snapshot, meta.status, meta.tables]);
       if (state !== lastState) {
         lastState = state;
         renderTabs();
         messages();
         await loadPage();
       }
-      if (running(meta.status)) pollLater(signal, refresh);
+      if (running(meta.status) || refreshing) pollLater(signal, refresh);
     } catch (error) {
       if (signal.aborted) return;
+      refreshUi.stop(message(error));
       errors.replaceChildren(element("p", "feedback error", message(error)));
     }
   }

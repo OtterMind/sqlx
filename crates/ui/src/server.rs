@@ -241,6 +241,7 @@ fn equal(a: &str, b: &str) -> bool {
 }
 
 async fn protect(State(app): State<Local>, request: Request, next: Next) -> Response {
+    let mut renewal = None;
     let headers = request.headers();
     let path = request.uri().path();
     let forbidden = || {
@@ -280,10 +281,14 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
                 return forbidden();
             }
             if path != "/api/session" {
-                let valid = cookie(headers, &app.cookie_name())
-                    .and_then(|c| app.sessions.lock().unwrap().get(&c).copied())
-                    .is_some_and(|expires| expires > now());
-                if !valid {
+                renewal = cookie(headers, &app.cookie_name()).filter(|c| {
+                    app.sessions
+                        .lock()
+                        .unwrap()
+                        .get(c)
+                        .is_some_and(|expires| *expires > now())
+                });
+                if renewal.is_none() {
                     return forbidden();
                 }
             }
@@ -294,9 +299,21 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
             }
         }
     }
+    if let Some(session) = &renewal {
+        app.sessions
+            .lock()
+            .unwrap()
+            .insert(session.clone(), now() + SESSION_TTL);
+    }
     app.last_access.store(now(), Ordering::Relaxed);
     let mut response = next.run(request).await;
     let h = response.headers_mut();
+    if let Some(session) = renewal {
+        h.insert(
+            header::SET_COOKIE,
+            session_cookie(&app, &session).parse().unwrap(),
+        );
+    }
     h.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
     h.insert(header::CONTENT_SECURITY_POLICY,"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'self'; frame-ancestors 'none'; form-action 'self'".parse().unwrap());
     h.insert("referrer-policy", "no-referrer".parse().unwrap());
@@ -309,12 +326,16 @@ pub fn router(app: Local) -> Router {
         .route("/", get(index))
         .route("/setup/{id}", get(index))
         .route("/result/{id}", get(index))
+        .route("/datasource/{id}", get(index))
         .route("/_ui/{plugin}/{version}/{*asset}", get(plugin_asset))
         .route("/api/plugin", get(active_plugin))
         .route("/api/health", get(health))
         .route("/api/tickets", post(ticket))
         .route("/api/session", post(session))
         .route("/api/home", get(home))
+        .route("/api/datasources/{id}", get(datasource_details))
+        .route("/api/datasources/{id}/edit", post(edit_datasource))
+        .route("/api/datasources/{id}/test", post(test_datasource))
         .route("/api/setups", post(create_setup))
         .route("/api/setups/{id}", get(setup_form).post(save_setup))
         .route("/api/setups/{id}/status", get(setup_status))
@@ -323,6 +344,7 @@ pub fn router(app: Local) -> Router {
         .route("/api/results/{id}", get(result_metadata))
         .route("/api/results/{id}/rows", get(result_page))
         .route("/api/results/{id}/cancel", post(cancel_result))
+        .route("/api/results/{id}/refresh", post(refresh_result))
         .route("/api/stop", post(stop))
         .layer(DefaultBodyLimit::max(1024 * 1024))
         .layer(middleware::from_fn_with_state(app.clone(), protect))
@@ -398,6 +420,8 @@ async fn ticket(State(app): State<Local>, Json(input): Json<TicketInput>) -> Api
             app.setup(id)?;
         } else if kind == "result" {
             app.result(id)?;
+        } else if kind == "datasource" {
+            load_datasource(&app, id).await?;
         } else {
             return Err(bad("Invalid page path"));
         }
@@ -414,6 +438,12 @@ async fn ticket(State(app): State<Local>, Json(input): Json<TicketInput>) -> Api
 #[derive(Deserialize)]
 struct SessionInput {
     token: String,
+}
+fn session_cookie(app: &App, session: &str) -> String {
+    format!(
+        "{}={session}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL}",
+        app.cookie_name()
+    )
 }
 async fn session(
     State(app): State<Local>,
@@ -437,18 +467,21 @@ async fn session(
         .unwrap()
         .insert(session.clone(), now() + SESSION_TTL);
     Ok((
-        [(
-            header::SET_COOKIE,
-            format!(
-                "{}={session}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL}",
-                app.cookie_name()
-            ),
-        )],
+        [(header::SET_COOKIE, session_cookie(&app, &session))],
         Json(json!({"authenticated":true})),
     )
         .into_response())
 }
 async fn home(State(app): State<Local>) -> ApiResult {
+    let root = app.root.clone();
+    let datasources = tokio::task::spawn_blocking(move || {
+        Store::open(root)?
+            .load()
+            .map(|sources| sources.iter().map(Datasource::public).collect::<Vec<_>>())
+    })
+    .await
+    .map_err(internal)?
+    .map_err(internal)?;
     let setups = app
         .setups
         .lock()
@@ -461,7 +494,56 @@ async fn home(State(app): State<Local>) -> ApiResult {
         })
         .collect::<Vec<_>>();
     let results=app.results.lock().unwrap().values().filter_map(|r|{let r=r.lock().unwrap();(!r.expired()).then(||json!({"id":r.metadata.result_id,"name":r.metadata.datasource_name,"status":r.metadata.status,"created_at":r.metadata.created_at}))}).collect::<Vec<_>>();
-    Ok(Json(json!({"setups":setups,"results":results})))
+    Ok(Json(
+        json!({"datasources":datasources,"setups":setups,"results":results}),
+    ))
+}
+
+async fn load_datasource(app: &App, id: &str) -> std::result::Result<Datasource, ApiError> {
+    validate_id(id)?;
+    let root = app.root.clone();
+    let id = id.to_owned();
+    tokio::task::spawn_blocking(move || {
+        Store::open(root).map_err(internal)?.find(&id).map_err(|_| {
+            ApiError(
+                StatusCode::NOT_FOUND,
+                "This datasource no longer exists".into(),
+            )
+        })
+    })
+    .await
+    .map_err(internal)?
+}
+
+async fn datasource_details(State(app): State<Local>, Path(id): Path<String>) -> ApiResult {
+    Ok(Json(load_datasource(&app, &id).await?.public()))
+}
+
+async fn edit_datasource(State(app): State<Local>, Path(id): Path<String>) -> ApiResult {
+    let mut source = load_datasource(&app, &id).await?;
+    // Capture fields and revision together, so a concurrent CLI edit cannot be overwritten.
+    let baseline = fingerprint(&source);
+    source.connection.password.clear();
+    Ok(register_setup(
+        &app,
+        SetupRequest {
+            name: source.name,
+            source_id: Some(source.id),
+            connection: source.connection,
+        },
+        Some(baseline),
+    ))
+}
+
+async fn test_datasource(State(app): State<Local>, Path(id): Path<String>) -> ApiResult {
+    let source = load_datasource(&app, &id).await?;
+    app.active.fetch_add(1, Ordering::Relaxed);
+    let _active = Active(app.clone());
+    let started = Instant::now();
+    test_connection(&app, source).await?;
+    Ok(Json(
+        json!({"connected":true,"duration_ms":started.elapsed().as_millis()}),
+    ))
 }
 async fn create_setup(
     State(app): State<Local>,
@@ -500,6 +582,10 @@ async fn create_setup(
         .await
         .map_err(internal)??;
     request.connection.password.clear();
+    Ok(register_setup(&app, request, baseline))
+}
+
+fn register_setup(app: &App, request: SetupRequest, baseline: Option<String>) -> Json<Value> {
     let id = uuid::Uuid::new_v4().to_string();
     let setup = Setup {
         id: id.clone(),
@@ -515,7 +601,7 @@ async fn create_setup(
         .lock()
         .unwrap()
         .insert(id, Arc::new(Mutex::new(setup)));
-    Ok(Json(status))
+    Json(status)
 }
 async fn setup_status(State(app): State<Local>, Path(id): Path<String>) -> ApiResult {
     let setup = app.setup(&id)?;
@@ -644,34 +730,7 @@ async fn complete_setup(
         name: input.name,
         connection: input.connection,
     };
-    let root = app.root.clone();
-    let manifest = app.manifest.clone();
-    let local = app.workers.clone();
-    let test_source = source.clone();
-    let prepared = tokio::task::spawn_blocking(move || {
-        execution::prepare(root, manifest, local, test_source, Action::Test, vec![])
-    })
-    .await
-    .map_err(internal)?
-    .map_err(|_| {
-        bad("Could not prepare the database driver. Check the CLI release and network connection.")
-    })?;
-    let mut failure = None;
-    let success = prepared
-        .execute(
-            |event| {
-                if let Event::Error { message, .. } = event {
-                    failure = Some(message);
-                }
-                Ok(())
-            },
-            app.shutdown.child_token(),
-        )
-        .await
-        .map_err(|_| bad("The database connection could not be confirmed"))?;
-    if !success {
-        return Err(bad(failure.as_deref().unwrap_or("Connection failed")));
-    }
+    test_connection(&app, source.clone()).await?;
     let root = app.root.clone();
     tokio::task::spawn_blocking(move || -> std::result::Result<String, ApiError> {
         let store = Store::open(root).map_err(internal)?;
@@ -699,6 +758,37 @@ async fn complete_setup(
     })
     .await
     .map_err(internal)?
+}
+
+async fn test_connection(app: &App, source: Datasource) -> std::result::Result<(), ApiError> {
+    let root = app.root.clone();
+    let manifest = app.manifest.clone();
+    let local = app.workers.clone();
+    let prepared = tokio::task::spawn_blocking(move || {
+        execution::prepare(root, manifest, local, source, Action::Test, vec![])
+    })
+    .await
+    .map_err(internal)?
+    .map_err(|_| {
+        bad("Could not prepare the database driver. Check the CLI release and network connection.")
+    })?;
+    let mut failure = None;
+    let success = prepared
+        .execute(
+            |event| {
+                if let Event::Error { message, .. } = event {
+                    failure = Some(message);
+                }
+                Ok(())
+            },
+            app.shutdown.child_token(),
+        )
+        .await
+        .map_err(|_| bad("The database connection could not be confirmed"))?;
+    if !success {
+        return Err(bad(failure.as_deref().unwrap_or("Connection failed")));
+    }
+    Ok(())
 }
 
 async fn create_result(State(app): State<Local>, Json(request): Json<ViewRequest>) -> ApiResult {
@@ -749,25 +839,16 @@ async fn create_result(State(app): State<Local>, Json(request): Json<ViewRequest
     tokio::spawn(async move {
         let _active = Active(work.clone());
         let start = Instant::now();
-        let root = work.root.clone();
-        let manifest = work.manifest.clone();
-        let local = work.workers.clone();
-        let prepared = tokio::task::spawn_blocking(move || {
-            execution::prepare(
-                root,
-                manifest,
-                local,
-                source,
-                Action::Execute,
-                request.statements,
-            )
+        let outcome = execute_query(&work, source, request.statements, cancel.clone(), |event| {
+            result.lock().unwrap().record(event)
         })
         .await;
-        let outcome=match prepared {Ok(Ok(prepared)) if !cancel.is_cancelled()=>prepared.execute(|event|result.lock().unwrap().record(event),cancel.clone()).await,_=>Err(anyhow::anyhow!("Query could not start. Check the driver download and datasource, then submit a new request."))};
         let success = outcome.as_ref().is_ok_and(|s| *s);
         let error = outcome.err().map(|_| {
             "Execution could not be completed. No automatic retry was attempted.".to_string()
         });
+        // Remove this run's cancellation handle before publishing its terminal status.
+        work.cancellations.lock().unwrap().remove(&id);
         if result
             .lock()
             .unwrap()
@@ -781,10 +862,118 @@ async fn create_result(State(app): State<Local>, Json(request): Json<ViewRequest
         {
             eprintln!("Could not persist query completion");
         }
-        work.cancellations.lock().unwrap().remove(&id);
     });
     Ok(Json(
         json!({"result_id":request.request_id,"status":"queued"}),
+    ))
+}
+async fn execute_query(
+    app: &App,
+    source: Datasource,
+    statements: Vec<String>,
+    cancel: CancellationToken,
+    record: impl FnMut(Event) -> Result<()> + Send,
+) -> Result<bool> {
+    let root = app.root.clone();
+    let manifest = app.manifest.clone();
+    let local = app.workers.clone();
+    let prepared = tokio::task::spawn_blocking(move || {
+        execution::prepare(root, manifest, local, source, Action::Execute, statements)
+    })
+    .await??;
+    if cancel.is_cancelled() {
+        anyhow::bail!("Query was cancelled before execution");
+    }
+    prepared.execute(record, cancel).await
+}
+
+#[derive(Deserialize)]
+struct RefreshRequest {
+    request_id: String,
+}
+async fn refresh_result(
+    State(app): State<Local>,
+    Path(id): Path<String>,
+    Json(request): Json<RefreshRequest>,
+) -> ApiResult {
+    validate_id(&request.request_id)?;
+    let result = app.result(&id)?;
+    let source_id = result.lock().unwrap().metadata.datasource_id.clone();
+    let source = load_datasource(&app, &source_id).await?;
+    let mut staged = {
+        let mut previous = result.lock().unwrap();
+        if let Some(refresh) = previous
+            .refresh_record(&request.request_id)
+            .map_err(internal)?
+        {
+            return Ok(Json(serde_json::to_value(refresh).unwrap()));
+        }
+        if let Some(refresh) = &previous.metadata.refresh {
+            if refresh.status == "running" {
+                return Err(conflict("A refresh is already running"));
+            }
+        }
+        if matches!(previous.metadata.status.as_str(), "queued" | "running") {
+            return Err(conflict("Wait for the current query to finish"));
+        }
+        previous
+            .begin_refresh(&request.request_id, source.name.clone())
+            .map_err(internal)?
+    };
+    let cancel = app.shutdown.child_token();
+    app.cancellations
+        .lock()
+        .unwrap()
+        .insert(id.clone(), cancel.clone());
+    app.active.fetch_add(1, Ordering::Relaxed);
+    let work = app.clone();
+    tokio::spawn(async move {
+        let _active = Active(work.clone());
+        let started = Instant::now();
+        let statements = staged.metadata.statements.clone();
+        let outcome = execute_query(&work, source, statements, cancel.clone(), |event| {
+            staged.record(event)
+        })
+        .await;
+        let success = outcome.is_ok_and(|ok| ok) && !cancel.is_cancelled();
+        let finished = staged.finish(
+            success,
+            cancel.is_cancelled(),
+            started.elapsed().as_millis() as u64,
+            None,
+        );
+        work.cancellations.lock().unwrap().remove(&id);
+        let mut previous = result.lock().unwrap();
+        if success && finished.is_ok() {
+            if previous.commit_refresh(staged).is_err() {
+                let _ = previous.fail_refresh(
+                    "failed",
+                    "Could not save the refreshed result. The previous result is preserved.".into(),
+                );
+            }
+        } else {
+            let error = staged
+                .metadata
+                .events
+                .iter()
+                .find_map(|event| {
+                    (event["event"] == "error")
+                        .then(|| event["message"].as_str())
+                        .flatten()
+                })
+                .unwrap_or("Refresh did not complete. The previous result is preserved.")
+                .to_owned();
+            let state = if cancel.is_cancelled() {
+                "cancelled"
+            } else {
+                "failed"
+            };
+            let _ = previous.fail_refresh(state, error);
+            staged.discard_refresh();
+        }
+    });
+    Ok(Json(
+        json!({"request_id":request.request_id,"status":"running","error":null}),
     ))
 }
 async fn result_metadata(
@@ -803,6 +992,7 @@ struct PageQuery {
     offset: u64,
     #[serde(default = "page_limit")]
     limit: usize,
+    snapshot: Option<String>,
 }
 fn page_limit() -> usize {
     100
@@ -814,10 +1004,15 @@ async fn result_page(
 ) -> std::result::Result<Json<crate::results::Page>, ApiError> {
     let result = app.result(&id)?;
     let page = tokio::task::spawn_blocking(move || {
-        result
-            .lock()
-            .unwrap()
-            .page(query.statement, query.result, query.offset, query.limit)
+        let result = result.lock().unwrap();
+        if query
+            .snapshot
+            .as_deref()
+            .is_some_and(|s| s != result.metadata.snapshot.as_deref().unwrap_or("initial"))
+        {
+            anyhow::bail!("The result changed. Reload the result page.");
+        }
+        result.page(query.statement, query.result, query.offset, query.limit)
     })
     .await
     .map_err(internal)?
@@ -928,6 +1123,37 @@ mod tests {
                 .unwrap();
             assert_eq!(response.status(), expected);
         }
+    }
+    #[tokio::test]
+    async fn authenticated_activity_renews_the_browser_session_but_expiry_does_not() {
+        let (_dir, app) = fixture();
+        let session = token();
+        app.sessions
+            .lock()
+            .unwrap()
+            .insert(session.clone(), now() + 1);
+        let request = || {
+            axum::http::Request::builder()
+                .uri("/api/home")
+                .header("Host", "127.0.0.1:32145")
+                .header("X-SQLX-UI", "1")
+                .header("Cookie", format!("{}={session}", app.cookie_name()))
+                .body(Body::empty())
+                .unwrap()
+        };
+        let response = router(app.clone()).oneshot(request()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let renewed = response.headers()[header::SET_COOKIE].to_str().unwrap();
+        assert!(renewed.contains("Max-Age=43200"));
+        assert!(renewed.contains("HttpOnly; SameSite=Strict"));
+        assert!(app.sessions.lock().unwrap()[&session] >= now() + SESSION_TTL - 1);
+        app.sessions
+            .lock()
+            .unwrap()
+            .insert(session.clone(), now() - 1);
+        let response = router(app.clone()).oneshot(request()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
     }
     #[tokio::test]
     async fn browser_bootstrap_is_one_use_and_cannot_control_admin_endpoints() {

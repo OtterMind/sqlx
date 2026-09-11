@@ -76,11 +76,12 @@ Packages may contain HTML, JS/MJS, CSS, JSON, source maps, SVG/PNG/JPEG/WebP/GIF
 
 | Route | Required behavior |
 |---|---|
-| `/` | Show recent setup requests and retained query results. |
+| `/` | Show saved datasources, pending setup requests and retained query results. |
+| `/datasource/<datasource-id>` | Show saved connection details, test connectivity and open its edit form. |
 | `/setup/<request-id>` | Load prepared settings, collect credentials, show save errors/status and offer cancellation. |
 | `/result/<result-id>` | Read execution status, SQL, metadata and rows. Show multiple result sets and partial failure. |
 
-Call `await authenticate()` from the SDK before loading any data. It removes the one-use token from the URL fragment and exchanges it for an HttpOnly session cookie. If a session has expired, ask the user to reopen a page through the CLI. Do not log or persist the token, cookies, passwords or setup submissions. API calls use same-origin cookies and the `X-SQLX-UI: 1` header; the SDK supplies both. No CORS or cross-origin development proxy is supported.
+Call `await authenticate()` from the SDK before loading any data. It removes the one-use token from the URL fragment and exchanges it for an HttpOnly session cookie. If a session has expired, ask the user to reopen a page through the CLI. Do not log or persist the token, cookies, passwords or setup submissions. API calls use same-origin cookies and the `X-SQLX-UI: 1` header; the SDK supplies both. No CORS or cross-origin development proxy is supported. From 0.1.3, authenticated requests renew the server session and HttpOnly cookie for 12 hours. A page heartbeat every 30 seconds keeps an open UI active; expired sessions are never revived without a fresh launch token.
 
 ## Browser API v1
 
@@ -89,17 +90,23 @@ All endpoints below are rooted at `/api`. Successful bodies are plain JSON objec
 | Method and path | SDK helper | Purpose and response |
 |---|---|---|
 | `POST /session` | `authenticate()` | Exchange `{token}` once for the browser cookie. |
-| `GET /home` | `getWorkspace()` | `{setups, results}` with IDs, names, statuses; results include Unix `created_at` seconds. |
+| `GET /home` | `getWorkspace()` | `{datasources, setups, results}`. Datasources include IDs, names and nonsecret connection settings; results include Unix `created_at` seconds. |
+| `GET /datasources/<id>` | `getDatasource(id)` | Saved name and connection settings. Username, password and vendor properties are omitted. |
+| `POST /datasources/<id>/test` | `testDatasource(id)` | Test with the saved credentials; return `{connected: true, duration_ms}` or an error. Body: `{}`. Does not save changes or execute SQL. |
+| `POST /datasources/<id>/edit` | `editDatasource(id)` | Create a setup request from the saved connection and return `SetupStatus`. Body: `{}`. Navigate to `/setup/<request_id>`; this operation does not save changes. |
 | `GET /plugin` | `getPlugin()` | Manifest of the selected UI. |
 | `GET /setups/<id>` | `getSetup(id)` | Prepared name, connection fields, editing flag and current status. Saved passwords and vendor properties are omitted. |
 | `GET /setups/<id>/status` | `getSetupStatus(id)` | Request ID, status, error and saved datasource ID, if completed. |
 | `POST /setups/<id>` | `saveSetup(id, input)` | Submit `SetupSubmission`; returns status while the server tests and saves the connection asynchronously. |
 | `POST /setups/<id>/cancel` | `cancelSetup(id)` | Cancel a waiting request without saving. Body: `{}`. |
 | `GET /results/<id>` | `getResult(id)` | SQL statements, status, duration, tables and non-row execution events. |
+| `POST /results/<id>/refresh` | `refreshResult(id, requestId)` | Rerun the saved SQL batch. Returns `{request_id, status, error}`; inspect metadata until completion. |
 | `GET /results/<id>/rows?statement=0&result=0&offset=0&limit=100` | `getRows(id, statement, result, offset, limit)` | `{rows, offset, next_offset, total_rows, complete}`. |
 | `POST /results/<id>/cancel` | `cancelResult(id)` | Request worker cancellation. Body: `{}`. Check result status afterward. |
 
 Use the SDK's generic `api<T>(path, body?)` only when a typed helper is insufficient. API v1 additions must remain backwards compatible; breaking browser contract changes require a new API version. The plugin's CLI compatibility range can be narrower than the API's lifetime. Reject incompatible plugins rather than silently falling back to another interface.
+
+The saved-datasource routes and `datasources` workspace field were added in 0.1.3. Existing plugins can continue using setup/result APIs without implementing datasource browsing. Saved connection links use stable datasource IDs, never names or result IDs. Listing, viewing and testing do not create a setup request or rewrite stored credentials; only an explicit edit action creates a form, and only a successful save persists changes.
 
 ### Credential forms
 
@@ -109,7 +116,7 @@ Status progresses from `waiting_for_user` to `saving`, then `completed`, or back
 
 ### Query results
 
-SQL runs once when the CLI submits `sql execute --view`. Browser endpoints cannot start executions or install/select plugins. Refresh, paging, plugin switching and page reopening must only read that execution. Do not turn errors, empty results, expiry or an interrupted state into a new execution.
+SQL runs once when the CLI submits `sql execute --view`. The browser can explicitly rerun an existing result through `POST /results/<id>/refresh` with `{request_id: <new UUID>}`. The service executes the saved statements exactly as supplied, including any writes. This endpoint cannot accept replacement SQL. The same request ID is idempotent, including after a newer refresh, and concurrent refreshes of the same result are rejected. Poll result metadata until `refresh.status` is terminal. Browser reload, paging, plugin switching and page reopening only read the current snapshot; they never initiate refresh. Browser endpoints cannot install/select plugins. Do not turn errors, empty results, expiry or an interrupted state into a new execution.
 
 Statement and result indexes are zero-based. Rows are positional arrays so duplicate column labels remain separate. SQL NULL is JSON `null`; integer/decimal values are strings, and binary values use Base64 according to column encoding. Do not coerce exact strings to JavaScript numbers. Render values, SQL and errors as text, never HTML.
 
@@ -133,3 +140,5 @@ Plugins are trusted code in the credential/result page and can access its inputs
 ## Acceptance checklist
 
 Verify all three routes with real CLI-generated links; wrong-password correction, cancellation, edit/keep-password and expired sessions; multiple result sets, exact numbers, NULL/empty values, large cells and pages; reloads and UI switching without SQL replay; clean console/network behavior under SQLX's CSP. Use a dedicated test datasource. `tests/ui_plugins.py` and `tests/ui_api.py` exercise the shared service contract; a plugin author must also test their interface in a browser.
+
+The result metadata fields `snapshot` and `refresh` were added in 0.1.3. `refresh` contains the latest request ID, status (`running`, `completed`, `failed`, `cancelled`, `interrupted`) and error. The previous snapshot stays readable during refresh. Successful completion changes `snapshot` atomically; reset page offsets when it changes. An optional `snapshot=<id>` row-query parameter (`initial` for the first execution) rejects reads against a replaced snapshot. Failed refreshes do not discard prior rows or roll back database changes. Optional timed refresh belongs to the browser: disable by default, avoid overlap, pause in hidden tabs, stop on error, and dispose it on navigation.

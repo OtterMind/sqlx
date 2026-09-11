@@ -1,7 +1,11 @@
-SQLX 0.1.2 adds `update check`, `update install` and `update status`. The CLI checks official stable releases, verifies downloaded and installed executables, and preserves the previous binary for recovery when replacement fails. Interactive use can check once daily in the background; updates are installed only when requested. Existing connections, running SQL, UI processes and chosen plugins are preserved.
+SQLX 0.1.3 adds saved datasources to the workbench. Open a connection to inspect its settings, test connectivity or edit it while retaining its saved password. Pending connection requests and query history remain available separately.
 
-The default UI now uses a compact workbench with connection requests and query history, a collapsed SQL preview, dense result tables and a persistent light/dark icon switch. Navigation changes the content pane without reloading the whole page. Open pages keep the local service active, and connection failures provide a retry action without replaying SQL.
+Result pages now offer Refresh data and optional 5/10/30/60-second automatic refresh. Each action executes the original SQL batch unchanged and in order. Successful refreshes replace the snapshot at the same URL; failure or cancellation preserves the previous result. Automatic refresh waits for completion, pauses in hidden tabs and stops on errors or navigation. Browser reload and pagination still read cached data. Writes in an explicitly refreshed batch execute again.
 
-For 0.1.0 or 0.1.1, rerun the README installer once to install 0.1.2, then use the new update commands. Skills and UI plugins retain their separate installation/update controls. MySQL/PostgreSQL workers and private JDBC dependencies still download only when needed from the matching release manifest.
+Active pages renew their browser session automatically. The five-minute launch link only limits initial authorization. Saved dark/light preferences are restored before the first styled paint, avoiding a light flash during dark-mode reloads.
 
-Prebuilt packages cover macOS ARM64/x64, Linux ARM64/x64 and Windows x64. macOS executables are Developer ID signed and notarized. This release does not include unattended update installation, telemetry, SQL-file input or persistent cross-call database sessions. See LICENSE and NOTICE for the project's license conditions.
+The Skill now requires agents to include the complete, clickable page URL in their response, including its authorization fragment, even when a browser was opened automatically.
+
+Upgrade SQLX 0.1.2 with `sqlx update check`, `sqlx update install` and `sqlx update status`. Update managed Skills separately with `sqlx skill update`. The updater preserves running UI processes and selected plugins; restart the UI service and explicitly install/select the 0.1.3 default plugin to use its new page features. Versions 0.1.0/0.1.1 need the README installer first.
+
+Prebuilt packages cover macOS ARM64/x64, Linux ARM64/x64 and Windows x64. macOS executables are Developer ID signed and notarized. See LICENSE and NOTICE for license conditions.

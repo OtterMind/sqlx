@@ -57,6 +57,13 @@ export interface ResultMetadata {
   duration_ms: number;
   tables: ResultTable[];
   events: ResultEvent[];
+  snapshot: string | null;
+  refresh: ResultRefresh | null;
+}
+export interface ResultRefresh {
+  request_id: string;
+  status: "running" | "completed" | "failed" | "cancelled" | "interrupted";
+  error: string | null;
 }
 export interface ResultPage {
   rows: unknown[][];
@@ -72,8 +79,20 @@ export interface WorkspaceEntry {
   created_at?: number;
 }
 export interface Workspace {
+  datasources: Datasource[];
   setups: WorkspaceEntry[];
   results: WorkspaceEntry[];
+}
+
+export interface Datasource {
+  id: string;
+  name: string;
+  connection: Omit<ConnectionFields, "username">;
+}
+
+export interface ConnectionTest {
+  connected: boolean;
+  duration_ms: number;
 }
 
 export interface PluginManifest {

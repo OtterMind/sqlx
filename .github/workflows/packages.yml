@@ -111,9 +111,9 @@ jobs:
           passed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length')
           test "$passed" -gt 0
           # checkout's shallow SHA fetch creates a local lightweight tag; retrieve the actual tag object.
-          git fetch --force origin refs/tags/v0.1.2:refs/tags/v0.1.2
-          test "$(git rev-parse 'v0.1.2^{commit}')" = "$GITHUB_SHA"
-          test "$(git describe --tags --exact-match HEAD)" = v0.1.2
-          test "$(git cat-file -t refs/tags/v0.1.2)" = tag
-          gh release create v0.1.2 --draft --verify-tag --title 'SQLX 0.1.2' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
-          gh release edit v0.1.2 --draft=false --latest
+          git fetch --force origin refs/tags/v0.1.3:refs/tags/v0.1.3
+          test "$(git rev-parse 'v0.1.3^{commit}')" = "$GITHUB_SHA"
+          test "$(git describe --tags --exact-match HEAD)" = v0.1.3
+          test "$(git cat-file -t refs/tags/v0.1.3)" = tag
+          gh release create v0.1.3 --draft --verify-tag --title 'SQLX 0.1.3' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
+          gh release edit v0.1.3 --draft=false --latest

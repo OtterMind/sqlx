@@ -5,6 +5,7 @@ import { resultPage } from "./result";
 import { initializeTheme } from "./theme";
 import { startNavigation } from "./navigation";
 import { keepConnectionAlive } from "./connection";
+import { datasourceList, datasourcePage } from "./datasource";
 
 import type { Workspace, WorkspaceEntry } from "../sdk/types";
 
@@ -66,18 +67,28 @@ function renderSidebar(data: Workspace) {
   if (location.pathname === "/") overview.setAttribute("aria-current", "page");
   sidebar.replaceChildren(
     overview,
-    entryList("Connection requests", data.setups, "setup", true),
+    datasourceList(data.datasources, true),
+    ...pendingRequests(data, true),
     entryList("Query history", data.results, "result", true),
   );
+}
+function pendingRequests(data: Workspace, compact = false): HTMLElement[] {
+  const waiting = data.setups.filter((entry) =>
+    ["waiting_for_user", "saving"].includes(entry.status),
+  );
+  return waiting.length
+    ? [entryList("Connection requests", waiting, "setup", compact)]
+    : [];
 }
 function homePage(root: HTMLElement, data: Workspace) {
   root.className = "workspace-page";
   root.replaceChildren(
     heading(
       "Workspace",
-      "Select a connection request or query result to get started.",
+      "Select a saved datasource or query result to get started.",
     ),
-    entryList("Connection requests", data.setups, "setup"),
+    datasourceList(data.datasources),
+    ...pendingRequests(data),
     entryList("Recent results", data.results, "result"),
   );
 }
@@ -117,7 +128,7 @@ async function start() {
     // Prepare the new pane offscreen, keeping the current view visible until ready.
     const pane = element("div");
     try {
-      const data = await api<Workspace>("/home", undefined, signal);
+      let data = await api<Workspace>("/home", undefined, signal);
       signal.throwIfAborted();
       renderSidebar(data);
       const route = url.pathname.split("/").filter(Boolean);
@@ -127,12 +138,28 @@ async function start() {
         if (entry && entry.status !== status) {
           entry.status = status;
           renderSidebar(data);
+          if (status === "completed") {
+            void api<Workspace>("/home", undefined, signal)
+              .then((next) => {
+                if (signal.aborted) return;
+                data = next;
+                renderSidebar(data);
+              })
+              .catch((error) => {
+                if (!signal.aborted)
+                  document
+                    .getElementById("sidebar")!
+                    .append(element("p", "feedback error", message(error)));
+              });
+          }
         }
       };
       if (route[0] === "setup" && route[1])
         await setupPage(pane, route[1], updateStatus(data.setups), signal);
       else if (route[0] === "result" && route[1])
         await resultPage(pane, route[1], updateStatus(data.results), signal);
+      else if (route[0] === "datasource" && route[1])
+        await datasourcePage(pane, route[1], signal);
       else if (url.pathname === "/") homePage(pane, data);
       else throw new Error("This page does not exist.");
       signal.throwIfAborted();

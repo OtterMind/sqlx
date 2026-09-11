@@ -164,6 +164,11 @@ export async function setupPage(
             : next.status === "expired"
               ? "This request expired. Ask your agent to open a new setup page."
               : "");
+    if (next.status === "completed" && next.datasource_id) {
+      const link = element("a", "saved-datasource-link", "View datasource");
+      link.href = `/datasource/${next.datasource_id}`;
+      feedback.append(" ", link);
+    }
   }
   async function poll(): Promise<void> {
     if (signal.aborted) return;

@@ -2,7 +2,7 @@
 name: sqlx
 description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, PostgreSQL, Oracle, and SQL Server connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
-  cli-compat: ">=0.1.2, <0.2.0"
+  cli-compat: ">=0.1.3, <0.2.0"
 ---
 
 # SQLX
@@ -47,7 +47,11 @@ Each operation includes its purpose, placeholder replacements, expected result, 
 
 ## Show results to the user
 
-When the user wants to inspect data visually, append `--view` to the already prepared SQL execution command. It returns a local result URL and starts the query once in the local service. The user does not need to paste or rerun the SQL. Refreshing or paging the result reads the same cached execution. UI results are retained locally for 24 hours; do not automatically rerun expired or interrupted queries. `--no-open` returns a link without launching a browser. These pages open on the machine running SQLX. See [local pages](references/local-ui.md) for credential editing, UI plugin installation and selection, lifecycle, and limitations.
+After every successful page-opening command (`ui`, `datasource add/update --ui`, or `sql execute --view`), immediately put the **complete returned `url` in a clickable Markdown link in the user-facing reply**, even if the browser was opened automatically. Include it again in the final reply when that is the delivery message. Do not finish with only "the page is open", a request/result ID, a screenshot, or tool output. Preserve the URL's path and `#token=...` fragment; a bare host/port is not an authorized launch link. For example: `Open the page: [SQLX workspace](<complete returned url>)`. Use the actual CLI response, never a guessed address or this placeholder.
+
+The launch link is single-use and expires after five minutes; that is the time allowed to open it, not the lifetime of an authorized page. If you consumed a link while testing, obtain a fresh one for the user. Use `sqlx ui --no-open` to issue a fresh workspace link without replaying SQL; the user can select the retained result in query history. With `--no-open`, say the page is ready and provide the link rather than claiming a browser was launched.
+
+When the user wants to inspect data visually, append `--view` to the already prepared SQL execution command. It returns a local result URL and starts the query once in the local service. The user does not need to paste or rerun the SQL. Browser reload and pagination read the same cached execution. In SQLX 0.1.3, the page's **Refresh data** action explicitly reruns all original SQL statements in order. The optional refresh interval does the same; do not enable it unless the user requests repeated execution. SQL is not classified or rewritten, so writes in the original batch run again too. UI results are retained locally for 24 hours; do not automatically rerun expired or interrupted queries. `--no-open` returns a link without launching a browser. These pages open on the machine running SQLX. See [local pages](references/local-ui.md) for credential editing, UI plugin installation and selection, lifecycle, and limitations.
 
 Skill installation and updates use `sqlx skill install --target codex`, `--target claude`, or `--path <skill-directory>`, followed by the target agent's discovery/reload mechanism. `sqlx skill status` and `sqlx skill update` operate on SQLX-managed installations and preserve locally modified skill files.
 

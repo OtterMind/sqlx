@@ -15,6 +15,16 @@ for (const [source, entrypoint] of [
     outfile: `${output}/app.js`,
     minify: true,
   });
+  if (source === ".") {
+    await build({
+      entryPoints: ["src/theme-bootstrap.ts"],
+      bundle: true,
+      format: "iife",
+      target: "es2022",
+      outfile: `${output}/theme.js`,
+      minify: true,
+    });
+  }
   await Promise.all([
     copyFile(`${source}/index.html`, `${output}/index.html`),
     copyFile(`${source}/style.css`, `${output}/app.css`),

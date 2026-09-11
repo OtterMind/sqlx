@@ -1,4 +1,9 @@
 /** Internal links retain the workbench shell; modified clicks keep normal browser behavior. */
+export function navigate(path: string): void {
+  history.pushState(null, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
 export function startNavigation(
   render: (url: URL, signal: AbortSignal) => Promise<void>,
 ): () => void {
@@ -33,13 +38,12 @@ export function startNavigation(
       url.origin !== location.origin ||
       url.hash ||
       url.search ||
-      !/^\/(?:$|(?:setup|result)\/[^/]+$)/.test(url.pathname)
+      !/^\/(?:$|(?:setup|result|datasource)\/[^/]+$)/.test(url.pathname)
     )
       return;
     event.preventDefault();
     if (url.pathname === location.pathname) return;
-    history.pushState(null, "", url.pathname);
-    visit();
+    navigate(url.pathname);
   });
   window.addEventListener("popstate", visit);
   window.addEventListener("pageshow", (event) => {

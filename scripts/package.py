@@ -8,7 +8,7 @@ def archive(output,files):
         for source,name in files:z.write(source,name)
     return hashlib.sha256(output.read_bytes()).hexdigest()
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--platform',required=True);p.add_argument('--version',default='0.1.2');p.add_argument('--bin-dir',type=Path,default=ROOT/'target/release');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--platform',required=True);p.add_argument('--version',default='0.1.3');p.add_argument('--bin-dir',type=Path,default=ROOT/'target/release');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args()
     a.output.mkdir(parents=True,exist_ok=True);records={}
     suffix='.exe' if a.platform.startswith('windows-') else ''
     for kind,binary in [('cli','sqlx'),('mysql','sqlx-driver-mysql'),('postgres','sqlx-driver-postgres'),('ui','sqlx-ui')]:

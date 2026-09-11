@@ -54,7 +54,7 @@ sqlx update status
 
 Interactive use checks in the background at most once per day and shows a cached notice on stderr. It does not install updates automatically. Piped/CI commands do not start automatic checks; `SQLX_NO_UPDATE_CHECK=1` also disables them. Explicit update commands still work. `status` reads local history without network access. See [update behavior and recovery](docs/updates.md).
 
-Versions 0.1.0 and 0.1.1 do not have update commands. Rerun the installer above once to get 0.1.2; existing connections are preserved. Source builds and package-manager-owned paths use their original installation method.
+Versions 0.1.0 and 0.1.1 do not have update commands. Rerun the installer above once to get the latest version; existing connections are preserved. Source builds and package-manager-owned paths use their original installation method.
 
 ## Install the Skill
 
@@ -144,15 +144,19 @@ To send an already written query to a results page:
 sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id" --view
 ```
 
-SQLX executes once and returns a result URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Refreshing, paging, or reopening the page reads the same cached result rather than executing the SQL again. Results are retained locally for 24 hours, with owner-restricted permissions. The usual CLI execution mode still streams complete JSON to stdout.
+SQLX executes once and returns a result URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Reloading, paging or reopening the page reads the cached result. In 0.1.3, **Refresh data** explicitly reruns the original SQL batch against the database. Optional 5/10/30/60-second refresh intervals are off by default, wait for the previous run to finish, pause in hidden tabs, and stop on failure or navigation. SQL is executed unchanged, so any writes in the batch run again. A successful refresh replaces the displayed snapshot at the same URL; failures keep the previous result and do not roll back database changes. Results are retained locally for 24 hours, with owner-restricted permissions. The usual CLI execution mode still streams complete JSON to stdout.
 
-`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. The local UI service and default UI plugin are separate packages, downloaded only when needed. Setup links expire after five minutes unless already exchanged for a browser session; unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
+`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. The local UI service and default UI plugin are separate packages, downloaded only when needed. Launch links expire after five minutes unless already exchanged for a browser session; in 0.1.3, authenticated activity renews the session for another 12 hours. The open page sends a heartbeat every 30 seconds. unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
 
 Password entry through the page keeps credentials out of the normal agent conversation and tool response. It does not isolate credentials from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
 
 ### Choose your UI
 
-The default interface is a plugin. You can install a community interface and switch without changing saved connections or rerunning queries:
+SQLX 0.1.3 lists saved datasources in the workbench. Select a connection to inspect its settings, test connectivity or open its edit form while keeping the saved password.
+
+The default interface is a plugin. CLI updates retain its selected version. To use the 0.1.3 page features after upgrading, let active work finish, run `sqlx ui stop`, install `ui-default-0.1.3.zip` from the [0.1.3 release](https://github.com/OtterMind/sqlx/releases/tag/v0.1.3) with its SHA-256 from `SHA256SUMS`, and select `default --version 0.1.3` using the commands below. The next `sqlx ui` starts the matching service.
+
+You can also install a community interface and switch without changing saved connections or rerunning queries:
 
 ```sh
 sqlx ui plugin install --url <plugin-zip-url> --sha256 <published-sha256>
@@ -273,7 +277,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.2.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.3.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -282,7 +286,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.2.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.3.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```

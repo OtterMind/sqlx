@@ -1,9 +1,14 @@
 type Theme = "light" | "dark";
 const storageKey = "sqlx.ui.theme";
 
-export function initializeTheme(): void {
-  const toggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
-  const system = window.matchMedia("(prefers-color-scheme: dark)");
+function applyTheme(theme: Theme): void {
+  document.documentElement.dataset.theme = theme;
+  document
+    .querySelector('meta[name="color-scheme"]')
+    ?.setAttribute("content", theme);
+}
+
+export function restoreTheme(): Theme | undefined {
   let preference: Theme | undefined;
   try {
     const saved = localStorage.getItem(storageKey);
@@ -11,8 +16,21 @@ export function initializeTheme(): void {
   } catch {
     // Theme switching still works when browser storage is unavailable.
   }
+  applyTheme(
+    preference ??
+      (window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"),
+  );
+  return preference;
+}
+
+export function initializeTheme(): void {
+  const toggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
+  const system = window.matchMedia("(prefers-color-scheme: dark)");
+  let preference = restoreTheme();
   const apply = (theme: Theme) => {
-    document.documentElement.dataset.theme = theme;
+    applyTheme(theme);
     const label = theme === "dark" ? "Light mode" : "Dark mode";
     toggle.setAttribute("aria-label", `Switch to ${label.toLowerCase()}`);
     toggle.title = `Switch to ${label.toLowerCase()}`;

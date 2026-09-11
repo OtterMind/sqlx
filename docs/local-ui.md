@@ -2,6 +2,8 @@
 
 The CLI launches a separately downloadable `sqlx-ui` process on loopback. Frontend assets are independently installed static UI plugins; no interface is embedded in the executable. The default UI and the terminal-style example use the same browser API v1. `sqlx_core` shares encrypted storage, component management and worker execution with the regular CLI; the main binary does not link Axum or database drivers.
 
+SQLX 0.1.3 adds saved datasources to the default workbench sidebar and home page. Selecting one shows its nonsecret settings and offers explicit connection testing and editing. Editing reuses the existing credential form and stale-edit protection; a successful save updates the sidebar. Completed/cancelled setup tasks no longer occupy the pending connection-request list.
+
 ## Commands
 
 - `datasource add --ui ...` creates a prefilled setup request without prompting for or accepting a password in the command. `--username-env` can prefill a known username.
@@ -30,7 +32,7 @@ A setup request lives in server memory for up to 30 minutes. Save first checks t
 
 Worker events go through the same validator as stdout execution. UI mode writes row JSONL plus fixed-width offset indexes to owner-restricted files under `results/<id>/`. Metadata records statement/result boundaries and exact column types. Pages read a bounded row window without repeating SQL or scanning preceding rows. Large cells remain complete and can be opened in a value dialog.
 
-Completed results survive UI service restarts for 24 hours. Unconfirmed active results recover as interrupted; they are never replayed. Refresh, pagination, and reopening a link are read operations. The service exits after 30 idle minutes with no active task. The default UI sends an authenticated read every 30 seconds while its page is open, so viewing a completed result is treated as activity. A lost connection shows a retry action; retries only reload page data and never rerun SQL. Explicit shutdown cancels active workers and preserves their outcome state.
+Completed results survive UI service restarts for 24 hours. Unconfirmed active results recover as interrupted; they are never replayed. Browser reload, pagination and reopening a link read the current local snapshot. The explicit Refresh data action reruns the original SQL batch without classification or rewriting. The optional browser interval repeats that action after the prior run completes; it pauses in a hidden tab and is disabled on navigation, reload or failure. A complete refreshed snapshot atomically replaces the prior one at the same URL. Failure/cancellation keeps the prior result but does not undo database writes. Refresh request IDs have durable receipts so retrying a lost response cannot execute a batch twice. The service exits after 30 idle minutes with no active task. The default UI sends an authenticated read every 30 seconds while its page is open, so viewing a completed result is treated as activity. A lost connection shows a retry action; retries only reload page data and never rerun SQL. Authenticated API activity renews both the browser cookie and server session for 12 hours; the five-minute launch token is only for initial authorization. Explicit shutdown cancels active workers and preserves their outcome state.
 
 ## Validation
 
