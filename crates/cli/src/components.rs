@@ -11,8 +11,11 @@ use std::{
     time::Duration,
 };
 
-pub const DEFAULT_MANIFEST: &str =
-    "https://github.com/OtterMind/sqlx/releases/latest/download/manifest.json";
+pub const DEFAULT_MANIFEST: &str = concat!(
+    "https://github.com/OtterMind/sqlx/releases/download/v",
+    env!("CARGO_PKG_VERSION"),
+    "/manifest.json"
+);
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Asset {
     pub version: String,
@@ -289,7 +292,7 @@ pub fn files(root: &Path) -> Result<BTreeMap<String, String>> {
     visit(root, root, &mut out)?;
     Ok(out)
 }
-fn unzip(source: &Path, target: &Path) -> Result<()> {
+pub(crate) fn unzip(source: &Path, target: &Path) -> Result<()> {
     let mut archive = zip::ZipArchive::new(File::open(source)?)?;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;

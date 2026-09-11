@@ -35,6 +35,7 @@ flate2 = "1"
 tar = "0.4"
 semver = "1"
 rpassword = "7"
+self-replace = "=1.5.0"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }

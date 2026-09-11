@@ -40,6 +40,22 @@ Add `%LOCALAPPDATA%\Programs\SQLX` to your user PATH for future sessions. The in
 
 Prebuilt targets are macOS ARM64/x64, Linux ARM64/x64, and Windows x64. The initial Linux build baseline is Ubuntu 24.04; older distributions have not been verified. Release users do not need to install Rust, Node.js, Java, or database drivers separately. Database workers and a private JRE are downloaded only when needed.
 
+## Check and install updates
+
+Starting with 0.1.2, the CLI can update its own executable:
+
+```sh
+sqlx update check
+sqlx update install
+sqlx update status
+```
+
+`check` contacts GitHub and reports the latest stable version without installing it. `install` downloads the package for this platform, verifies its checksums and version, replaces the executable and verifies the installed path. Use `sqlx update install --version <version>` for an exact stable version. Updates do not stop running SQL or the UI service, modify saved connections, or automatically update Skills/plugins. Use `sqlx skill update` separately for managed Skills; UI plugins retain the user's selected version.
+
+Interactive use checks in the background at most once per day and shows a cached notice on stderr. It does not install updates automatically. Piped/CI commands do not start automatic checks; `SQLX_NO_UPDATE_CHECK=1` also disables them. Explicit update commands still work. `status` reads local history without network access. See [update behavior and recovery](docs/updates.md).
+
+Versions 0.1.0 and 0.1.1 do not have update commands. Rerun the installer above once to get 0.1.2; existing connections are preserved. Source builds and package-manager-owned paths use their original installation method.
+
 ## Install the Skill
 
 ### If the CLI is already installed
@@ -211,7 +227,7 @@ Rows are streamed without a CLI row limit or silent truncation. The agent's own 
 
 User data lives in `~/.sqlx/`. Use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key. Back up the key together with the encrypted data; losing the key prevents decryption. Device identity is generated locally, and this version does not upload device information.
 
-The main executable contains no database drivers. MySQL and PostgreSQL use separate native Rust workers; Oracle and SQL Server use a separate JDBC worker. Downloaded resources are selected from a compatible GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
+The main executable contains no database drivers. MySQL and PostgreSQL use separate native Rust workers; Oracle and SQL Server use a separate JDBC worker. Downloaded resources are selected from the running CLI version's fixed GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result, and official documentation link.
 
@@ -257,7 +273,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.1.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.2.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -266,7 +282,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.1.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.2.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```
@@ -286,6 +302,7 @@ python3 tests/distribution.py
 python3 tests/ui_lifecycle.py
 python3 tests/ui_distribution.py
 python3 tests/ui_plugins.py
+python3 tests/updates.py
 docker compose -f tests/compose.yaml up -d --wait
 python3 tests/integration.py
 python3 tests/ui_api.py
@@ -294,7 +311,7 @@ docker compose -f tests/compose.yaml down -v
 
 For local native workers, set `SQLX_WORKER_DIR` to the absolute `target/debug` directory. For JDBC development, that directory also contains `sqlx-jdbc.jar` and `ojdbc.jar` or `mssql-jdbc.jar`; `SQLX_JAVA_BIN` can select Java 17 explicitly. These overrides are for development, not prerequisites for release users. The fixture scripts use dedicated test containers and test-only credentials.
 
-See [the design](docs/design.md) for implementation boundaries and deferred features. SQL-file input, persistent sessions, configurable transaction/error modes, result-file export, automatic CLI updates, and telemetry are not v1 features.
+See [the design](docs/design.md) for implementation boundaries and deferred features. SQL-file input, persistent sessions, configurable transaction/error modes, result-file export, unattended update installation and telemetry are not included.
 
 ## License
 

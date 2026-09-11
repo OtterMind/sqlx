@@ -2,7 +2,7 @@
 name: sqlx
 description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, PostgreSQL, Oracle, and SQL Server connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
-  cli-compat: ">=0.1.1, <0.2.0"
+  cli-compat: ">=0.1.2, <0.2.0"
 ---
 
 # SQLX
@@ -50,3 +50,9 @@ Each operation includes its purpose, placeholder replacements, expected result, 
 When the user wants to inspect data visually, append `--view` to the already prepared SQL execution command. It returns a local result URL and starts the query once in the local service. The user does not need to paste or rerun the SQL. Refreshing or paging the result reads the same cached execution. UI results are retained locally for 24 hours; do not automatically rerun expired or interrupted queries. `--no-open` returns a link without launching a browser. These pages open on the machine running SQLX. See [local pages](references/local-ui.md) for credential editing, UI plugin installation and selection, lifecycle, and limitations.
 
 Skill installation and updates use `sqlx skill install --target codex`, `--target claude`, or `--path <skill-directory>`, followed by the target agent's discovery/reload mechanism. `sqlx skill status` and `sqlx skill update` operate on SQLX-managed installations and preserve locally modified skill files.
+
+## Check and install CLI updates
+
+Use `sqlx update check` to fetch the latest stable version without installing it. `sqlx update install` changes the executable when the user requests an upgrade; `--version <version>` selects an exact stable release. `sqlx update status` reads the last check/installation outcome without networking. An update check alone is not authorization to install.
+
+An `installed` result means the new binary was verified at the installed path. A failure must be reported as a failure; inspect `status` and any retained backup information instead of repeating replacement blindly. Updating never replays SQL or replaces saved datasource files. Update the managed Skill separately with `sqlx skill update`, then follow the agent's reload/discovery behavior. See [CLI update details](references/updates.md).

@@ -1,5 +1,5 @@
 mod skill;
-use sqlx_core::{components, execution, plugins, storage, ui};
+use sqlx_core::{components, execution, plugins, storage, ui, updates};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -26,6 +26,10 @@ struct Cli {
     /// Use locally built workers for development instead of release downloads.
     #[arg(long, global = true, env = "SQLX_WORKER_DIR", hide = true)]
     worker_dir: Option<PathBuf>,
+    #[arg(long, global = true, env = "SQLX_UPDATE_RELEASE_BASE", hide = true, default_value = updates::RELEASE_BASE)]
+    update_release_base: String,
+    #[arg(long, global = true, env = "SQLX_UPDATE_DIR", hide = true)]
+    update_dir: Option<PathBuf>,
     /// Return the local page URL without opening a browser.
     #[arg(long, global = true)]
     no_open: bool,
@@ -35,6 +39,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init,
+    /// Check or install official CLI updates.
+    Update {
+        #[command(subcommand)]
+        command: UpdateCommand,
+    },
     Datasource {
         #[command(subcommand)]
         command: DatasourceCommand,
@@ -52,6 +61,20 @@ enum Commands {
         #[command(subcommand)]
         command: Option<UiCommand>,
     },
+}
+#[derive(Subcommand)]
+enum UpdateCommand {
+    /// Fetch the latest stable version without installing it.
+    Check,
+    /// Download, verify and install the official CLI executable.
+    Install {
+        #[arg(long)]
+        version: Option<String>,
+    },
+    /// Read the last check and installation result without network access.
+    Status,
+    #[command(hide = true)]
+    BackgroundCheck,
 }
 #[derive(Subcommand)]
 enum UiCommand {
@@ -181,13 +204,27 @@ enum SkillCommand {
 }
 fn main() {
     let cli = Cli::parse();
-    match run(cli) {
+    let automatic = io::stdin().is_terminal()
+        && io::stdout().is_terminal()
+        && !matches!(&cli.command, Commands::Update { .. } | Commands::Init)
+        && cli.worker_dir.is_none()
+        && std::env::var("SQLX_NO_UPDATE_CHECK").ok().as_deref() != Some("1");
+    let updater = if automatic {
+        updates::Updater::new(cli.update_dir.clone(), cli.update_release_base.clone()).ok()
+    } else {
+        None
+    };
+    let outcome = run(cli);
+    if let Some(updater) = updater {
+        updater.notify_and_schedule();
+    }
+    match outcome {
         Ok(true) => {}
         Ok(false) => std::process::exit(1),
         Err(e) => {
             println!(
                 "{}",
-                json!({"success":false,"error":{"code":"sqlx.error","message":format!("{e:#}")}})
+                json!({"success":false,"error":{"code":e.downcast_ref::<updates::UpdateError>().map(|e| e.code.as_str()).unwrap_or("sqlx.error"),"message":format!("{e:#}")}})
             );
             std::process::exit(1);
         }
@@ -200,6 +237,19 @@ fn run(cli: Cli) -> Result<bool> {
             .join(".sqlx"),
     );
     match cli.command {
+        Commands::Update { command } => {
+            let updater = updates::Updater::new(cli.update_dir, cli.update_release_base)?;
+            let value = match command {
+                UpdateCommand::Check => updater.check(false)?,
+                UpdateCommand::Install { version } => updater.install(version.as_deref())?,
+                UpdateCommand::Status => updater.status()?,
+                UpdateCommand::BackgroundCheck => {
+                    updater.check(true)?;
+                    return Ok(true);
+                }
+            };
+            print(value);
+        }
         Commands::Init => {
             let store = Store::open(root)?;
             print(json!({"initialized":true,"identity":store.identity}));
