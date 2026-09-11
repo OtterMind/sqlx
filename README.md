@@ -6,7 +6,7 @@ Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let y
 
 Download prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), or use the installers below. See [build from source](#build-from-source) for development.
 
-The [v0.1.2 release acceptance report](docs/release-acceptance-v0.1.2.md) records public-download installation, upgrade from 0.1.1, executable replacement/recovery, browser workflows, and the scope and limits of validation. The [v0.1.1 report](docs/release-acceptance-v0.1.1.md) includes the earlier four-database and UI-plugin acceptance.
+The [v0.1.3 release acceptance report](docs/release-acceptance-v0.1.3.md) records a real 0.1.2-to-0.1.3 self-update, public-download verification, preserved in-flight SQL/UI, and browser refresh workflows. Earlier [v0.1.2](docs/release-acceptance-v0.1.2.md) and [v0.1.1](docs/release-acceptance-v0.1.1.md) reports cover replacement/recovery and four-database/plugin acceptance.
 
 ## Install the CLI
 
@@ -146,7 +146,7 @@ sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id"
 
 SQLX executes once and returns a result URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Reloading, paging or reopening the page reads the cached result. In 0.1.3, **Refresh** explicitly reruns the original SQL batch against the database. Optional 5/10/30/60-second refresh intervals are off by default, wait for the previous run to finish, pause in hidden tabs, and stop on failure or navigation. SQL is executed unchanged, so any writes in the batch run again. A successful refresh replaces the displayed snapshot at the same URL; failures keep the previous result and do not roll back database changes. Results are retained locally for 24 hours, with owner-restricted permissions. The usual CLI execution mode still streams complete JSON to stdout.
 
-`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. The local UI service and default UI plugin are separate packages, downloaded only when needed. Launch links expire after five minutes unless already exchanged for a browser session; in 0.1.3, authenticated activity renews the session for another 12 hours. The open page sends a heartbeat every 30 seconds. unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
+`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. The local UI service and default UI plugin are separate packages, downloaded only when needed. Launch links expire after five minutes unless already exchanged for a browser session; in 0.1.3, authenticated activity renews the session for another 12 hours. The open page sends a heartbeat every 30 seconds. Unfinished setup requests expire after 30 minutes. The service exits after 30 idle minutes when no task is active.
 
 Password entry through the page keeps credentials out of the normal agent conversation and tool response. It does not isolate credentials from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
 

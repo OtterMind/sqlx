@@ -135,7 +135,7 @@ sqlx ui plugin use my-interface --version 0.1.0
 
 `install --path <directory>` supports local builds. Installation does not select the plugin. `use` without a version selects the highest installed compatible version. Stop the UI before removing inactive versions so open pages keep their assets. SQLX stores plugins in `~/.sqlx/plugins/ui/` (or the configured data directory); per-file hashes are verified at installation and asset reads.
 
-Plugins are trusted code in the credential/result page and can access its inputs and data. The CSP restricts resources and requests to the local origin, blocks inline scripts/styles and embedding, and allows data images. Bundle dependencies locally and use external CSS. This is not a sandbox that isolates a malicious interface from credentials entered into it. A SHA-256 verifies bytes, not author identity. The backend exposes no key retrieval, native hooks or browser-controlled execution endpoint.
+Plugins are trusted code in the credential/result page and can access its inputs and data. The CSP restricts resources and requests to the local origin, blocks inline scripts/styles and embedding, and allows data images. Bundle dependencies locally and use external CSS. This is not a sandbox that isolates a malicious interface from credentials entered into it. A SHA-256 verifies bytes, not author identity. The backend exposes no key retrieval or native hooks. Browser refresh can rerun a saved SQL batch, but the browser cannot submit replacement SQL through that endpoint.
 
 ## Acceptance checklist
 
