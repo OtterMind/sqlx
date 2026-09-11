@@ -26,7 +26,7 @@ def exercise(cli):
             asset=web/f'skill-{version}.zip'
             with zipfile.ZipFile(asset,'w') as z:
                 for name,body in (entries or {'SKILL.md':f'---\nname: sqlx\ndescription: Test database skill\n---\n{text}\n','references/mysql.md':'# MySQL\nSELECT 1\n'}).items(): z.writestr(name,body)
-            return dict(version=version,url=f'{base}/{asset.name}',sha256=hashlib.sha256(asset.read_bytes()).hexdigest(),archive='zip',entrypoint='SKILL.md',cli_compat='>=0.2.0, <0.3.0',protocol_version=1)
+            return dict(version=version,url=f'{base}/{asset.name}',sha256=hashlib.sha256(asset.read_bytes()).hexdigest(),archive='zip',entrypoint='SKILL.md',cli_compat='>=0.1.1, <0.2.0',protocol_version=1)
         def manifest(asset,name='manifest.json'):
             (web/name).write_text(json.dumps(dict(schema_version=1,components={'skill:any':asset})))
         def call(*args,ok=True,manifest_name='manifest.json'):

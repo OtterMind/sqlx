@@ -353,7 +353,7 @@ mod tests {
                 name: "Test".into(),
                 version: "0.1.0".into(),
                 api_version: 1,
-                cli_compat: ">=0.2.0, <0.3.0".into(),
+                cli_compat: ">=0.1.1, <0.2.0".into(),
                 entrypoint: "index.html".into(),
                 capabilities: vec![
                     "workspace".into(),

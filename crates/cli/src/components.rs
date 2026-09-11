@@ -50,8 +50,9 @@ impl Components {
         let dir = self.root.join("manifests");
         fs::create_dir_all(&dir)?;
         let cache = dir.join(format!(
-            "{}.json",
-            hex::encode(Sha256::digest(self.source.as_bytes()))
+            "{}-{}.json",
+            hex::encode(Sha256::digest(self.source.as_bytes())),
+            env!("CARGO_PKG_VERSION")
         ));
         let bytes = if cache.exists() && !refresh {
             fs::read(&cache)?

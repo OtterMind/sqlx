@@ -2,7 +2,7 @@
 
 A UI plugin is a static browser application. It provides the workspace, credential form and query result pages. The local Rust service provides authentication, connection testing, encrypted storage, SQL execution and retained results. The default UI has no private frontend API.
 
-Use React, Vue, Svelte, vanilla TypeScript, or another framework that builds static assets. SQLX does not launch a Node.js server or native plugin code. This contract is introduced in SQLX 0.2.0; the published 0.1.0 CLI does not support it.
+Use React, Vue, Svelte, vanilla TypeScript, or another framework that builds static assets. SQLX does not launch a Node.js server or native plugin code. This contract is introduced in SQLX 0.1.1; the published 0.1.0 CLI does not support it.
 
 ## Start with the independent example
 
@@ -51,7 +51,7 @@ The manifest must be at the package root:
   "name": "My SQLX Interface",
   "version": "0.1.0",
   "api_version": 1,
-  "cli_compat": ">=0.2.0, <0.3.0",
+  "cli_compat": ">=0.1.1, <0.2.0",
   "entrypoint": "index.html",
   "capabilities": ["workspace", "datasource-setup", "query-results"],
   "description": "A short explanation of the interface."

@@ -1,6 +1,6 @@
 # Local credential and result pages
 
-These commands require SQLX 0.2.0. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+These commands require SQLX 0.1.1. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
 
 ## Ask the user for a password without putting it in the conversation
 

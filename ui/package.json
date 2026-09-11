@@ -1,7 +1,7 @@
 {
   "name": "sqlx-local-ui",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.1.1",
   "scripts": {
     "build": "tsc --noEmit && node build.mjs"
   },

@@ -1,4 +1,4 @@
-SQLX 0.2.0 adds local browser pages for connection setup and query results. Agents prefill connection settings with `datasource add --ui`; users enter passwords directly in the browser, and the CLI returns only setup status and the saved datasource ID.
+SQLX 0.1.1 adds local browser pages for connection setup and query results. Agents prefill connection settings with `datasource add --ui`; users enter passwords directly in the browser, and the CLI returns only setup status and the saved datasource ID.
 
 Queries submitted with `sql execute --view` run once and open a page with progress, result-set tabs, exact values and pagination. Refreshing or reopening the page reads cached results without rerunning SQL. The local service and default UI plugin download separately; `ui status` and `ui stop` manage its lifecycle.
 

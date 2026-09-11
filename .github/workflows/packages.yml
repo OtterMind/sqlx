@@ -110,19 +110,7 @@ jobs:
         run: |
           passed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length')
           test "$passed" -gt 0
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          cat > "$RUNNER_TEMP/release-tag.txt" <<EOF
-          SQLX v0.2.0
-          Source repository: OtterMind/sqlx
-          Source commit: $GITHUB_SHA
-          Workflow: .github/workflows/packages.yml
-          Workflow ref: $GITHUB_WORKFLOW_REF
-          Workflow commit: $GITHUB_WORKFLOW_SHA
-          Inputs: publish=true
-          Platforms: macos-arm64, macos-x64, windows-x64, linux-arm64, linux-x64
-          EOF
-          git tag -a v0.2.0 "$GITHUB_SHA" -F "$RUNNER_TEMP/release-tag.txt"
-          git push origin refs/tags/v0.2.0
-          gh release create v0.2.0 --draft --verify-tag --title 'SQLX 0.2.0' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
-          gh release edit v0.2.0 --draft=false --latest
+          test "$(git describe --tags --exact-match HEAD)" = v0.1.1
+          test "$(git cat-file -t refs/tags/v0.1.1)" = tag
+          gh release create v0.1.1 --draft --verify-tag --title 'SQLX 0.1.1' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
+          gh release edit v0.1.1 --draft=false --latest
