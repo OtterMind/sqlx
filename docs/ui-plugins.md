@@ -81,7 +81,7 @@ Packages may contain HTML, JS/MJS, CSS, JSON, source maps, SVG/PNG/JPEG/WebP/GIF
 | `/setup/<request-id>` | Load prepared settings, collect credentials, show save errors/status and offer cancellation. |
 | `/result/<result-id>` | Read execution status, SQL, metadata and rows. Show multiple result sets and partial failure. |
 
-The current development service establishes an HttpOnly session cookie when it serves a local page. Call `await authenticate()` from the SDK to check workspace access before loading data. If the session expires, reload the page to establish another session. Do not log or persist cookies, passwords or setup submissions. API calls use same-origin cookies and the `X-SQLX-UI: 1` header; the SDK supplies both. No CORS or cross-origin development proxy is supported. From 0.1.3, authenticated requests renew the server session and HttpOnly cookie for 12 hours. A page heartbeat every 30 seconds keeps an open UI active; a page reload renews an expired session without a URL token.
+The SQLX 0.1.4 service establishes an HttpOnly session cookie when it serves a local page. Call `await authenticate()` from the SDK to check workspace access before loading data. If the session expires, reload the page to establish another session. Do not log or persist cookies, passwords or setup submissions. API calls use same-origin cookies and the `X-SQLX-UI: 1` header; the SDK supplies both. No CORS or cross-origin development proxy is supported. From 0.1.3, authenticated requests renew the server session and HttpOnly cookie for 12 hours. A page heartbeat every 30 seconds keeps an open UI active; a page reload renews an expired session without a URL token.
 
 ## Browser API v1
 

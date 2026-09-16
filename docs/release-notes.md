@@ -1,11 +1,23 @@
-SQLX 0.1.3 adds saved datasources to the workbench. Open a connection to inspect its settings, test connectivity or edit it while retaining its saved password. Pending connection requests and query history remain available separately.
+SQLX 0.1.4 improves local page access, query result refresh recovery, and MySQL connection diagnostics.
 
-Result pages now offer Refresh and optional 5/10/30/60-second automatic refresh. Each action executes the original SQL batch unchanged and in order. Successful refreshes replace the snapshot at the same URL; failure or cancellation preserves the previous result. Automatic refresh waits for completion, pauses in hidden tabs and stops on errors or navigation. Browser reload and pagination still read cached data. Writes in an explicitly refreshed batch execute again.
+## Improvements
 
-Active pages renew their browser session automatically. The five-minute launch link only limits initial authorization. Saved dark/light preferences are restored before the first styled paint, avoiding a light flash during dark-mode reloads.
+- Reopen local pages without a five-minute launch deadline. The local UI stays running until explicitly stopped and keeps the same address after restart; reload an existing page to reconnect. Saved query results are still retained for 24 hours, and unfinished connection forms expire after 30 minutes.
+- Use a more compact result view, with refresh and cancellation controls above the table and pagination below it. Single result sets no longer show an unnecessary tab, and automatic refresh displays its selected interval.
+- MySQL connection errors identify the database address and port, distinguish refused connections from 15-second timeouts, and provide troubleshooting guidance when a connection is refused.
 
-The Skill now requires agents to include the complete, clickable page URL in their response, including its authorization fragment, even when a browser was opened automatically.
+## Fixes
 
-Upgrade SQLX 0.1.2 with `sqlx update check`, `sqlx update install` and `sqlx update status`. Update managed Skills separately with `sqlx skill update`. The updater preserves running UI processes and selected plugins; restart the UI service and explicitly install/select the 0.1.3 default plugin to use its new page features. Versions 0.1.0/0.1.1 need the README installer first.
+- Clear stale refresh errors after a successful refresh. When another page refreshes the same result, returning to the original page synchronizes its result and status without executing SQL again. Failed refreshes continue to preserve the last successful result and disable automatic refresh.
 
-Prebuilt packages cover macOS ARM64/x64, Linux ARM64/x64 and Windows x64. macOS executables are Developer ID signed and notarized. See LICENSE and NOTICE for license conditions.
+## Upgrading
+
+From SQLX 0.1.2 or later, run `sqlx update check`, `sqlx update install`, and `sqlx update status`. Versions 0.1.0 and 0.1.1 need the [README installer](https://github.com/OtterMind/sqlx#install-the-cli) first.
+
+CLI updates preserve running UI services and the selected plugin. To use all 0.1.4 page improvements, let active work finish, run `sqlx ui stop`, install `ui-default-0.1.4.zip` from this release with its SHA-256 from `SHA256SUMS`, select it with `sqlx ui plugin use default --version 0.1.4`, and run `sqlx ui` again. The new default plugin requires SQLX 0.1.4. Update managed Skills separately with `sqlx skill update` after upgrading the CLI.
+
+Explicit result refresh still reruns the complete original SQL batch, including any writes. Reloading, paging, reconnecting, and returning to a page only read cached results.
+
+Prebuilt packages are available for macOS ARM64/x64, Linux ARM64/x64, and Windows x64. macOS executables are Developer ID signed and notarized. See LICENSE and NOTICE for license conditions.
+
+**Full Changelog**: https://github.com/OtterMind/sqlx/compare/v0.1.3...v0.1.4

@@ -92,15 +92,15 @@ def main():
             old_script = request(default_base+"/app.js")
             command("ui", "plugin", "use", "terminal")
             assert json.loads(request("/api/plugin"))["id"] == "terminal"
-            assert b"/_ui/terminal/0.1.1/" in request("/")
+            assert b"/_ui/terminal/0.1.4/" in request("/")
             assert request(default_base+"/app.js") == old_script
             request("/api/plugins/activate", {"id": "default", "version": "0.1.1"}, expected=404)
-            request("/_ui/terminal/0.1.1/.sqlx-ui-receipt.json", expected=404)
-            request("/_ui/terminal/0.1.1/%2e%2e/%2e%2e/active.json", expected=404)
-            asset = data / "plugins/ui/terminal/0.1.1/app.js"
+            request("/_ui/terminal/0.1.4/.sqlx-ui-receipt.json", expected=404)
+            request("/_ui/terminal/0.1.4/%2e%2e/%2e%2e/active.json", expected=404)
+            asset = data / "plugins/ui/terminal/0.1.4/app.js"
             previous = asset.read_bytes()
             asset.write_bytes(b"tampered")
-            request("/_ui/terminal/0.1.1/app.js", expected=404)
+            request("/_ui/terminal/0.1.4/app.js", expected=404)
             asset.write_bytes(previous)
             command("ui", "plugin", "remove", "default", "--version", default_version, ok=False)
             command("ui", "stop")
@@ -108,9 +108,9 @@ def main():
                 if not (data / "ui/state.json").exists():
                     break
                 time.sleep(.05)
-            command("ui", "plugin", "remove", "terminal", "--version", "0.1.1", ok=False)
+            command("ui", "plugin", "remove", "terminal", "--version", "0.1.4", ok=False)
             command("ui", "plugin", "use", "default")
-            command("ui", "plugin", "remove", "terminal", "--version", "0.1.1")
+            command("ui", "plugin", "remove", "terminal", "--version", "0.1.4")
             assert len(command("ui", "plugin", "list")["plugins"]) == 1
             print("UI plugins: local/ZIP installation, checksums, compatibility, immutable versions, live switching, old assets, tampering and removal guards passed")
         finally:
