@@ -1,6 +1,6 @@
 /** Internal links retain the workbench shell; modified clicks keep normal browser behavior. */
-export function navigate(path: string): void {
-  history.pushState(null, "", path);
+export function navigate(path: string, state: unknown = null): void {
+  history.pushState(state, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 

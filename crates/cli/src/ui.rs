@@ -7,7 +7,7 @@ use anyhow::{bail, Context, Result};
 use fs2::FileExt;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use sqlx_protocol::Connection;
 use std::{
     fs,
@@ -181,11 +181,7 @@ impl UiClient {
         Ok(value)
     }
     pub fn page(&self, path: &str, open: bool) -> Result<String> {
-        let value = self.post("/api/tickets", &json!({"path": path}))?;
-        let url = value["url"]
-            .as_str()
-            .context("UI did not return a page URL")?
-            .to_owned();
+        let url = format!("{}{path}", self.state.origin);
         if open {
             if let Err(error) = open_browser(&url) {
                 eprintln!(

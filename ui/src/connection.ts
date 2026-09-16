@@ -2,7 +2,7 @@ import { api } from "./api";
 import { button, element, message } from "./components";
 
 /** An open workspace is activity, even when its cached result no longer needs polling. */
-export function keepConnectionAlive(retryPage: () => void): void {
+export function keepConnectionAlive(): void {
   const notice = element("div", "connection-notice");
   const text = element("span");
   const retry = button("Retry", "button secondary");
@@ -29,17 +29,7 @@ export function keepConnectionAlive(retryPage: () => void): void {
       });
     return pending;
   };
-  retry.onclick = async () => {
-    retry.disabled = true;
-    try {
-      await check();
-      retryPage();
-    } catch {
-      /* The connection notice stays visible. */
-    } finally {
-      retry.disabled = false;
-    }
-  };
+  retry.onclick = () => location.reload();
   // A bounded read keeps the existing server alive; it never executes or retries SQL.
   window.setInterval(() => {
     void check().catch(() => {});

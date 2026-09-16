@@ -1,6 +1,6 @@
 mod results;
 mod server;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use fs2::FileExt;
 use sqlx_core::{
@@ -37,7 +37,19 @@ async fn run() -> Result<()> {
     restrict(&dir, true)?;
     let lock = open_private(&dir.join("server.lock"))?;
     lock.try_lock_exclusive()?;
-    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+    let port_path = dir.join("port.json");
+    let port: u16 = match fs::read(&port_path) {
+        Ok(bytes) => serde_json::from_slice(&bytes).context("invalid saved UI port")?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(error) => return Err(error.into()),
+    };
+    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
+        .await
+        .with_context(|| format!("cannot listen on local UI port {port}"))?;
+    atomic_write(
+        &port_path,
+        &serde_json::to_vec(&listener.local_addr()?.port())?,
+    )?;
     let state = UiState {
         protocol: UI_PROTOCOL,
         instance: uuid::Uuid::new_v4().to_string(),
@@ -52,6 +64,7 @@ async fn run() -> Result<()> {
         options.worker_dir,
     )?);
     atomic_write(&dir.join("state.json"), &serde_json::to_vec(&state)?)?;
+    eprintln!("Local UI listening on {}", state.origin);
     let maintenance = tokio::spawn(server::maintenance(app.clone()));
     axum::serve(listener, server::router(app.clone()))
         .with_graceful_shutdown(app.shutdown.clone().cancelled_owned())
@@ -64,6 +77,7 @@ async fn run() -> Result<()> {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
     maintenance.abort();
+    eprintln!("Local UI stopped");
     if let Ok(bytes) = fs::read(dir.join("state.json")) {
         if serde_json::from_slice::<UiState>(&bytes).is_ok_and(|s| s.instance == state.instance) {
             fs::remove_file(dir.join("state.json"))?;

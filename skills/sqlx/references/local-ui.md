@@ -4,9 +4,9 @@ Basic local-page commands require SQLX 0.1.1; saved-datasource browsing, data re
 
 ## Deliver the page link
 
-Read the successful command's returned `url` and include the exact value as a clickable link in the user-facing response, whether automatic browser launch succeeded or `--no-open` was used. Keep the path and authorization fragment intact. A status message or request ID does not tell the user where to go. Never use a bare origin such as `http://127.0.0.1:12345/` in place of a returned launch URL.
+Read the successful command's returned `url` and include the exact value as a clickable link in the user-facing response, whether automatic browser launch succeeded or `--no-open` was used. Keep the returned path intact. A status message or request ID does not tell the user where to go. The URL is an ordinary local address; do not add tokens or guess its port.
 
-Keep the user's one-use link unconsumed when testing in an agent-controlled browser. If it was used, or five minutes have passed, run `sqlx ui --no-open` and provide the fresh workspace link; existing query history remains available without running the SQL again. Once authorized, ordinary page reloads use the browser session and do not depend on the original launch token.
+Page URLs can be reopened or used in another browser. Loading a local page automatically establishes its browser session. If the service restarts, run `sqlx ui --no-open` to obtain its current address; retained query history remains available without running SQL again.
 
 ## Ask the user for a password without putting it in the conversation
 
@@ -64,9 +64,9 @@ sqlx ui status
 sqlx ui stop
 ```
 
-**Purpose and result:** The first command opens recent local requests/results, the second reports whether the service is running, and the third stops it and cancels active work. The service also exits after 30 idle minutes when no task is active. Closing a browser tab does not cancel a query.
+**Purpose and result:** The first command opens recent local requests/results, the second reports whether the service is running, and the third stops it and cancels active work. The service stays running until explicitly stopped. Closing a browser tab does not cancel a query.
 
-Launch links contain a five-minute, one-use token in the URL fragment; the page exchanges it for a local browser session. Five minutes is the opening deadline, not a page lifetime. In 0.1.3, authenticated API activity renews both the server session and browser cookie for another 12 hours. The page's 30-second heartbeat keeps the service and session active without executing SQL. An expired session or restarted service requires a fresh launch link. Do not publish those links or credentials externally. The service validates local authentication and request origins. Credential entry avoids sending the password through normal agent arguments and responses, but it does not isolate secrets from an agent with the same user's file or browser access.
+Local page URLs contain no authorization token. The service automatically issues an HttpOnly, SameSite=Strict session cookie when loading a page. Authenticated API activity renews both the server session and browser cookie for another 12 hours. The page's 30-second heartbeat keeps the service and session active without executing SQL. Reload the page to recover an expired session. The service saves and reuses its local port across restarts. Reload the page after restart to establish a fresh session. Do not publish connection credentials. The service validates local authentication and request origins. Credential entry avoids sending the password through normal agent arguments and responses, but it does not isolate secrets from an agent with the same user's file or browser access.
 
 ## Select a UI plugin
 

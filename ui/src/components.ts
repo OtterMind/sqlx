@@ -32,6 +32,15 @@ export function svgIcon(path: string): SVGSVGElement {
   icon.append(line);
   return icon;
 }
+
+/** Matches Chat2DB's result toolbar: 24px hit area and 16px line icon. */
+export function resultIcon(label: string, path: string): HTMLButtonElement {
+  const control = button("", "result-icon");
+  control.append(svgIcon(path));
+  control.title = label;
+  control.setAttribute("aria-label", label);
+  return control;
+}
 export function choiceMenu(
   label: string,
   choices: [string, string][],

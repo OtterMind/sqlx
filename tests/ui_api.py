@@ -21,10 +21,10 @@ def main():
                 with client.open(req,timeout=30) as response:code=response.status;raw=response.read()
             except urllib.error.HTTPError as error:code=error.code;raw=error.read()
             assert code==expected,(code,raw[:500]);return json.loads(raw)
-        def authorize(url):
-            parsed=urllib.parse.urlsplit(url);token=urllib.parse.parse_qs(parsed.fragment)['token'][0]
-            request('/session',{'token':token})
-            request('/session',{'token':token},expected=403)
+        def open_page(url):
+            parsed=urllib.parse.urlsplit(url);assert not parsed.fragment,url
+            with client.open(url,timeout=30) as response:
+                assert response.status==200
         def wait_setup(id,status):
             for _ in range(100):
                 result=command('datasource','setup-status','--request-id',id)
@@ -50,7 +50,20 @@ def main():
             command('ui','plugin','use','default')
             command('ui','plugin','install','--path',str(ROOT/'examples/terminal-ui/dist'))
             setup=command(*draft_args);parsed=urllib.parse.urlsplit(setup['url']);origin=parsed.scheme+'://'+parsed.netloc
-            authorize(setup['url']);id=setup['request_id']
+            # CLI page URLs are ordinary local paths. Opening them establishes
+            # the browser session without a launch credential exchange.
+            open_page(setup['url'])
+            open_page(command('ui')['url'])
+            assert any(cookie.name.startswith('sqlx_ui_') for cookie in jar)
+            assert request('/home')['datasources']==[]
+            foreign=urllib.request.Request(origin+'/',headers={'Host':'attacker.example'+':'+str(parsed.port)})
+            try:
+                client.open(foreign,timeout=30)
+            except urllib.error.HTTPError as error:
+                assert error.code==403
+            else:
+                raise AssertionError('foreign local page host was accepted')
+            id=setup['request_id']
             assert command('datasource','list')['datasources']==[]
             form=request('/setups/'+id);assert form['connection']['host']=='127.0.0.1' and 'password' not in form['connection']
             request('/home',extra={'Origin':'https://unrelated.example'},expected=403)
@@ -115,7 +128,7 @@ def main():
                 for _ in range(100):
                     if not (data/'ui/state.json').exists():break
                     time.sleep(.05)
-                home=command('ui');parsed=urllib.parse.urlsplit(home['url']);origin=parsed.scheme+'://'+parsed.netloc;authorize(home['url'])
+                home=command('ui');parsed=urllib.parse.urlsplit(home['url']);origin=parsed.scheme+'://'+parsed.netloc;open_page(home['url'])
                 assert request('/results/'+old_id)['status']=='completed'
                 assert len(request('/results/'+old_id+'/rows?statement=0&result=0&offset=200&limit=100')['rows'])==51
                 error=command('sql','execute','--datasource',source_id,'--sql','SELECT 1','--sql','SELECT * FROM ui_missing_table','--sql','SELECT 2','--view')

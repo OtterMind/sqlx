@@ -96,10 +96,9 @@ function homePage(root: HTMLElement, data: Workspace) {
 async function start() {
   initializeTheme();
   const root = document.getElementById("app")!;
-  let retryPage = () => location.reload();
   const unavailable = (target: HTMLElement, error: unknown) => {
     const retry = button("Retry", "button secondary");
-    retry.onclick = () => retryPage();
+    retry.onclick = () => location.reload();
     target.className = "workspace-page";
     target.replaceChildren(
       heading(
@@ -118,7 +117,7 @@ async function start() {
     unavailable(root, error);
     return;
   }
-  retryPage = startNavigation(async (url, signal) => {
+  startNavigation(async (url, signal) => {
     root.inert = true;
     root.setAttribute("aria-busy", "true");
     for (const dialog of document.querySelectorAll<HTMLDialogElement>(
@@ -177,6 +176,6 @@ async function start() {
       }
     }
   });
-  keepConnectionAlive(() => retryPage());
+  keepConnectionAlive();
 }
 void start();

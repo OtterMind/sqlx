@@ -24,7 +24,7 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     },
     time::{Duration, Instant},
@@ -46,9 +46,7 @@ pub struct App {
     setups: Mutex<HashMap<String, Arc<Mutex<Setup>>>>,
     results: Mutex<HashMap<String, SharedResult>>,
     cancellations: Mutex<HashMap<String, CancellationToken>>,
-    tickets: Mutex<HashMap<String, u64>>,
     sessions: Mutex<HashMap<String, u64>>,
-    last_access: AtomicU64,
     pub active: AtomicUsize,
     pub shutdown: CancellationToken,
 }
@@ -168,9 +166,7 @@ impl App {
             results: Mutex::new(results),
             setups: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
-            tickets: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
-            last_access: AtomicU64::new(now()),
             active: AtomicUsize::new(0),
             shutdown: CancellationToken::new(),
         })
@@ -244,6 +240,11 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
     let mut renewal = None;
     let headers = request.headers();
     let path = request.uri().path();
+    let browser_page = request.method() == axum::http::Method::GET
+        && (path == "/"
+            || path.starts_with("/setup/")
+            || path.starts_with("/result/")
+            || path.starts_with("/datasource/"));
     let forbidden = || {
         ApiError(
             StatusCode::FORBIDDEN,
@@ -280,24 +281,32 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
             {
                 return forbidden();
             }
-            if path != "/api/session" {
-                renewal = cookie(headers, &app.cookie_name()).filter(|c| {
-                    app.sessions
-                        .lock()
-                        .unwrap()
-                        .get(c)
-                        .is_some_and(|expires| *expires > now())
-                });
-                if renewal.is_none() {
-                    return forbidden();
-                }
+            renewal = cookie(headers, &app.cookie_name()).filter(|c| {
+                app.sessions
+                    .lock()
+                    .unwrap()
+                    .get(c)
+                    .is_some_and(|expires| *expires > now())
+            });
+            if renewal.is_none() {
+                return forbidden();
             }
-            if matches!(path, "/api/health" | "/api/tickets" | "/api/stop")
+            if matches!(path, "/api/health" | "/api/stop")
                 || (mutation && matches!(path, "/api/setups" | "/api/results"))
             {
                 return forbidden();
             }
         }
+    } else if browser_page {
+        // Opening the local page creates or renews its browser session.
+        let session = cookie(headers, &app.cookie_name()).filter(|c| {
+            app.sessions
+                .lock()
+                .unwrap()
+                .get(c)
+                .is_some_and(|expires| *expires > now())
+        });
+        renewal = Some(session.unwrap_or_else(token));
     }
     if let Some(session) = &renewal {
         app.sessions
@@ -305,7 +314,6 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
             .unwrap()
             .insert(session.clone(), now() + SESSION_TTL);
     }
-    app.last_access.store(now(), Ordering::Relaxed);
     let mut response = next.run(request).await;
     let h = response.headers_mut();
     if let Some(session) = renewal {
@@ -330,8 +338,6 @@ pub fn router(app: Local) -> Router {
         .route("/_ui/{plugin}/{version}/{*asset}", get(plugin_asset))
         .route("/api/plugin", get(active_plugin))
         .route("/api/health", get(health))
-        .route("/api/tickets", post(ticket))
-        .route("/api/session", post(session))
         .route("/api/home", get(home))
         .route("/api/datasources/{id}", get(datasource_details))
         .route("/api/datasources/{id}/edit", post(edit_datasource))
@@ -405,72 +411,11 @@ async fn health(State(app): State<Local>) -> Json<Value> {
     Json(json!({"protocol":app.state.protocol,"instance":app.state.instance}))
 }
 
-#[derive(Deserialize)]
-struct TicketInput {
-    path: String,
-}
-async fn ticket(State(app): State<Local>, Json(input): Json<TicketInput>) -> ApiResult {
-    if input.path != "/" {
-        let (kind, id) = input
-            .path
-            .trim_start_matches('/')
-            .split_once('/')
-            .ok_or_else(|| bad("Invalid page path"))?;
-        if kind == "setup" {
-            app.setup(id)?;
-        } else if kind == "result" {
-            app.result(id)?;
-        } else if kind == "datasource" {
-            load_datasource(&app, id).await?;
-        } else {
-            return Err(bad("Invalid page path"));
-        }
-    }
-    let token = token();
-    app.tickets
-        .lock()
-        .unwrap()
-        .insert(token.clone(), now() + 300);
-    Ok(Json(
-        json!({"url":format!("{}{}#token={token}",app.state.origin,input.path)}),
-    ))
-}
-#[derive(Deserialize)]
-struct SessionInput {
-    token: String,
-}
 fn session_cookie(app: &App, session: &str) -> String {
     format!(
         "{}={session}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_TTL}",
         app.cookie_name()
     )
-}
-async fn session(
-    State(app): State<Local>,
-    Json(input): Json<SessionInput>,
-) -> std::result::Result<Response, ApiError> {
-    if app
-        .tickets
-        .lock()
-        .unwrap()
-        .remove(&input.token)
-        .is_none_or(|expires| expires <= now())
-    {
-        return Err(ApiError(
-            StatusCode::FORBIDDEN,
-            "This launch link has expired or was already used. Open a new page from SQLX.".into(),
-        ));
-    }
-    let session = token();
-    app.sessions
-        .lock()
-        .unwrap()
-        .insert(session.clone(), now() + SESSION_TTL);
-    Ok((
-        [(header::SET_COOKIE, session_cookie(&app, &session))],
-        Json(json!({"authenticated":true})),
-    )
-        .into_response())
 }
 async fn home(State(app): State<Local>) -> ApiResult {
     let root = app.root.clone();
@@ -888,6 +833,7 @@ async fn execute_query(
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RefreshRequest {
     request_id: String,
 }
@@ -1035,10 +981,6 @@ async fn stop(State(app): State<Local>) -> ApiResult {
 pub async fn maintenance(app: Local) {
     loop {
         tokio::time::sleep(Duration::from_secs(30)).await;
-        app.tickets
-            .lock()
-            .unwrap()
-            .retain(|_, expires| *expires > now());
         app.sessions
             .lock()
             .unwrap()
@@ -1058,10 +1000,6 @@ pub async fn maintenance(app: Local) {
                     true
                 }
             });
-            if now().saturating_sub(app.last_access.load(Ordering::Relaxed)) > 30 * 60 {
-                app.shutdown.cancel();
-                return;
-            }
         }
     }
 }
@@ -1124,6 +1062,105 @@ mod tests {
             assert_eq!(response.status(), expected);
         }
     }
+
+    #[tokio::test]
+    async fn result_routes_reject_edits_and_filter_clauses() {
+        let (_dir, app) = fixture();
+        let session = token();
+        app.sessions
+            .lock()
+            .unwrap()
+            .insert(session.clone(), now() + SESSION_TTL);
+        let cookie = format!("{}={session}", app.cookie_name());
+        for (path, body, expected) in [
+            ("/api/results/test/edit", json!({}), StatusCode::NOT_FOUND),
+            ("/api/results/test/edits", json!({}), StatusCode::NOT_FOUND),
+            (
+                "/api/results/test/edits/test",
+                json!({}),
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                "/api/results/test/refresh",
+                json!({"request_id":uuid::Uuid::new_v4().to_string(),"filter":{"where_clause":"1=0","order_by":"id DESC"}}),
+                StatusCode::UNPROCESSABLE_ENTITY,
+            ),
+        ] {
+            let response = router(app.clone())
+                .oneshot(
+                    axum::http::Request::builder()
+                        .method("POST")
+                        .uri(path)
+                        .header("Host", "127.0.0.1:32145")
+                        .header("Origin", &app.state.origin)
+                        .header("X-SQLX-UI", "1")
+                        .header("Cookie", &cookie)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(body.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected, "{path}");
+        }
+    }
+
+    #[tokio::test]
+    async fn local_page_bootstraps_a_session_without_a_launch_token() {
+        for path in ["/", "/result/test"] {
+            let (_dir, app) = fixture();
+            let response = router(app.clone())
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri(path)
+                        .header("Host", "127.0.0.1:32145")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let cookie = response.headers()[header::SET_COOKIE]
+                .to_str()
+                .unwrap()
+                .split(';')
+                .next()
+                .unwrap()
+                .to_owned();
+            assert!(cookie.starts_with(&format!("{}=", app.cookie_name())));
+
+            let home = router(app.clone())
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri("/api/home")
+                        .header("Host", "127.0.0.1:32145")
+                        .header("X-SQLX-UI", "1")
+                        .header("Cookie", cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(home.status(), StatusCode::OK);
+        }
+    }
+
+    #[tokio::test]
+    async fn local_page_rejects_a_foreign_host_without_bootstrapping() {
+        let (_dir, app) = fixture();
+        let response = router(app)
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("Host", "attacker.example:32145")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
+    }
     #[tokio::test]
     async fn authenticated_activity_renews_the_browser_session_but_expiry_does_not() {
         let (_dir, app) = fixture();
@@ -1157,25 +1194,18 @@ mod tests {
         assert!(!response.headers().contains_key(header::SET_COOKIE));
     }
     #[tokio::test]
-    async fn browser_bootstrap_is_one_use_and_cannot_control_admin_endpoints() {
+    async fn browser_session_cannot_control_admin_endpoints_or_exchange_launch_tokens() {
         let (_dir, app) = fixture();
-        let launch = token();
-        app.tickets
-            .lock()
-            .unwrap()
-            .insert(launch.clone(), now() + 300);
-        let request = || {
-            axum::http::Request::builder()
-                .method("POST")
-                .uri("/api/session")
-                .header("Host", "127.0.0.1:32145")
-                .header("Origin", &app.state.origin)
-                .header("X-SQLX-UI", "1")
-                .header("Content-Type", "application/json")
-                .body(Body::from(json!({"token":launch}).to_string()))
-                .unwrap()
-        };
-        let response = router(app.clone()).oneshot(request()).await.unwrap();
+        let response = router(app.clone())
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("Host", "127.0.0.1:32145")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let cookie = response.headers()[header::SET_COOKIE]
             .to_str()
@@ -1184,14 +1214,6 @@ mod tests {
             .next()
             .unwrap()
             .to_owned();
-        assert_eq!(
-            router(app.clone())
-                .oneshot(request())
-                .await
-                .unwrap()
-                .status(),
-            StatusCode::FORBIDDEN
-        );
         for (path, expected) in [
             ("/api/home", StatusCode::OK),
             ("/api/health", StatusCode::FORBIDDEN),
@@ -1209,6 +1231,24 @@ mod tests {
                 let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
                 assert!(!String::from_utf8_lossy(&body).contains(&app.state.token));
             }
+        }
+        for path in ["/api/session", "/api/tickets"] {
+            let response = router(app.clone())
+                .oneshot(
+                    axum::http::Request::builder()
+                        .method("POST")
+                        .uri(path)
+                        .header("Host", "127.0.0.1:32145")
+                        .header("Origin", &app.state.origin)
+                        .header("X-SQLX-UI", "1")
+                        .header("Cookie", &cookie)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(json!({"token":"old-launch-token"}).to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
     }
 }

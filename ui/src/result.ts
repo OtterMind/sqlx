@@ -8,7 +8,7 @@ import {
   heading,
   message,
   showValue,
-  statusBadge,
+  resultIcon,
 } from "./components";
 
 import type {
@@ -37,18 +37,12 @@ export async function resultPage(
   root.className = "results-page";
   const pageHeading = heading(meta.datasource_name, "Query results");
   root.replaceChildren(pageHeading);
-  const toolbar = element("div", "result-toolbar");
   const refreshUi = refreshControls(id, signal, refresh);
   refreshUi.update(meta);
-  const status = element("div");
   const cancel = button("Cancel query", "button secondary");
-  const elapsed = element("span", "muted");
-  toolbar.append(status, elapsed, cancel);
-  pageHeading.append(toolbar);
+  cancel.hidden = !running(meta.status) && meta.refresh?.status !== "running";
   const sqlDetails = element("details", "sql-details");
-  const sqlSummary = element("summary", "", "SQL");
-  sqlSummary.append(element("span", "sql-readonly", "Read only"));
-  sqlDetails.append(sqlSummary);
+  sqlDetails.append(element("summary", "", "SQL"));
   const sql = element(
     "pre",
     "",
@@ -64,12 +58,12 @@ export async function resultPage(
   const tabs = element("div", "tabs");
   tabs.setAttribute("role", "tablist");
   tabs.setAttribute("aria-label", "Result sets");
+  tabs.hidden = meta.tables.length <= 1;
   const viewport = element("div", "table-viewport");
   viewport.tabIndex = 0;
   viewport.id = "result-table";
   viewport.setAttribute("role", "tabpanel");
   viewport.setAttribute("aria-label", "Query result table");
-  const pagination = element("div", "pagination");
   const count = element("span", "muted");
   const controls = element("div", "page-controls");
   const size = element("select");
@@ -80,12 +74,15 @@ export async function resultPage(
     size.append(o);
   }
   size.value = "100";
-  const previous = button("Previous", "button secondary");
-  const next = button("Next", "button secondary");
-  controls.append(size, previous, next);
-  pagination.append(count, controls);
-  card.append(tabs, viewport, pagination);
-  root.append(sqlDetails, refreshUi.controls, refreshUi.feedback, errors, card);
+  const previous = resultIcon("Previous page", "m14 6-6 6 6 6");
+  const next = resultIcon("Next page", "m10 6 6 6-6 6");
+  controls.append(previous, next, size);
+  const commandBar = element("div", "result-command-bar");
+  const footer = element("div", "result-status-bar");
+  commandBar.append(cancel, refreshUi.controls);
+  footer.append(count, controls);
+  card.append(tabs, commandBar, viewport, footer);
+  root.append(sqlDetails, refreshUi.feedback, errors, card);
   function messages() {
     errors.replaceChildren();
     for (const event of meta.events) {
@@ -108,7 +105,9 @@ export async function resultPage(
     }
   }
   function renderTabs() {
+    tabs.hidden = meta.tables.length <= 1;
     tabs.replaceChildren();
+    if (tabs.hidden) return;
     meta.tables.forEach((table, i) => {
       const tab = button(
         `Statement ${table.statement + 1} · Result ${table.result + 1}`,
@@ -206,8 +205,9 @@ export async function resultPage(
     if (signal.aborted) return;
     const serial = ++pageSerial;
     const table = meta.tables[selected];
-    if (table)
+    if (table && meta.tables.length > 1)
       viewport.setAttribute("aria-labelledby", `result-tab-${selected}`);
+    else viewport.removeAttribute("aria-labelledby");
     previous.disabled = !history.length;
     next.disabled = true;
     if (!table) {
@@ -302,14 +302,8 @@ export async function resultPage(
         ++pageSerial;
       }
       const refreshing = meta.refresh?.status === "running";
-      status.replaceChildren(
-        statusBadge(refreshing ? "refreshing" : meta.status),
-      );
       onStatusChange(meta.status);
       pageHeading.querySelector("h1")!.textContent = meta.datasource_name;
-      elapsed.textContent = running(meta.status)
-        ? "Executing…"
-        : `${(meta.duration_ms / 1000).toFixed(2)}s`;
       cancel.hidden = !running(meta.status) && !refreshing;
       cancel.disabled = false;
       cancel.textContent = refreshing ? "Cancel refresh" : "Cancel query";
@@ -329,4 +323,12 @@ export async function resultPage(
     }
   }
   await refresh();
+  window.addEventListener(
+    "focus",
+    () => {
+      if (!running(meta.status) && meta.refresh?.status !== "running")
+        void refresh();
+    },
+    { signal },
+  );
 }

@@ -50,21 +50,6 @@ export async function api<T>(
   return (await response.json()) as T;
 }
 export async function authenticate(): Promise<void> {
-  const token = new URLSearchParams(location.hash.slice(1)).get("token");
-  history.replaceState(null, "", location.pathname + location.search);
-  if (token) {
-    try {
-      await api("/session", { token });
-      return;
-    } catch (error) {
-      try {
-        await api("/home");
-        return;
-      } catch {
-        throw error;
-      }
-    }
-  }
   await api("/home");
 }
 

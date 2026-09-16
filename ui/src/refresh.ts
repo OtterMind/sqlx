@@ -11,10 +11,9 @@ export function refreshControls(
   const controls = element("div", "refresh-controls");
   const group = element("div", "refresh-button");
   const refresh = button("", "button secondary refresh-main");
-  const caption = element("span", "", "Refresh");
+  const caption = element("span");
   refresh.append(svgIcon("M20 11a8 8 0 1 0-2.3 6 M20 4v7h-7"), caption);
   refresh.setAttribute("aria-label", "Refresh data");
-  refresh.title = "Run all original SQL statements again";
   const interval = choiceMenu(
     "Auto refresh interval",
     [0, 5, 10, 30, 60].map((seconds) => [
@@ -58,8 +57,13 @@ export function refreshControls(
       "aria-busy",
       String(pending || latest?.refresh?.status === "running"),
     );
-    caption.textContent =
-      interval.value === "0" ? "Refresh" : `Refresh · ${interval.value}s`;
+    const automatic = interval.value !== "0";
+    group.classList.toggle("auto-refresh", automatic);
+    caption.hidden = !automatic;
+    caption.textContent = automatic ? `${interval.value}s` : "";
+    refresh.title = automatic
+      ? `Refresh now · Auto refresh every ${interval.value}s`
+      : "Refresh now";
   }
   function schedule() {
     if (
@@ -78,15 +82,16 @@ export function refreshControls(
       Number(interval.value) * 1000,
     );
   }
-  function stop(error: string) {
+  function stop(error: string, previous = false) {
     clear();
     interval.value = "0";
     renderButton();
     feedback.hidden = false;
     feedback.className = "feedback error refresh-feedback";
-    feedback.textContent = `${error} Auto refresh is off. The previous result is preserved.`;
+    feedback.textContent = `${previous ? "Previous refresh failed" : "Refresh failed"}: ${error} Auto refresh is off. Showing the last successful result.`;
   }
   function update(meta: ResultMetadata) {
+    const previous = latest === undefined;
     latest = meta;
     if (meta.refresh?.request_id === unresolvedRequest)
       unresolvedRequest = undefined;
@@ -97,8 +102,8 @@ export function refreshControls(
       observedCompletion !== meta.refresh.request_id
     ) {
       observedCompletion = meta.refresh.request_id;
-      if (meta.refresh.status !== "completed")
-        stop(meta.refresh.error ?? "Refresh did not finish.");
+      if (meta.refresh.status === "completed") feedback.hidden = true;
+      else stop(meta.refresh.error ?? "Refresh did not finish.", previous);
     }
     renderButton();
     if (busy()) clear();

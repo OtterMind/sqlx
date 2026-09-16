@@ -8,3 +8,7 @@ with standalone worker processes and complete streamed SQL results.
 The retained LICENSE governs the derived code. Third-party dependencies keep
 their own licenses. SQLX is a public source repository; its license contains
 additional conditions beyond the standard Apache License 2.0.
+
+Result toolbar sizing is adapted from Chat2DB Community (commit 777b06099):
+chat2db-community-client/src/blocks/SearchResult/components/ResultSetToolbar.
+The original license and copyright conditions remain applicable.

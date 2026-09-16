@@ -72,8 +72,17 @@ async fn execute(
         .init(vec!["SET NAMES utf8mb4".to_string()]);
     let mut conn = tokio::time::timeout(Duration::from_secs(15), Conn::new(opts))
         .await
-        .map_err(|_| (None, anyhow::anyhow!("connection timed out")))?
-        .map_err(|e| (None, e.into()))?;
+        .map_err(|_| {
+            (
+                None,
+                anyhow::anyhow!(
+                    "Connection to MySQL at {}:{} timed out after 15 seconds.",
+                    c.host,
+                    c.port
+                ),
+            )
+        })?
+        .map_err(|e| (None, connection_error(&c.host, c.port, e)))?;
     let body = async {
         conn.ping().await.map_err(|e| (None, e.into()))?;
         out.send(Event::Connected).map_err(|e| (None, e))?;
@@ -93,6 +102,21 @@ async fn execute(
     close.map_err(|e| (None, e.into()))?;
     out.send(Event::Complete { success: true })
         .map_err(|e| (None, e))
+}
+
+fn connection_error(host: &str, port: u16, error: mysql_async::Error) -> anyhow::Error {
+    let error = anyhow::Error::from(error);
+    if error
+        .chain()
+        .filter_map(|cause| cause.downcast_ref::<io::Error>())
+        .any(|cause| cause.kind() == io::ErrorKind::ConnectionRefused)
+    {
+        anyhow::anyhow!(
+            "MySQL at {host}:{port} refused the connection. Check that MySQL is running and the address is correct."
+        )
+    } else {
+        error
+    }
 }
 
 async fn run_statement(
@@ -183,4 +207,31 @@ fn encode(value: Value, column: &MysqlColumn) -> Result<Json> {
             u64::from(days) * 24 + u64::from(h)
         )),
     })
+}
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+
+    #[test]
+    fn refused_connection_identifies_database_endpoint() {
+        let error = connection_error(
+            "127.0.0.1",
+            23306,
+            io::Error::from(io::ErrorKind::ConnectionRefused).into(),
+        );
+        let message = error.to_string();
+        assert!(message.contains("MySQL at 127.0.0.1:23306 refused the connection"));
+        assert!(!message.contains("Input/output error"));
+    }
+
+    #[test]
+    fn other_errors_preserve_driver_error_type() {
+        let error = connection_error(
+            "127.0.0.1",
+            23306,
+            io::Error::from(io::ErrorKind::ConnectionReset).into(),
+        );
+        assert!(error.downcast_ref::<mysql_async::Error>().is_some());
+    }
 }

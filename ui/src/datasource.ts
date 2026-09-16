@@ -101,7 +101,7 @@ export async function datasourcePage(
         const result = await testDatasource(id);
         if (!signal.aborted)
           feedback.textContent = `Connected successfully (${result.duration_ms} ms).`;
-      } else {
+      } else if (action === "edit") {
         const setup = await editDatasource(id);
         if (!signal.aborted) navigate(`/setup/${setup.request_id}`);
       }

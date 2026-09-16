@@ -74,7 +74,7 @@ def main():
             launch = command("ui")["url"]
             parsed = urllib.parse.urlsplit(launch)
             origin = parsed.scheme + "://" + parsed.netloc
-            token = urllib.parse.parse_qs(parsed.fragment)["token"][0]
+            assert not parsed.fragment and not parsed.query, launch
             client = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
             def request(path, body=None, expected=200):
@@ -88,7 +88,6 @@ def main():
                 assert code == expected, (path, code, raw[:100])
                 return raw
 
-            request("/api/session", {"token": token})
             assert (default_base+"/").encode() in request("/")
             old_script = request(default_base+"/app.js")
             command("ui", "plugin", "use", "terminal")

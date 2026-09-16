@@ -81,7 +81,7 @@ Packages may contain HTML, JS/MJS, CSS, JSON, source maps, SVG/PNG/JPEG/WebP/GIF
 | `/setup/<request-id>` | Load prepared settings, collect credentials, show save errors/status and offer cancellation. |
 | `/result/<result-id>` | Read execution status, SQL, metadata and rows. Show multiple result sets and partial failure. |
 
-Call `await authenticate()` from the SDK before loading any data. It removes the one-use token from the URL fragment and exchanges it for an HttpOnly session cookie. If a session has expired, ask the user to reopen a page through the CLI. Do not log or persist the token, cookies, passwords or setup submissions. API calls use same-origin cookies and the `X-SQLX-UI: 1` header; the SDK supplies both. No CORS or cross-origin development proxy is supported. From 0.1.3, authenticated requests renew the server session and HttpOnly cookie for 12 hours. A page heartbeat every 30 seconds keeps an open UI active; expired sessions are never revived without a fresh launch token.
+The current development service establishes an HttpOnly session cookie when it serves a local page. Call `await authenticate()` from the SDK to check workspace access before loading data. If the session expires, reload the page to establish another session. Do not log or persist cookies, passwords or setup submissions. API calls use same-origin cookies and the `X-SQLX-UI: 1` header; the SDK supplies both. No CORS or cross-origin development proxy is supported. From 0.1.3, authenticated requests renew the server session and HttpOnly cookie for 12 hours. A page heartbeat every 30 seconds keeps an open UI active; a page reload renews an expired session without a URL token.
 
 ## Browser API v1
 
@@ -89,7 +89,6 @@ All endpoints below are rooted at `/api`. Successful bodies are plain JSON objec
 
 | Method and path | SDK helper | Purpose and response |
 |---|---|---|
-| `POST /session` | `authenticate()` | Exchange `{token}` once for the browser cookie. |
 | `GET /home` | `getWorkspace()` | `{datasources, setups, results}`. Datasources include IDs, names and nonsecret connection settings; results include Unix `created_at` seconds. |
 | `GET /datasources/<id>` | `getDatasource(id)` | Saved name and connection settings. Username, password and vendor properties are omitted. |
 | `POST /datasources/<id>/test` | `testDatasource(id)` | Test with the saved credentials; return `{connected: true, duration_ms}` or an error. Body: `{}`. Does not save changes or execute SQL. |

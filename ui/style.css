@@ -122,12 +122,12 @@ main {
   border-radius: 6px;
   background: var(--surface);
 }
-.refresh-button:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.refresh-button:has(:focus-visible) {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
 }
 .refresh-button .refresh-main {
-  min-width: 108px;
+  min-width: 0;
   min-height: 0;
   gap: 6px;
   border: 0;
@@ -140,8 +140,7 @@ main {
 .refresh-options {
   display: grid;
   place-items: center;
-  width: 28px;
-  border-left: 1px solid var(--line);
+  width: 18px;
   color: var(--muted);
 }
 .refresh-options:hover,
@@ -436,25 +435,11 @@ summary:hover {
   font-size: 12px;
 }
 .results-page .page-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 16px;
   margin-bottom: 16px;
   flex-shrink: 0;
 }
 .results-page h1 {
   font-size: 18px;
-}
-.results-page .subtitle {
-  grid-column: 1;
-}
-.result-toolbar {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
 }
 .sql-details {
   position: relative;
@@ -779,15 +764,6 @@ summary:hover {
   .results-page {
     padding: 14px 10px;
   }
-  .results-page .page-heading {
-    grid-template-columns: 1fr;
-  }
-  .result-toolbar {
-    grid-column: 1;
-    grid-row: auto;
-    justify-content: flex-start;
-    margin-top: 8px;
-  }
   .pagination {
     flex-wrap: wrap;
   }
@@ -917,11 +893,6 @@ summary:hover {
 .sql-details summary {
   padding-right: 82px;
 }
-.sql-readonly {
-  font-size: 10px;
-  margin-left: 10px;
-  color: var(--muted);
-}
 .sql-details > .text-button {
   position: absolute;
   top: 4px;
@@ -970,3 +941,26 @@ summary:hover {
     display: none;
   }
 }
+
+/* Toolbar sizing adapted from Chat2DB ResultSetToolbar/style.ts. */
+.results-page .result-card { border-radius:0; }
+.result-command-bar { display:flex; align-items:center; justify-content:flex-end; height:34px; flex-shrink:0; border-bottom:1px solid var(--line); background:var(--surface); padding:0 4px; }
+.result-status-bar > .page-controls { margin-left:auto; gap:3px; flex-shrink:0; }
+.result-status-bar select { height:26px; padding:0 6px; font-size:12px; }
+.result-command-bar .refresh-controls { margin:0; height:34px; gap:0; padding:0 4px; flex-shrink:0; }
+.result-command-bar .refresh-controls > .muted { display:none; }
+.result-command-bar .refresh-button { border:0; height:24px; }
+.result-command-bar .refresh-main { width:24px; height:24px; padding:4px; border:0; border-radius:4px; background:transparent; color:var(--muted); }
+.result-command-bar .auto-refresh { background:var(--selection); }
+.result-command-bar .auto-refresh .refresh-main { width:auto; padding:4px 6px; color:var(--accent); }
+.result-command-bar .auto-refresh .refresh-options { color:var(--accent); }
+.result-command-bar .choice-menu-trigger { height:24px; width:18px; padding:2px; border:0; }
+.result-command-bar .choice-menu-options { left:auto; right:0; }
+.result-icon { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; flex-shrink:0; border:0; padding:4px; border-radius:4px; background:transparent; color:var(--muted); cursor:pointer; }
+.result-icon svg { width:16px; height:16px; stroke-width:2; }
+.result-icon:hover:not(:disabled) { color:var(--text); background:var(--subtle); }
+.result-icon:disabled { cursor:default; opacity:.35; }
+.result-icon:focus-visible { outline:1px solid var(--accent); }
+.result-status-bar { height:34px; display:flex; align-items:center; padding:0 8px; gap:16px; flex-shrink:0; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+.results-page .data-table tbody td, .results-page .data-table tbody th { height:28px; padding:0 8px; }
+.results-page .data-table .cell-value { display:block; width:100%; height:27px; line-height:26px; min-height:26px; padding:0; }
