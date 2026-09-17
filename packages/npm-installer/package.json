@@ -1,0 +1,36 @@
+{
+  "name": "@ottermind/sqlx",
+  "version": "0.1.5",
+  "description": "Install or update the SQLX database CLI and its agent Skill.",
+  "license": "LicenseRef-Chat2DB",
+  "homepage": "https://github.com/OtterMind/sqlx#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OtterMind/sqlx.git",
+    "directory": "packages/npm-installer"
+  },
+  "bugs": {
+    "url": "https://github.com/OtterMind/sqlx/issues"
+  },
+  "type": "module",
+  "bin": {
+    "sqlx-install": "bin/sqlx-install.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "test": "node --test test/unit.test.mjs test/e2e.test.mjs"
+  }
+}
