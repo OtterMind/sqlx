@@ -37,6 +37,7 @@ jobs:
       - run: python tests/ui_distribution.py
       - run: python tests/ui_plugins.py
       - run: python tests/updates.py
+      - run: npm --prefix packages/npm-installer test
   databases:
     runs-on: ubuntu-24.04
     steps:
