@@ -64,6 +64,11 @@ async function readVersion(binary) {
   return /^sqlx (\S+) \(OtterMind\/sqlx\)$/m.exec(result.stdout)?.[1] ?? null;
 }
 
+function nextPatch(version) {
+  const [major, minor, patch] = version.split(".").map(Number);
+  return `${major}.${minor}.${patch + 1}`;
+}
+
 function tree(root, prefix = "") {
   const entries = [];
   for (const item of fs.readdirSync(root, { withFileTypes: true })) {
@@ -187,17 +192,20 @@ test("packs, installs and refuses what it must refuse", async (t) => {
   const base = server.base;
   const realVersion = await readVersion(CLI);
   assert.ok(realVersion, "the debug CLI does not report an OtterMind SQLX version");
+  // The package version and the built CLI version are the same during release
+  // preparation, so the fake release needs a version of its own.
+  const fakeVersion = realVersion === VERSION ? nextPatch(VERSION) : VERSION;
 
   const skillEntries = tree(SKILL);
   publishRelease(web, base, realVersion, {
     cliEntries: [{ name: CLI_NAME, data: fs.readFileSync(CLI), mode: 0o755 }],
     skillEntries,
   });
-  publishRelease(web, base, VERSION, {
+  publishRelease(web, base, fakeVersion, {
     cliEntries: [
       {
         name: CLI_NAME,
-        data: `#!/bin/sh\nif [ "$1" = "--version" ]; then printf 'sqlx ${VERSION} (OtterMind/sqlx)\\n'; fi\nexit 0\n`,
+        data: `#!/bin/sh\nif [ "$1" = "--version" ]; then printf 'sqlx ${fakeVersion} (OtterMind/sqlx)\\n'; fi\nexit 0\n`,
         mode: 0o755,
       },
     ],
@@ -349,7 +357,7 @@ test("packs, installs and refuses what it must refuse", async (t) => {
       fakeCli(install, { version: "9.9.9", selfUpdate: true });
       const result = await installer([], {
         cwd: project(root, "keep"),
-        env: environment(VERSION, { SQLX_INSTALL_DIR: install }),
+        env: environment(fakeVersion, { SQLX_INSTALL_DIR: install }),
       });
       assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
       assert.equal(await readVersion(path.join(install, CLI_NAME)), "9.9.9");
@@ -362,10 +370,10 @@ test("packs, installs and refuses what it must refuse", async (t) => {
       fakeCli(install, { version: "0.1.0", selfUpdate: false });
       const result = await installer([], {
         cwd: project(root, "replace"),
-        env: environment(VERSION, { SQLX_INSTALL_DIR: install }),
+        env: environment(fakeVersion, { SQLX_INSTALL_DIR: install }),
       });
       assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-      assert.equal(await readVersion(path.join(install, CLI_NAME)), VERSION);
+      assert.equal(await readVersion(path.join(install, CLI_NAME)), fakeVersion);
       assert.match(result.stdout, /\(replaced\)/);
     });
 
@@ -374,11 +382,14 @@ test("packs, installs and refuses what it must refuse", async (t) => {
       fakeCli(install, { version: "0.1.0", selfUpdate: true });
       const result = await installer([], {
         cwd: project(root, "update"),
-        env: environment(VERSION, { SQLX_INSTALL_DIR: install }),
+        env: environment(fakeVersion, { SQLX_INSTALL_DIR: install }),
       });
       assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-      assert.match(fs.readFileSync(path.join(install, "calls.log"), "utf8"), /update install --version 0\.1\.5/);
-      assert.equal(await readVersion(path.join(install, CLI_NAME)), VERSION);
+      assert.match(
+        fs.readFileSync(path.join(install, "calls.log"), "utf8"),
+        new RegExp(`update install --version ${fakeVersion.replaceAll(".", "\\.")}`),
+      );
+      assert.equal(await readVersion(path.join(install, CLI_NAME)), fakeVersion);
       assert.match(result.stdout, /\(updated\)/);
     });
 
@@ -389,7 +400,7 @@ test("packs, installs and refuses what it must refuse", async (t) => {
       fs.chmodSync(path.join(install, CLI_NAME), 0o755);
       const result = await installer([], {
         cwd: project(root, "foreign"),
-        env: environment(VERSION, { SQLX_INSTALL_DIR: install }),
+        env: environment(fakeVersion, { SQLX_INSTALL_DIR: install }),
       });
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, /refusing to replace it/);
@@ -402,7 +413,7 @@ test("packs, installs and refuses what it must refuse", async (t) => {
       fs.symlinkSync(CLI, path.join(install, CLI_NAME));
       const result = await installer([], {
         cwd: project(root, "link"),
-        env: environment(VERSION, { SQLX_INSTALL_DIR: install }),
+        env: environment(fakeVersion, { SQLX_INSTALL_DIR: install }),
       });
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, /symbolic link/);
