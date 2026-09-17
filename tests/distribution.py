@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the real downloader and Skill installer against isolated local release assets."""
+"""Exercise the real downloader and Skill installer against isolated local release assets, and verify the shipped Skill source contract."""
 import argparse
 import functools
 import hashlib
@@ -57,5 +57,29 @@ def exercise(cli):
             print('distribution: download, checksum, archive traversal rejection, compatibility, Skill install/update and preservation of local edits passed')
         finally:server.shutdown();server.server_close();thread.join()
 
+def check_skill_source():
+    """Verify the Skill shipped by releases still carries the Agent approval contract."""
+    skill=ROOT/'skills/sqlx'
+    def read(name):return (skill/name).read_text(encoding='utf-8').replace('\r\n','\n')
+    text=read('SKILL.md');reference=read('references/local-ui.md')
+    assert text.startswith('---\nname: sqlx\n'),'SKILL.md frontmatter name changed'
+    clauses=[
+        '### Approval before state-changing SQL',
+        'classify the whole batch as read-only, state-changing, or unknown',
+        'If the user has not explicitly authorized that operation and scope, pause and ask for confirmation',
+        'Establish the blast radius with read-only SQL before asking',
+        'The same approval gate applies to `--view`',
+        'A one-time approval does not authorize future reruns',
+        'This is an Agent workflow rule, not a database permission mechanism',
+    ]
+    missing=[clause for clause in clauses if clause not in text]
+    assert not missing,f'SKILL.md no longer states the approval contract: {missing}'
+    assert "The Skill's approval gate therefore applies on the agent side" in reference,'references/local-ui.md no longer applies the approval gate to refresh'
+    for name,body in (('SKILL.md',text),('references/local-ui.md',reference)):
+        assert body.count('```')%2==0,f'unbalanced code fences in {name}'
+        trailing=[number for number,line in enumerate(body.splitlines(),1) if line.rstrip()!=line]
+        assert not trailing,f'trailing whitespace in {name} at {trailing}'
+    print('skill source: approval contract clauses, local page refresh coverage and formatting passed')
+
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();exercise(args.cli)
+    parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();check_skill_source();exercise(args.cli)
