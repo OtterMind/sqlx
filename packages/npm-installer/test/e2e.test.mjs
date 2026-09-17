@@ -237,7 +237,7 @@ test("packs, installs and refuses what it must refuse", async (t) => {
     await t.test("ships only the files the package declares", async () => {
       const result = await run("tar", ["-tzf", tarball]);
       assert.equal(result.status, 0, result.stderr);
-      assert.deepEqual(result.stdout.trim().split("\n").sort(), EXPECTED_FILES);
+      assert.deepEqual(result.stdout.trim().split(/\r?\n/).sort(), EXPECTED_FILES);
       assert.deepEqual(server.requests, [], "packing must not download anything");
     });
 

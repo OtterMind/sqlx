@@ -49,7 +49,7 @@ test("resolves every Skill target shape", () => {
   assert.equal(resolveSkillTarget("codex", cwd), path.join(os.homedir(), ".agents", "skills", "sqlx"));
   assert.equal(resolveSkillTarget("claude", cwd), path.join(os.homedir(), ".claude", "skills", "sqlx"));
   assert.equal(resolveSkillTarget("relative/target", cwd), path.join(cwd, "relative", "target"));
-  assert.equal(resolveSkillTarget("/absolute/target", cwd), "/absolute/target");
+  assert.equal(resolveSkillTarget("/absolute/target", cwd), path.resolve("/absolute/target"));
   assert.equal(resolveSkillTarget("中文 目录", cwd), path.join(cwd, "中文 目录"));
 });
 
