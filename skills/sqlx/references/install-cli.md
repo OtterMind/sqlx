@@ -1,6 +1,6 @@
 # Install OtterMind SQLX
 
-The repository is https://github.com/OtterMind/sqlx. The supported CLI range for this Skill is `>=0.1.5, <0.2.0`. The local-page commands are not available in 0.1.0; check the actual version before using them.
+The repository is https://github.com/OtterMind/sqlx. The supported CLI range for this Skill is `>=0.1.6, <0.2.0`. The local-page commands are not available in 0.1.0; check the actual version before using them.
 
 1. Check `sqlx --version` and `sqlx --help`. An existing Rust SQLx migration tool is a different executable; preserve it and install this client into a separate user directory, using the explicit path when needed.
 2. Select a release from the repository's GitHub Releases page compatible with this Skill. If no binary release is published, follow the [README source installation](https://github.com/OtterMind/sqlx#build-from-source) when the required build tools are available. Do not download another project's CLI or pretend a release exists.
