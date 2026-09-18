@@ -204,6 +204,7 @@ For an agent or script, provide credentials through environment variables or a c
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`postgres`, `oracle`, `sqlserver`, `skill` or `all`) |
 | Install the Skill | `sqlx skill install --target codex` or `--target claude` |
 | Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
 | Inspect/update managed Skills | `sqlx skill status`, `sqlx skill update` |
@@ -242,6 +243,15 @@ Rows are streamed without a CLI row limit or silent truncation. The agent's own 
 User data lives in `~/.sqlx/`. Use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key. Back up the key together with the encrypted data; losing the key prevents decryption. Device identity is generated locally, and this version does not upload device information.
 
 The main executable contains no database drivers. MySQL and PostgreSQL use separate native Rust workers; Oracle and SQL Server use a separate JDBC worker. Downloaded resources are selected from the running CLI version's fixed GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
+
+Downloads happen on first use and are cached afterwards. Each one prints `Downloading …`, a progress line with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and re-running a failed command reuses every component that is already installed. To avoid waiting inside the first query or page, fetch components ahead of time:
+
+```sh
+sqlx prefetch mysql ui      # MySQL worker and the local browser UI
+sqlx prefetch all           # adds PostgreSQL, Oracle, SQL Server, the JDBC runtime and JRE
+```
+
+When the release host is slow or unreachable, set `HTTPS_PROXY`/`HTTP_PROXY` for a proxy, or `SQLX_RELEASE_BASE` to download release assets from a mirror instead of `github.com`.
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result, and official documentation link.
 

@@ -1,5 +1,5 @@
 mod skill;
-use sqlx_core::{components, execution, plugins, storage, ui, updates};
+use sqlx_core::{components, execution, plugins, prefetch, storage, ui, updates};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -39,6 +39,17 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init,
+    /// Download database workers, the JDBC runtime and the browser UI before they are needed.
+    Prefetch {
+        /// Components to download: mysql, postgres, oracle, sqlserver, ui, skill or all.
+        #[arg(
+            value_name = "COMPONENT",
+            required = true,
+            num_args = 1..,
+            value_parser = ["mysql", "postgres", "oracle", "sqlserver", "ui", "skill", "all"]
+        )]
+        components: Vec<String>,
+    },
     /// Check or install official CLI updates.
     Update {
         #[command(subcommand)]
@@ -206,7 +217,10 @@ fn main() {
     let cli = Cli::parse();
     let automatic = io::stdin().is_terminal()
         && io::stdout().is_terminal()
-        && !matches!(&cli.command, Commands::Update { .. } | Commands::Init)
+        && !matches!(
+            &cli.command,
+            Commands::Update { .. } | Commands::Init | Commands::Prefetch { .. }
+        )
         && cli.worker_dir.is_none()
         && std::env::var("SQLX_NO_UPDATE_CHECK").ok().as_deref() != Some("1");
     let updater = if automatic {
@@ -253,6 +267,11 @@ fn run(cli: Cli) -> Result<bool> {
         Commands::Init => {
             let store = Store::open(root)?;
             print(json!({"initialized":true,"identity":store.identity}));
+        }
+        Commands::Prefetch { components } => {
+            let (report, complete) = prefetch::run(&root, &cli.manifest, &components)?;
+            print(report);
+            return Ok(complete);
         }
         Commands::Datasource { command } => match command {
             DatasourceCommand::Add {

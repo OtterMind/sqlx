@@ -6,9 +6,9 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{self, File},
-    io::{Read, Write},
+    io::{IsTerminal, Read, Seek, SeekFrom, Write},
     path::{Component, Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub const DEFAULT_MANIFEST: &str = concat!(
@@ -60,15 +60,17 @@ impl Components {
         let bytes = if cache.exists() && !refresh {
             fs::read(&cache)?
         } else {
-            let mut response = client()?
-                .get(valid_url(&self.source)?)
-                .send()?
-                .error_for_status()
-                .context(
-                    "release manifest is unavailable; publish release assets or supply --manifest",
-                )?;
-            let mut bytes = Vec::new();
-            response.read_to_end(&mut bytes)?;
+            let url = valid_url(&self.source)?;
+            let bytes = with_retry("Release manifest download", || {
+                eprintln!("Downloading release manifest");
+                let mut response = client()?.get(url.clone()).send()?.error_for_status()?;
+                let mut bytes = Vec::new();
+                response.read_to_end(&mut bytes)?;
+                Ok(bytes)
+            })
+            .context(
+                "release manifest is unavailable; publish release assets or supply --manifest",
+            )?;
             let parsed: Manifest = serde_json::from_slice(&bytes)?;
             validate_manifest(&parsed)?;
             atomic_write(&cache, &bytes)?;
@@ -93,6 +95,15 @@ impl Components {
         Ok(asset)
     }
     pub fn ensure(&self, name: &str, platform: &str, asset: &Asset) -> Result<PathBuf> {
+        Ok(self.ensure_with_status(name, platform, asset)?.0)
+    }
+    /// Install a component when it is missing; the flag reports whether it was downloaded now.
+    pub fn ensure_with_status(
+        &self,
+        name: &str,
+        platform: &str,
+        asset: &Asset,
+    ) -> Result<(PathBuf, bool)> {
         validate_asset(asset)?;
         let category = match name {
             "skill" => "skills",
@@ -117,16 +128,12 @@ impl Components {
             if files(&target)? != receipt.files {
                 bail!("installed component integrity check failed; remove only the damaged component directory and retry");
             }
-            return Ok(target.join(&asset.entrypoint));
+            return Ok((target.join(&asset.entrypoint), false));
         }
-        eprintln!("Downloading {name} {} for {platform}", asset.version);
+        let label = format!("{name} {} for {platform}", asset.version);
         let mut download = tempfile::NamedTempFile::new_in(&parent)?;
-        client()?
-            .get(valid_url(&asset.url)?)
-            .send()?
-            .error_for_status()?
-            .copy_to(&mut download)?;
-        download.flush()?;
+        download_to(&asset.url, download.as_file_mut(), &label)
+            .with_context(|| format!("cannot install {label}"))?;
         if hash(download.path())? != asset.sha256.to_ascii_lowercase() {
             bail!("download checksum mismatch for {name}");
         }
@@ -163,7 +170,7 @@ impl Components {
             &serde_json::to_vec(&receipt)?,
         )?;
         fs::rename(stage.path(), &target)?;
-        Ok(target.join(&asset.entrypoint))
+        Ok((target.join(&asset.entrypoint), true))
     }
 }
 pub fn download_plugin(url: &str, sha256: &str, parent: &Path) -> Result<tempfile::TempDir> {
@@ -172,11 +179,7 @@ pub fn download_plugin(url: &str, sha256: &str, parent: &Path) -> Result<tempfil
     }
     fs::create_dir_all(parent)?;
     let mut file = tempfile::NamedTempFile::new_in(parent)?;
-    client()?
-        .get(valid_url(url)?)
-        .send()?
-        .error_for_status()?
-        .copy_to(&mut file)?;
+    download_to(url, file.as_file_mut(), "UI plugin").context("cannot install the UI plugin")?;
     if hash(file.path())? != sha256.to_ascii_lowercase() {
         bail!("UI plugin checksum mismatch");
     }
@@ -184,12 +187,141 @@ pub fn download_plugin(url: &str, sha256: &str, parent: &Path) -> Result<tempfil
     unzip(file.path(), unpacked.path())?;
     Ok(unpacked)
 }
+const DOWNLOAD_ATTEMPTS: u32 = 3;
+const RETRY_BACKOFF: [Duration; 2] = [Duration::from_secs(2), Duration::from_secs(5)];
+const READ_CHUNK: usize = 65536;
 fn client() -> Result<reqwest::blocking::Client> {
     Ok(reqwest::blocking::Client::builder()
         .user_agent(concat!("OtterMind-SQLX/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(300))
+        // The blocking client has no per-read timeout, so the total budget must fit a slow
+        // but progressing transfer (a 5 MB worker at 3 KB/s is ~28 minutes); failures are retried.
+        .timeout(Duration::from_secs(1800))
         .build()?)
+}
+fn with_retry<T>(what: &str, mut action: impl FnMut() -> Result<T>) -> Result<T> {
+    let mut attempt = 1;
+    loop {
+        match action() {
+            Ok(value) => return Ok(value),
+            Err(error) if attempt < DOWNLOAD_ATTEMPTS && retryable(&error) => {
+                let backoff = RETRY_BACKOFF[(attempt - 1) as usize];
+                eprintln!(
+                    "{what} failed ({error}); retrying in {}s ({attempt}/{DOWNLOAD_ATTEMPTS})",
+                    backoff.as_secs()
+                );
+                std::thread::sleep(backoff);
+                attempt += 1;
+            }
+            Err(error) => {
+                let attempts = if attempt > 1 {
+                    format!(" after {attempt} attempts")
+                } else {
+                    String::new()
+                };
+                return Err(error.context(format!(
+                    "{what} failed{attempts}; re-run the same command to retry"
+                )));
+            }
+        }
+    }
+}
+/// A stalled or interrupted transfer is worth retrying; an HTTP status error is not.
+fn retryable(error: &anyhow::Error) -> bool {
+    if let Some(http) = error.downcast_ref::<reqwest::Error>() {
+        return http.status().is_none();
+    }
+    error.downcast_ref::<std::io::Error>().is_some()
+}
+fn download_to(url: &str, dest: &mut File, label: &str) -> Result<()> {
+    let url = valid_url(url)?;
+    with_retry("Download", || transfer(&url, dest, label))
+        .with_context(|| format!("cannot download {label}"))
+}
+fn transfer(url: &reqwest::Url, dest: &mut File, label: &str) -> Result<()> {
+    dest.set_len(0)?;
+    dest.seek(SeekFrom::Start(0))?;
+    eprintln!("Downloading {label}");
+    let mut response = client()?.get(url.clone()).send()?.error_for_status()?;
+    let total = response.content_length();
+    let interactive = std::io::stderr().is_terminal();
+    let started = Instant::now();
+    let mut done = 0u64;
+    let mut buffer = vec![0u8; READ_CHUNK];
+    loop {
+        let read = response.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        dest.write_all(&buffer[..read])?;
+        done += read as u64;
+        if interactive {
+            eprint!("\r{}", progress_line(label, done, total, started.elapsed()));
+        }
+    }
+    dest.flush()?;
+    let elapsed = started.elapsed();
+    if interactive {
+        eprint!("\r\x1b[K");
+    }
+    eprintln!(
+        "Downloaded {label} in {} ({})",
+        human_duration(elapsed),
+        human_rate(done, elapsed)
+    );
+    Ok(())
+}
+fn progress_line(label: &str, done: u64, total: Option<u64>, elapsed: Duration) -> String {
+    let rate = human_rate(done, elapsed);
+    match total {
+        Some(total) if total > 0 => {
+            let percent = done.saturating_mul(100) / total;
+            let remaining = total.saturating_sub(done) as f64;
+            let eta =
+                Duration::from_secs_f64(elapsed.as_secs_f64() * remaining / done.max(1) as f64);
+            format!(
+                "  {label}: {} / {} ({percent}%) {rate} ETA {}",
+                human_size(done),
+                human_size(total),
+                human_duration(eta)
+            )
+        }
+        _ => format!("  {label}: {} {rate}", human_size(done)),
+    }
+}
+fn human_size(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1000.0 && unit < UNITS.len() - 1 {
+        value /= 1000.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+pub(crate) fn human_duration(elapsed: Duration) -> String {
+    let seconds = elapsed.as_secs_f64();
+    if seconds < 60.0 {
+        return format!("{seconds:.1}s");
+    }
+    let mut minutes = (seconds / 60.0).floor() as u64;
+    let mut rest = seconds - minutes as f64 * 60.0;
+    if rest.round() >= 60.0 {
+        minutes += 1;
+        rest = 0.0;
+    }
+    format!("{minutes}m {:02}s", rest.round() as u64)
+}
+pub(crate) fn human_rate(bytes: u64, elapsed: Duration) -> String {
+    let seconds = elapsed.as_secs_f64();
+    if seconds <= 0.0 {
+        return format!("{}/s", human_size(bytes));
+    }
+    format!("{}/s", human_size((bytes as f64 / seconds) as u64))
 }
 fn valid_url(s: &str) -> Result<reqwest::Url> {
     let url = reqwest::Url::parse(s)?;
@@ -395,5 +527,41 @@ mod tests {
         for path in ["../key", "/tmp/key", "a/../../key", "a\\..\\key", ""] {
             assert!(safe_join(Path::new("cache"), path).is_err());
         }
+    }
+    #[test]
+    fn sizes_and_durations_stay_readable() {
+        assert_eq!(human_size(0), "0 B");
+        assert_eq!(human_size(999), "999 B");
+        assert_eq!(human_size(4_731_712), "4.7 MB");
+        assert_eq!(human_duration(Duration::from_millis(1_500)), "1.5s");
+        assert_eq!(human_duration(Duration::from_secs(59)), "59.0s");
+        assert_eq!(human_duration(Duration::from_secs(60)), "1m 00s");
+        assert_eq!(human_duration(Duration::from_millis(119_600)), "2m 00s");
+        assert_eq!(human_duration(Duration::from_secs(185)), "3m 05s");
+        assert_eq!(human_rate(1_000_000, Duration::from_secs(2)), "500.0 KB/s");
+    }
+    #[test]
+    fn progress_reports_percent_and_eta_only_with_a_total() {
+        let with_total = progress_line(
+            "mysql 0.1.5 for macos-arm64",
+            2_500_000,
+            Some(5_000_000),
+            Duration::from_secs(2),
+        );
+        assert!(with_total.contains("2.5 MB / 5.0 MB"), "{with_total}");
+        assert!(with_total.contains("(50%)"), "{with_total}");
+        assert!(with_total.contains("ETA 2.0s"), "{with_total}");
+        let without_total = progress_line("mysql 0.1.5", 1_500, None, Duration::from_secs(1));
+        assert_eq!(without_total, "  mysql 0.1.5: 1.5 KB 1.5 KB/s");
+    }
+    #[test]
+    fn only_transport_failures_are_retried() {
+        let transport = anyhow::Error::new(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "connection stalled",
+        ));
+        assert!(retryable(&transport));
+        let application = anyhow::anyhow!("download checksum mismatch for mysql");
+        assert!(!retryable(&application));
     }
 }

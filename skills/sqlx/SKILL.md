@@ -52,6 +52,18 @@ After a state-changing execution, report the actual target, statement outcome, a
 
 The CLI does not truncate results. Limit exploratory queries in SQL to avoid overflowing the agent's own output budget. Do not assume an agent tool showing only part of stdout means the database returned only those rows.
 
+## Downloads on first use
+
+The CLI does not embed database drivers, the JDBC runtime or the browser UI. The first operation that needs one downloads it from the fixed GitHub Release into the SQLX data directory and reuses it afterwards:
+
+- MySQL and PostgreSQL workers (~5 MB) on the first query for that database type.
+- The JDBC runner, the pinned JRE and the vendor driver on the first Oracle or SQL Server query; the JRE is the largest download.
+- The UI engine (~6 MB) and the default UI plugin on the first `--view`, `datasource add/update --ui` or `sqlx ui`.
+
+Each download prints `Downloading …`, a progress line with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr. An interrupted transfer is retried up to three times. Tell the user that a first command can wait for a download instead of reporting it as a hang, and re-run the same command after a failure: components that are already installed are reused.
+
+When the network is slow, prefetch ahead of time with `sqlx prefetch <component>`, where the component is `mysql`, `postgres`, `oracle`, `sqlserver`, `ui`, `skill` or `all` (`all` includes the JDBC runtime and JRE). Set `HTTPS_PROXY`/`HTTP_PROXY` when the release host needs a proxy, or `SQLX_RELEASE_BASE` to fetch release assets from a mirror. A CLI that predates `sqlx prefetch` downloads on first use only.
+
 ## Database recipes
 
 Load only the reference for the selected datasource:
