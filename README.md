@@ -4,11 +4,21 @@ Connect to MySQL, PostgreSQL, Oracle, and SQL Server from your terminal or agent
 
 Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let your agent set up the CLI.
 
-Download prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), or use the installers below. See [build from source](#build-from-source) for development.
+Download prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), install with `npx -y @ottermind/sqlx@latest`, or use the installers below. See [build from source](#build-from-source) for development.
 
 The [v0.1.4 release acceptance report](docs/release-acceptance-v0.1.4.md) records a real 0.1.3-to-0.1.4 self-update, public-download verification, preserved in-flight SQL/UI, and browser refresh/restart recovery. Earlier [v0.1.3](docs/release-acceptance-v0.1.3.md), [v0.1.2](docs/release-acceptance-v0.1.2.md) and [v0.1.1](docs/release-acceptance-v0.1.1.md) reports cover prior public upgrades and four-database/plugin acceptance.
 
 ## Install the CLI
+
+### With Node.js
+
+On macOS, Linux, and Windows x64 with Node.js 22 or newer:
+
+```sh
+npx -y @ottermind/sqlx@latest
+```
+
+The installer verifies the release manifest, `SHA256SUMS`, and the downloaded archive before installing. It puts the CLI in the same user-level location as the platform installers and installs the Skill into `./sqlx`; use `--target codex`, `--target claude`, or `--target <directory>` to place the Skill somewhere else. Node.js is required only to run the installer: the CLI itself has no Node.js runtime dependency.
 
 ### macOS and Linux
 
@@ -38,7 +48,7 @@ sqlx init
 
 Add `%LOCALAPPDATA%\Programs\SQLX` to your user PATH for future sessions. The installer verifies the download before installing. Both installers preserve an unrelated executable already named `sqlx`; use a different install directory in that case.
 
-Prebuilt targets are macOS ARM64/x64, Linux ARM64/x64, and Windows x64. The initial Linux build baseline is Ubuntu 24.04; older distributions have not been verified. Release users do not need to install Rust, Node.js, Java, or database drivers separately. Database workers and a private JRE are downloaded only when needed.
+Prebuilt targets are macOS ARM64/x64, Linux ARM64/x64, and Windows x64. The initial Linux build baseline is Ubuntu 24.04; older distributions have not been verified. Release users do not need to install Rust, Java, or database drivers separately, and Node.js is needed only for the `npx` installer above. Database workers and a private JRE are downloaded only when needed.
 
 ## Check and install updates
 
