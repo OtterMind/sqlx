@@ -251,8 +251,6 @@ sqlx prefetch mysql ui      # MySQL worker and the local browser UI
 sqlx prefetch all           # adds PostgreSQL, Oracle, SQL Server, the JDBC runtime and JRE
 ```
 
-When the release host is slow or unreachable, set `HTTPS_PROXY`/`HTTP_PROXY` for a proxy, or `SQLX_RELEASE_BASE` to download release assets from a mirror instead of `github.com`.
-
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result, and official documentation link.
 
 ## Build from source
