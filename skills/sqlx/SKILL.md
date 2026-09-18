@@ -62,7 +62,7 @@ The CLI does not embed database drivers, the JDBC runtime or the browser UI. The
 
 Each download prints `Downloading …`, a progress line with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr. An interrupted transfer is retried up to three times. Tell the user that a first command can wait for a download instead of reporting it as a hang, and re-run the same command after a failure: components that are already installed are reused.
 
-When the network is slow, prefetch ahead of time with `sqlx prefetch <component>`, where the component is `mysql`, `postgres`, `oracle`, `sqlserver`, `ui`, `skill` or `all` (`all` includes the JDBC runtime and JRE). Set `HTTPS_PROXY`/`HTTP_PROXY` when the release host needs a proxy, or `SQLX_RELEASE_BASE` to fetch release assets from a mirror. A CLI that predates `sqlx prefetch` downloads on first use only.
+When the network is slow, prefetch ahead of time with `sqlx prefetch <component>`, where the component is `mysql`, `postgres`, `oracle`, `sqlserver`, `ui`, `skill` or `all` (`all` includes the JDBC runtime and JRE).
 
 ## Database recipes
 
