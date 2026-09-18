@@ -130,7 +130,6 @@ def check_skill_source():
         'This is an Agent workflow rule, not a database permission mechanism',
         '## Downloads on first use',
         'sqlx prefetch <component>',
-        'SQLX_RELEASE_BASE',
         'retried up to three times',
         'components that are already installed are reused',
     ]
