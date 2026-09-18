@@ -2,7 +2,7 @@
 set -euo pipefail
 kind="${1:?oracle or sqlserver required}"
 mkdir -p target/debug
-cp java/jdbc/target/sqlx-jdbc-0.1.5.jar target/debug/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.6.jar target/debug/sqlx-jdbc.jar
 case "$kind" in
   oracle)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -o target/debug/ojdbc.jar
