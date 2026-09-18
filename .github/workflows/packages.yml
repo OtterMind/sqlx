@@ -117,3 +117,21 @@ jobs:
           test "$(git cat-file -t refs/tags/v0.1.5)" = tag
           gh release create v0.1.5 --draft --verify-tag --title 'SQLX 0.1.5' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
           gh release edit v0.1.5 --draft=false --latest
+  npm:
+    needs: [assemble]
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - name: Publish the installer
+        working-directory: packages/npm-installer
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          test "$GITHUB_REF_NAME" = v0.1.5
+          test "$(node -p 'require("./package.json").version')" = "${GITHUB_REF_NAME#v}"
+          npm publish --access public
