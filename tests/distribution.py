@@ -101,8 +101,10 @@ def exercise(cli):
             assert 'Downloading' not in log,log
             postgres=worker('sqlx-driver-postgres')
             (web/'retry.json').write_text(json.dumps(dict(schema_version=1,components={f'mysql:{plat}':mysql,f'postgres:{plat}':postgres})))
-            FlakyHandler.truncate[f'/sqlx-driver-postgres-{plat}.zip']=1
+            key='/'+postgres['url'].rsplit('/',1)[-1]
+            FlakyHandler.truncate[key]=1
             value,log=call('prefetch','postgres',manifest_name='retry.json',with_log=True)
+            assert FlakyHandler.truncate[key]==0,f'the test server never truncated a response for {key}'
             assert value['data']['downloaded']==1,value
             assert 'retrying in 2s (1/3)' in log,log
             assert 'Downloaded postgres 0.1.0' in log,log
