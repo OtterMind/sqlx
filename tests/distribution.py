@@ -18,12 +18,24 @@ ROOT=Path(__file__).resolve().parents[1]
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,*args): pass
 class FlakyHandler(QuietHandler):
-    """Drop the first request for a path so the downloader must retry."""
-    drops={}
+    """Cut the first response for a path short so the downloader must retry.
+
+    Dropping the connection instead would let the HTTP client replay the request
+    internally, which hides the retry this test is meant to observe.
+    """
+    truncate={}
     def do_GET(self):
-        remaining=FlakyHandler.drops.get(self.path,0)
-        if remaining>0:
-            FlakyHandler.drops[self.path]=remaining-1
+        remaining=FlakyHandler.truncate.get(self.path,0)
+        target=Path(self.translate_path(self.path))
+        if remaining>0 and target.is_file():
+            FlakyHandler.truncate[self.path]=remaining-1
+            body=target.read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type','application/octet-stream')
+            self.send_header('Content-Length',str(len(body)))
+            self.end_headers()
+            self.wfile.write(body[:max(1,len(body)//2)])
+            self.wfile.flush()
             self.close_connection=True
             return
         return super().do_GET()
@@ -89,7 +101,7 @@ def exercise(cli):
             assert 'Downloading' not in log,log
             postgres=worker('sqlx-driver-postgres')
             (web/'retry.json').write_text(json.dumps(dict(schema_version=1,components={f'mysql:{plat}':mysql,f'postgres:{plat}':postgres})))
-            FlakyHandler.drops[f'/sqlx-driver-postgres-{plat}.zip']=1
+            FlakyHandler.truncate[f'/sqlx-driver-postgres-{plat}.zip']=1
             value,log=call('prefetch','postgres',manifest_name='retry.json',with_log=True)
             assert value['data']['downloaded']==1,value
             assert 'retrying in 2s (1/3)' in log,log
