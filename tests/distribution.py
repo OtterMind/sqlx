@@ -6,8 +6,10 @@ import hashlib
 import http.server
 import json
 import os
+import platform
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import threading
 import zipfile
@@ -15,11 +17,37 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,*args): pass
+class FlakyHandler(QuietHandler):
+    """Cut the first response for a path short so the downloader must retry.
+
+    Dropping the connection instead would let the HTTP client replay the request
+    internally, which hides the retry this test is meant to observe.
+    """
+    truncate={}
+    def do_GET(self):
+        remaining=FlakyHandler.truncate.get(self.path,0)
+        target=Path(self.translate_path(self.path))
+        if remaining>0 and target.is_file():
+            FlakyHandler.truncate[self.path]=remaining-1
+            body=target.read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type','application/octet-stream')
+            self.send_header('Content-Length',str(len(body)))
+            self.end_headers()
+            self.wfile.write(body[:max(1,len(body)//2)])
+            self.wfile.flush()
+            self.close_connection=True
+            return
+        return super().do_GET()
+def host_platform():
+    os_name={'darwin':'macos','linux':'linux','win32':'windows'}[sys.platform]
+    machine=platform.machine().lower()
+    return f"{os_name}-{'arm64' if machine in ('arm64','aarch64') else 'x64'}"
 
 def exercise(cli):
     with tempfile.TemporaryDirectory(prefix='sqlx-distribution-') as tmp:
         root=Path(tmp);web=root/'web';web.mkdir();data=root/'data';target=root/'agent-skills/sqlx'
-        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(QuietHandler,directory=str(web)))
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(FlakyHandler,directory=str(web)))
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         base=f'http://127.0.0.1:{server.server_port}'
         def package(version,text,entries=None):
@@ -29,12 +57,12 @@ def exercise(cli):
             return dict(version=version,url=f'{base}/{asset.name}',sha256=hashlib.sha256(asset.read_bytes()).hexdigest(),archive='zip',entrypoint='SKILL.md',cli_compat='>=0.1.1, <0.2.0',protocol_version=1)
         def manifest(asset,name='manifest.json'):
             (web/name).write_text(json.dumps(dict(schema_version=1,components={'skill:any':asset})))
-        def call(*args,ok=True,manifest_name='manifest.json'):
+        def call(*args,ok=True,manifest_name='manifest.json',with_log=False):
             env=os.environ.copy();env.pop('SQLX_WORKER_DIR',None)
-            result=subprocess.run([str(cli),'--data-dir',str(data),'--manifest',f'{base}/{manifest_name}',*args],env=env,text=True,capture_output=True,timeout=40)
+            result=subprocess.run([str(cli),'--data-dir',str(data),'--manifest',f'{base}/{manifest_name}',*args],env=env,text=True,capture_output=True,timeout=60)
             value=json.loads(result.stdout)
             assert (result.returncode==0)==ok,value
-            return value
+            return (value,result.stderr) if with_log else value
         try:
             asset=package('0.1.0','version one');manifest(asset)
             call('skill','install','--path',str(target))
@@ -54,7 +82,36 @@ def exercise(cli):
             assert not list(data.rglob('escape'))
             incompatible=package('0.1.5','future');incompatible['cli_compat']='>=99.0.0';manifest(incompatible,'future.json')
             call('skill','install','--path',str(root/'future'),ok=False,manifest_name='future.json')
-            print('distribution: download, checksum, archive traversal rejection, compatibility, Skill install/update and preservation of local edits passed')
+            suffix='.exe' if os.name=='nt' else ''
+            plat=host_platform()
+            def worker(name):
+                entry=name+suffix;asset=web/f'{entry}-{plat}.zip'
+                with zipfile.ZipFile(asset,'w') as z: z.writestr(entry,'fake worker\n')
+                return dict(version='0.1.0',url=f'{base}/{asset.name}',sha256=hashlib.sha256(asset.read_bytes()).hexdigest(),archive='zip',entrypoint=entry,cli_compat='>=0.1.1, <0.2.0',protocol_version=1)
+            mysql=worker('sqlx-driver-mysql')
+            (web/'prefetch.json').write_text(json.dumps(dict(schema_version=1,components={f'mysql:{plat}':mysql})))
+            value,log=call('prefetch','mysql',manifest_name='prefetch.json',with_log=True)
+            assert value['data']['downloaded']==1 and value['data']['failed']==[],value
+            assert value['data']['components'][0]['status']=='downloaded',value
+            assert 'Downloading mysql 0.1.0' in log,log
+            assert 'Downloaded mysql 0.1.0' in log and '/s' in log,log
+            assert (data/'drivers/mysql'/plat/'0.1.0'/('sqlx-driver-mysql'+suffix)).is_file()
+            value,log=call('prefetch','mysql',manifest_name='prefetch.json',with_log=True)
+            assert value['data']['already_installed']==1 and value['data']['downloaded']==0,value
+            assert 'Downloading' not in log,log
+            postgres=worker('sqlx-driver-postgres')
+            (web/'retry.json').write_text(json.dumps(dict(schema_version=1,components={f'mysql:{plat}':mysql,f'postgres:{plat}':postgres})))
+            key='/'+postgres['url'].rsplit('/',1)[-1]
+            FlakyHandler.truncate[key]=1
+            value,log=call('prefetch','postgres',manifest_name='retry.json',with_log=True)
+            assert FlakyHandler.truncate[key]==0,f'the test server never truncated a response for {key}'
+            assert value['data']['downloaded']==1,value
+            assert 'retrying in 2s (1/3)' in log,log
+            assert 'Downloaded postgres 0.1.0' in log,log
+            for args,fragment in ((['prefetch','sqlite'],'invalid value'),(['prefetch'],'required')):
+                result=subprocess.run([str(cli),*args],env=os.environ.copy(),text=True,capture_output=True,timeout=20)
+                assert result.returncode!=0 and fragment in result.stderr,result.stderr
+            print('distribution: download, checksum, archive traversal rejection, compatibility, Skill install/update, local edits, prefetch reuse, retry and progress output passed')
         finally:server.shutdown();server.server_close();thread.join()
 
 def check_skill_source():
@@ -71,6 +128,11 @@ def check_skill_source():
         'The same approval gate applies to `--view`',
         'A one-time approval does not authorize future reruns',
         'This is an Agent workflow rule, not a database permission mechanism',
+        '## Downloads on first use',
+        'sqlx prefetch <component>',
+        'SQLX_RELEASE_BASE',
+        'retried up to three times',
+        'components that are already installed are reused',
     ]
     missing=[clause for clause in clauses if clause not in text]
     assert not missing,f'SKILL.md no longer states the approval contract: {missing}'
