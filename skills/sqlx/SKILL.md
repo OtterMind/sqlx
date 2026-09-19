@@ -9,6 +9,8 @@ metadata:
 
 Use the OtterMind SQLX executable for database operations. First check `sqlx --version` and `sqlx --help`. If it is missing or belongs to another project, follow [CLI installation](references/install-cli.md). Do not install an unrelated `sqlx-cli` package from Cargo or npm.
 
+Installation puts the executable in `~/.local/bin` on macOS and Linux, or `%LOCALAPPDATA%\Programs\SQLX` on Windows. That directory must be on PATH; the `npx` installer prints the exact line to add when it is missing, and the shell installers print the directory. A freshly installed CLI is not resolvable in a shell whose PATH was built earlier, so export the directory or call the absolute path instead of reinstalling.
+
 ## Connect
 
 - Run `sqlx init` when initialization is needed. It creates a local key and device identity; it does not upload device information.

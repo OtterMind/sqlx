@@ -16,9 +16,13 @@ On macOS, Linux, and Windows x64 with Node.js 22 or newer:
 
 ```sh
 npx -y @ottermind/sqlx@latest
+export PATH="$HOME/.local/bin:$PATH"
+sqlx --version
 ```
 
 The installer verifies the release manifest, `SHA256SUMS`, and the downloaded archive before installing. It puts the CLI in the same user-level location as the platform installers and installs the Skill into `./sqlx`; use `--target codex`, `--target claude`, or `--target <directory>` to place the Skill somewhere else. Node.js is required only to run the installer: the CLI itself has no Node.js runtime dependency.
+
+macOS and Linux install to `~/.local/bin`; Windows x64 installs to `%LOCALAPPDATA%\Programs\SQLX`. Add that directory to your persistent PATH, as in the platform sections below. When it is missing from PATH, the `npx` installer prints the exact line for the current shell together with the profile change that keeps it.
 
 ### macOS and Linux
 
