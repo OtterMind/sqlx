@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use sqlx_protocol::{Action, Connection, Database};
 use std::{
     collections::BTreeMap,
-    io::{self, IsTerminal},
+    io::{self, IsTerminal, Write},
     path::PathBuf,
 };
 use storage::{Datasource, Store};
@@ -241,9 +241,8 @@ fn main() {
         Ok(true) => {}
         Ok(false) => std::process::exit(1),
         Err(e) => {
-            println!(
-                "{}",
-                json!({"success":false,"error":{"code":e.downcast_ref::<updates::UpdateError>().map(|e| e.code.as_str()).unwrap_or("sqlx.error"),"message":format!("{e:#}")}})
+            print_line(
+                &json!({"success":false,"error":{"code":e.downcast_ref::<updates::UpdateError>().map(|e| e.code.as_str()).unwrap_or("sqlx.error"),"message":format!("{e:#}")}}),
             );
             std::process::exit(1);
         }
@@ -549,8 +548,19 @@ fn run(cli: Cli) -> Result<bool> {
     }
     Ok(true)
 }
+/// Write one JSON line. A consumer that stops reading (`sqlx … | head`) must not turn
+/// into a panic; any other write failure still reports itself and fails.
+fn print_line(value: &Value) {
+    if let Err(error) = writeln!(io::stdout(), "{value}") {
+        if error.kind() == io::ErrorKind::BrokenPipe {
+            std::process::exit(0);
+        }
+        eprintln!("sqlx could not write its result: {error}");
+        std::process::exit(1);
+    }
+}
 fn print(data: Value) {
-    println!("{}", json!({"success":true,"data":data}));
+    print_line(&json!({"success":true,"data":data}));
 }
 fn validate_name(name: &str) -> Result<()> {
     if name.trim().is_empty() || uuid::Uuid::parse_str(name).is_ok() {
