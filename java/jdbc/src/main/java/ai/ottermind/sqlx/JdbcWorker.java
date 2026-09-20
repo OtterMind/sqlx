@@ -43,6 +43,24 @@ public final class JdbcWorker {
             System.exit(1);
         }
     }
+    /**
+     * Replace standalone occurrences of a secret. A secret that is only part of a word or a
+     * hostname stays: the password "oracle" must not turn "docs.oracle.com" into
+     * "docs.[redacted].com", and a short username must not mangle unrelated words.
+     */
+    static String redactSecret(String text, String secret) {
+        StringBuilder out = new StringBuilder(text.length());
+        int index = 0;
+        while (true) {
+            int at = text.indexOf(secret, index);
+            if (at < 0) { out.append(text, index, text.length()); return out.toString(); }
+            int end = at + secret.length();
+            boolean standalone = (at == 0 || boundary(text.charAt(at - 1))) && (end == text.length() || boundary(text.charAt(end)));
+            out.append(text, index, at).append(standalone ? "[redacted]" : secret);
+            index = end;
+        }
+    }
+    private static boolean boundary(char value) { return !(Character.isLetterOrDigit(value) || value == '.'); }
     boolean run(JsonNode request) throws IOException {
         JsonNode config = request.path("connection");
         JsonNode sql = request.path("statements");
@@ -119,7 +137,7 @@ public final class JdbcWorker {
                 if (e.getSQLState() != null && !e.getSQLState().startsWith("08") && !e.getSQLState().startsWith("HYT") && !(e instanceof SQLTimeoutException) && !(e instanceof SQLRecoverableException)) outcome = "failed";
             }
             String message = Objects.toString(failure.getMessage(), failure.getClass().getSimpleName());
-            for (String key : List.of("username", "password")) { String secret=config.path(key).asText(); if (!secret.isEmpty()) message=message.replace(secret,"[redacted]"); }
+            for (String key : List.of("username", "password")) { String secret=config.path(key).asText(); if (!secret.isEmpty()) message=redactSecret(message, secret); }
             emit("error", "index", current, "code", code, "message", message, "outcome", outcome);
             for (int i=current==null ? 0 : current+1; i<sql.size(); i++) emit("skipped", "index", i);
             emit("complete", "success", false);
