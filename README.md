@@ -77,11 +77,14 @@ Versions 0.1.0 and 0.1.1 do not have update commands. Rerun the installer above 
 Choose the agent you use:
 
 ```sh
-# Codex
+# Codex, or dsh (both use the shared Agent Skills directory)
 sqlx skill install --target codex
 
 # Claude Code
 sqlx skill install --target claude
+
+# Pi
+sqlx skill install --target pi
 ```
 
 For another agent, provide its complete skill directory:
@@ -209,7 +212,7 @@ For an agent or script, provide credentials through environment variables or a c
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
 | Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`postgres`, `oracle`, `sqlserver`, `skill` or `all`) |
-| Install the Skill | `sqlx skill install --target codex` or `--target claude` |
+| Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
 | Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
 | Inspect/update managed Skills | `sqlx skill status`, `sqlx skill update` |
 | Help/version | `sqlx --help`, `sqlx --version` |

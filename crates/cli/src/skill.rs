@@ -32,9 +32,11 @@ pub fn target_path(target: Option<String>, path: Option<PathBuf>) -> Result<Path
     }
     let home = dirs::home_dir().context("cannot locate user home")?;
     Ok(match target.as_deref() {
-        Some("codex") => home.join(".agents/skills/sqlx"),
+        // Codex and dsh both discover skills in the shared Agent Skills directory.
+        Some("codex" | "dsh") => home.join(".agents/skills/sqlx"),
         Some("claude") => home.join(".claude/skills/sqlx"),
-        _ => bail!("supported targets: codex, claude; use --path for other agents"),
+        Some("pi") => home.join(".pi/agent/skills/sqlx"),
+        _ => bail!("supported targets: codex, claude, dsh, pi; use --path for other agents"),
     })
 }
 pub fn status(manager: &Components) -> Result<Value> {
@@ -140,4 +142,38 @@ fn copy_tree(source: &Path, target: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn known_targets_map_to_agent_directories() {
+        let home = dirs::home_dir().unwrap();
+        for (target, expected) in [
+            ("codex", home.join(".agents/skills/sqlx")),
+            // dsh discovers the shared Agent Skills directory as well.
+            ("dsh", home.join(".agents/skills/sqlx")),
+            ("claude", home.join(".claude/skills/sqlx")),
+            ("pi", home.join(".pi/agent/skills/sqlx")),
+        ] {
+            assert_eq!(
+                target_path(Some(target.to_owned()), None).unwrap(),
+                expected,
+                "{target}"
+            );
+        }
+    }
+    #[test]
+    fn explicit_path_wins_and_unknown_targets_fail() {
+        let path = PathBuf::from("/tmp/sqlx-skill");
+        assert_eq!(
+            target_path(Some("codex".to_owned()), Some(path.clone())).unwrap(),
+            path
+        );
+        let error = target_path(Some("other".to_owned()), None)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("codex, claude, dsh, pi"), "{error}");
+    }
 }
