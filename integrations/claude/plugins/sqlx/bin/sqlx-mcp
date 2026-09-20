@@ -1,0 +1,5 @@
+#!/bin/sh
+# Launch the OtterMind SQLX CLI as an MCP stdio server.
+# SQLX_BIN selects a specific executable; otherwise the first `sqlx` on PATH is used.
+set -eu
+exec "${SQLX_BIN:-sqlx}" mcp "$@"

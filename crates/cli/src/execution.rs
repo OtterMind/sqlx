@@ -116,6 +116,28 @@ pub fn run(
     action: Action,
     statements: Vec<String>,
 ) -> Result<bool> {
+    run_to(
+        io::stdout().lock(),
+        root,
+        manifest,
+        local,
+        source,
+        action,
+        statements,
+    )
+}
+/// Run an execution and write its JSON event stream to `output`.
+///
+/// The CLI passes stdout; the MCP server passes a buffer so protocol output stays clean.
+pub fn run_to<W: Write>(
+    mut output: W,
+    root: PathBuf,
+    manifest: String,
+    local: Option<PathBuf>,
+    source: Datasource,
+    action: Action,
+    statements: Vec<String>,
+) -> Result<bool> {
     let id = source.id.clone();
     let prepared = prepare(root, manifest, local, source, action, statements)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -128,7 +150,6 @@ pub fn run(
             let _ = tokio::signal::ctrl_c().await;
             signal.cancel();
         });
-        let mut output = io::stdout().lock();
         write!(
             output,
             "{{\"protocol_version\":1,\"datasource_id\":{},\"events\":[",

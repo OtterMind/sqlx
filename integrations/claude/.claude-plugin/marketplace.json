@@ -1,0 +1,14 @@
+{
+  "name": "ottermind",
+  "owner": {
+    "name": "OtterMind"
+  },
+  "plugins": [
+    {
+      "name": "sqlx",
+      "source": "./plugins/sqlx",
+      "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, PostgreSQL, Oracle and SQL Server, and open local result pages. Credentials stay in the SQLX data directory."
+    }
+  ],
+  "description": "OtterMind plugins for Claude Code. Currently ships SQLX for MySQL, PostgreSQL, Oracle and SQL Server."
+}
