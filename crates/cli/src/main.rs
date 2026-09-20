@@ -1,5 +1,5 @@
 mod skill;
-use sqlx_core::{components, execution, plugins, prefetch, storage, ui, updates};
+use sqlx_core::{components, execution, mcp, plugins, prefetch, storage, ui, updates};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -39,6 +39,8 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init,
+    /// Serve the Model Context Protocol over stdio so agent harnesses can call SQLX as a tool.
+    Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
         /// Components to download: mysql, postgres, oracle, sqlserver, ui, skill or all.
@@ -224,7 +226,7 @@ fn main() {
         && io::stdout().is_terminal()
         && !matches!(
             &cli.command,
-            Commands::Update { .. } | Commands::Init | Commands::Prefetch { .. }
+            Commands::Update { .. } | Commands::Init | Commands::Prefetch { .. } | Commands::Mcp
         )
         && cli.worker_dir.is_none()
         && std::env::var("SQLX_NO_UPDATE_CHECK").ok().as_deref() != Some("1");
@@ -271,6 +273,10 @@ fn run(cli: Cli) -> Result<bool> {
         Commands::Init => {
             let store = Store::open(root)?;
             print(json!({"initialized":true,"identity":store.identity}));
+        }
+        Commands::Mcp => {
+            mcp::serve(root, cli.manifest, cli.worker_dir)?;
+            return Ok(true);
         }
         Commands::Prefetch { components } => {
             let (report, complete) = prefetch::run(&root, &cli.manifest, &components)?;

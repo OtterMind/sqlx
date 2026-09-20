@@ -13,3 +13,8 @@ __pycache__/
 /.playwright-cli/
 
 /examples/*/dist/
+
+# Harness integration build artifacts
+integrations/*/node_modules/
+integrations/*/*.tgz
+integrations/*/package-lock.json

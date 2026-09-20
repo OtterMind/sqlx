@@ -1,0 +1,37 @@
+{
+  "name": "sqlx",
+  "version": "0.1.8",
+  "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, PostgreSQL, Oracle and SQL Server, and open local result pages. Credentials stay in the SQLX data directory.",
+  "author": {
+    "name": "OtterMind"
+  },
+  "homepage": "https://github.com/OtterMind/sqlx",
+  "repository": "https://github.com/OtterMind/sqlx",
+  "license": "LicenseRef-Chat2DB",
+  "keywords": [
+    "database",
+    "sql",
+    "mysql",
+    "postgresql",
+    "oracle",
+    "sqlserver",
+    "mcp"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "OtterMind SQLX",
+    "shortDescription": "Run SQL through saved encrypted connections",
+    "longDescription": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, PostgreSQL, Oracle and SQL Server, and open local result pages. Credentials stay in the SQLX data directory.",
+    "developerName": "OtterMind",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/OtterMind/sqlx",
+    "defaultPrompt": [
+      "List my SQLX datasources.",
+      "Test the SQLX connection I name and run a read-only query on it."
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@ottermind/dsh-sqlx",
+  "version": "0.1.8",
+  "description": "OtterMind SQLX tools for DeepSeek Harness: list datasources, test connections, execute SQL and open local result pages.",
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "LicenseRef-Chat2DB",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OtterMind/sqlx.git",
+    "directory": "integrations/dsh"
+  },
+  "engines": {
+    "dsh": ">=0.1.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": false
+    }
+  }
+}
