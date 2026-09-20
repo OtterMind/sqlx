@@ -20,7 +20,7 @@ export PATH="$HOME/.local/bin:$PATH"
 sqlx --version
 ```
 
-The installer verifies the release manifest, `SHA256SUMS`, and the downloaded archive before installing. It puts the CLI in the same user-level location as the platform installers and installs the Skill into `./sqlx`; use `--target codex`, `--target claude`, or `--target <directory>` to place the Skill somewhere else. Node.js is required only to run the installer: the CLI itself has no Node.js runtime dependency.
+The installer verifies the release manifest, `SHA256SUMS`, and the downloaded archive before installing. It puts the CLI in the same user-level location as the platform installers and installs the Skill into `./sqlx`; use `--target codex`, `--target claude`, `--target dsh`, `--target pi`, or `--target <directory>` to place the Skill somewhere else. Node.js is required only to run the installer: the CLI itself has no Node.js runtime dependency.
 
 macOS and Linux install to `~/.local/bin`; Windows x64 installs to `%LOCALAPPDATA%\Programs\SQLX`. Add that directory to your persistent PATH, as in the platform sections below. When it is missing from PATH, the `npx` installer prints the exact line for the current shell together with the profile change that keeps it.
 
@@ -303,7 +303,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.6.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.7.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -312,7 +312,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.6.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.7.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```
