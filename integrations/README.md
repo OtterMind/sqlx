@@ -37,13 +37,28 @@ local `--ui` page). Datasources created with `--username-env`/`--password-env` r
 variables at execution time, and a GUI-launched harness usually cannot see the user's shell
 environment; MCP `env_vars` allowlists (Codex) make that explicit.
 
-## Verified
+## Verified end-to-end (2026-09-20)
 
-- Codex CLI 0.155.1: plugin installs from a local marketplace, read-only MCP tools run headlessly,
-  write tools require approval, `sqlx_sql_execute` returned `9007199254740993` exactly.
-- DeepSeek Harness 0.1.5-rc.1: plugin installs into a scratch profile (`dsh plugin add <tarball>`),
-  registers five native tools, and a headless run returned the same exact value.
-- Claude Code 2.1.236: plugin and marketplace validate (`claude plugin validate --strict`); the MCP
-  server was verified directly over stdio. A full `claude -p` run needs an authenticated session.
-- Pi 0.86.0: package installs (`pi install`), and the extension loads through Pi's own jiti loader
-  registering all five tools with valid schemas. A full `pi -p` run needs provider credentials.
+Each harness ran the same task headlessly: list datasources, then `SELECT id, big, name FROM t_exact`
+on a PostgreSQL datasource, and reply with the exact `big` value. All four returned
+`9007199254740993` unchanged.
+
+| Harness | Command that was verified |
+|---|---|
+| Codex CLI 0.155.1 | `codex plugin marketplace add <repo>` → `codex plugin add sqlx@ottermind` → `codex exec --skip-git-repo-check "<task>"` |
+| DeepSeek Harness 0.1.5-rc.1 | `dsh plugin --profile sqlxtest add <tarball>` → `dsh --profile sqlxtest "<task>"` |
+| Claude Code 2.1.236 | `claude --plugin-dir integrations/claude/plugins/sqlx --allowedTools "mcp__plugin_sqlx_sqlx__*" -p "<task>"` |
+| Pi 0.86.0 | `pi -e integrations/pi/extensions/sqlx.ts -e <provider>.ts --provider deepseek --model deepseek-flash --no-session -p "<task>"` |
+
+Notes from the verification:
+
+- **Codex gates write tools.** Read-only tools ran without approval; `sqlx_sql_execute` was refused
+  with `MCP tool call requires approval, but approval policy is never` until approvals were granted.
+  That is the intended behaviour: keep the default and let the user approve.
+- **Claude Code needs an explicit tool allowlist in headless mode**, e.g.
+  `--allowedTools "mcp__plugin_sqlx_sqlx__*"`, otherwise the MCP call returns without permission.
+- **Pi needs a model provider.** Any OpenAI-compatible provider works; registering DeepSeek looks
+  like this in a second `-e` extension:
+  `pi.registerProvider("deepseek", { baseUrl: "https://api.deepseek.com", apiKey: "$DEEPSEEK_API_KEY", api: "openai-completions", models: [{ id: "deepseek-flash", name: "DeepSeek Flash", reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 262144, maxTokens: 8192 }] })`.
+- **Claude Code can use DeepSeek's Anthropic-compatible endpoint**: `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`
+  with `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_MODEL=deepseek-flash[1m]`.
