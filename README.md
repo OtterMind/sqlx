@@ -197,7 +197,15 @@ sqlx datasource test --id dev
 sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELECT 1"
 ```
 
-For an agent or script, provide credentials through environment variables or a connection JSON object on stdin, as described below. TLS verifies the database certificate by default; use `--tls disable` only for a connection explicitly intended to be unencrypted.
+MySQL, Oracle, and SQL Server work the same way with `--type mysql --port 3306`, `--type oracle --service <service-name>`, and `--type sqlserver --port 1433`. A database running in a local container usually does not serve a certificate your machine trusts, and `verify-full` fails there with `invalid peer certificate: UnknownIssuer` (MySQL), `error performing TLS handshake` (PostgreSQL), or a closed connection (Oracle). Create or update that connection with `--tls disable`:
+
+```sh
+sqlx datasource add --name dev --type mysql --host 127.0.0.1 --port 3306 --database app \
+  --username-env DB_USER --password-env DB_PASSWORD --tls disable
+sqlx datasource update --id dev --tls disable
+```
+
+For an agent or script, provide credentials through environment variables or a connection JSON object on stdin, as described below. TLS verifies the database certificate by default; disable it only for a connection that does not serve a certificate you trust. When a connection fails before any statement, the error message repeats that the transport can be disabled.
 
 ## Commands
 
