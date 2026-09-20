@@ -2,7 +2,7 @@
 name: sqlx
 description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, PostgreSQL, Oracle, and SQL Server connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
-  cli-compat: ">=0.1.6, <0.2.0"
+  cli-compat: ">=0.1.7, <0.2.0"
 ---
 
 # SQLX
