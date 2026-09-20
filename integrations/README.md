@@ -39,16 +39,17 @@ environment; MCP `env_vars` allowlists (Codex) make that explicit.
 
 ## Verified end-to-end (2026-09-20)
 
-Each harness ran the same task headlessly: list datasources, then `SELECT id, big, name FROM t_exact`
-on a PostgreSQL datasource, and reply with the exact `big` value. All four returned
-`9007199254740993` unchanged.
+Each harness ran the same task headlessly: list datasources, then execute a read-only `SELECT`
+against a PostgreSQL datasource and reply with the exact `big` value. All four returned
+`9007199254740993` unchanged. Codex, Claude Code and Pi were re-verified after upgrading to
+codex-cli 0.155.1, Claude Code 2.1.278 and Pi 0.86.1 respectively.
 
 | Harness | Command that was verified |
 |---|---|
-| Codex CLI 0.155.1 | `codex plugin marketplace add <repo>` → `codex plugin add sqlx@ottermind` → `codex exec --skip-git-repo-check "<task>"` |
+| Codex CLI 0.155.1 (latest) | `codex plugin marketplace add <repo>` → `codex plugin add sqlx@ottermind` → `codex exec --skip-git-repo-check "<task>"` |
 | DeepSeek Harness 0.1.5-rc.1 | `dsh plugin --profile sqlxtest add <tarball>` → `dsh --profile sqlxtest "<task>"` |
-| Claude Code 2.1.236 | `claude --plugin-dir integrations/claude/plugins/sqlx --allowedTools "mcp__plugin_sqlx_sqlx__*" -p "<task>"` |
-| Pi 0.86.0 | `pi -e integrations/pi/extensions/sqlx.ts -e <provider>.ts --provider deepseek --model deepseek-flash --no-session -p "<task>"` |
+| Claude Code 2.1.278 | `claude --plugin-dir integrations/claude/plugins/sqlx --allowedTools "mcp__plugin_sqlx_sqlx__*" -p "<task>"` |
+| Pi 0.86.1 | `pi -e integrations/pi/extensions/sqlx.ts -e <provider>.ts --provider deepseek --model deepseek-flash --no-session -p "<task>"` |
 
 Notes from the verification:
 
