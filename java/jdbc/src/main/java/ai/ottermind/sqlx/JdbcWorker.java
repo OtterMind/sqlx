@@ -9,6 +9,9 @@ import java.net.*;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 public final class JdbcWorker {
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -17,7 +20,18 @@ public final class JdbcWorker {
     }
     private final PrintStream out;
     JdbcWorker(PrintStream out) { this.out = out; }
+    /**
+     * Vendor drivers log connection diagnostics through java.util.logging, which floods
+     * stderr with dozens of lines when a connection fails. Keep it quiet unless
+     * SQLX_JDBC_DEBUG is set.
+     */
+    private static void quietDriverLogging() {
+        if (System.getenv("SQLX_JDBC_DEBUG") != null) return;
+        LogManager.getLogManager().reset();
+        Logger.getLogger("").setLevel(Level.OFF);
+    }
     public static void main(String[] args) {
+        quietDriverLogging();
         JdbcWorker worker = new JdbcWorker(System.out);
         try {
             worker.emit("ready", "protocol_version", 1);
