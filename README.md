@@ -215,6 +215,7 @@ For an agent or script, provide credentials through environment variables or a c
 | Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
 | Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
 | Inspect/update managed Skills | `sqlx skill status`, `sqlx skill update` |
+| Stop managing a Skill installation | `sqlx skill remove --path /path/to/skills/sqlx` (files are kept) |
 | Help/version | `sqlx --help`, `sqlx --version` |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name. Supported database type names are `mysql`, `postgresql` (`postgres`/`pgsql`), `oracle`, and `sqlserver` (`mssql`). Oracle requires `--service`. TLS defaults to certificate verification; `--tls disable` is available for explicitly unencrypted connections. The first authentication profile is username/password.
