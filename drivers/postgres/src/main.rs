@@ -40,7 +40,13 @@ async fn main() {
                 } else {
                     "unknown"
                 };
-                out.failed(&req, index, &code, &error.to_string(), outcome)?;
+                out.failed(
+                    &req,
+                    index,
+                    &code,
+                    &failure_message(&error, db_error),
+                    outcome,
+                )?;
                 Ok(false)
             }
         }
@@ -54,6 +60,23 @@ async fn main() {
             std::process::exit(1);
         }
     }
+}
+/// `tokio_postgres` prints every database error as `db error`; keep the server's message instead.
+fn failure_message(
+    error: &anyhow::Error,
+    db_error: Option<&tokio_postgres::error::DbError>,
+) -> String {
+    let Some(db_error) = db_error else {
+        return error.to_string();
+    };
+    let mut message = db_error.message().to_owned();
+    if let Some(detail) = db_error.detail() {
+        message.push_str(&format!(" (detail: {detail})"));
+    }
+    if let Some(hint) = db_error.hint() {
+        message.push_str(&format!(" (hint: {hint})"));
+    }
+    message
 }
 async fn execute(
     req: &Request,
