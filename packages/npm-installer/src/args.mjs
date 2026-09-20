@@ -3,14 +3,16 @@ import { UsageError } from "./errors.mjs";
 export const HELP = `Install or update the SQLX CLI and its agent Skill.
 
 Usage:
-  npx -y @ottermind/sqlx@latest [--target <codex|claude|path>]
+  npx -y @ottermind/sqlx@latest [--target <codex|claude|dsh|pi|path>]
 
 Options:
-  --target <codex|claude|path>  Skill destination. Without it the Skill is
+  --target <codex|claude|dsh|pi|path>
+                                Skill destination. Without it the Skill is
                                 installed to ./sqlx in the directory the command
-                                runs from. "codex" and "claude" select the
-                                user-level Skill directory of that agent; any
-                                other value is used as the Skill directory.
+                                runs from. "codex", "claude", "dsh" and "pi"
+                                select the user-level Skill directory of that
+                                agent; any other value is used as the Skill
+                                directory.
   -h, --help                    Show this help and exit.
 
 The CLI is installed to its official user-level location:
@@ -29,6 +31,7 @@ Environment:
 Examples:
   npx -y @ottermind/sqlx@latest
   npx -y @ottermind/sqlx@latest --target codex
+  npx -y @ottermind/sqlx@latest --target pi
   npx -y @ottermind/sqlx@latest --target ./tools/sqlx
 `;
 
@@ -47,14 +50,14 @@ export function parseArgs(argv) {
       if (argument === "--target") {
         index += 1;
         if (index >= argv.length) {
-          throw new UsageError("--target needs codex, claude or a directory");
+          throw new UsageError("--target needs codex, claude, dsh, pi or a directory");
         }
         options.target = argv[index];
       } else {
         options.target = argument.slice("--target=".length);
       }
       if (options.target === "") {
-        throw new UsageError("--target needs codex, claude or a directory");
+        throw new UsageError("--target needs codex, claude, dsh, pi or a directory");
       }
       continue;
     }

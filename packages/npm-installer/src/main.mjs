@@ -11,11 +11,15 @@ export function resolveSkillTarget(value, cwd) {
   if (value === undefined) {
     return path.resolve(cwd, "sqlx");
   }
-  if (value === "codex") {
+  // Codex and dsh both discover skills in the shared Agent Skills directory.
+  if (value === "codex" || value === "dsh") {
     return path.join(os.homedir(), ".agents", "skills", "sqlx");
   }
   if (value === "claude") {
     return path.join(os.homedir(), ".claude", "skills", "sqlx");
+  }
+  if (value === "pi") {
+    return path.join(os.homedir(), ".pi", "agent", "skills", "sqlx");
   }
   return path.resolve(cwd, value);
 }

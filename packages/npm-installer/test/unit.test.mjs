@@ -28,7 +28,7 @@ test("parses the documented arguments", () => {
   assert.deepEqual(parseArgs(["-h"]), { target: undefined, help: true });
   // A path that starts with a dash stays a value instead of becoming an option.
   assert.deepEqual(parseArgs(["--target", "--weird"]), { target: "--weird", help: false });
-  assert.match(HELP, /--target <codex\|claude\|path>/);
+  assert.match(HELP, /--target <codex\|claude\|dsh\|pi\|path>/);
 });
 
 test("rejects unusable arguments", () => {
@@ -47,7 +47,9 @@ test("resolves every Skill target shape", () => {
   const cwd = path.join(os.tmpdir(), "sqlx target cwd");
   assert.equal(resolveSkillTarget(undefined, cwd), path.join(cwd, "sqlx"));
   assert.equal(resolveSkillTarget("codex", cwd), path.join(os.homedir(), ".agents", "skills", "sqlx"));
+  assert.equal(resolveSkillTarget("dsh", cwd), path.join(os.homedir(), ".agents", "skills", "sqlx"));
   assert.equal(resolveSkillTarget("claude", cwd), path.join(os.homedir(), ".claude", "skills", "sqlx"));
+  assert.equal(resolveSkillTarget("pi", cwd), path.join(os.homedir(), ".pi", "agent", "skills", "sqlx"));
   assert.equal(resolveSkillTarget("relative/target", cwd), path.join(cwd, "relative", "target"));
   const absolute = resolveSkillTarget("/absolute/target", cwd);
   assert.ok(path.isAbsolute(absolute));

@@ -34,6 +34,12 @@ npx -y @ottermind/sqlx@latest --target codex
 # Skill in the Claude Code user-level Skill directory
 npx -y @ottermind/sqlx@latest --target claude
 
+# Skill in the dsh user-level Skill directory (shared with Codex)
+npx -y @ottermind/sqlx@latest --target dsh
+
+# Skill in the Pi user-level Skill directory
+npx -y @ottermind/sqlx@latest --target pi
+
 # Skill in an explicit directory
 npx -y @ottermind/sqlx@latest --target ./tools/sqlx
 
@@ -44,7 +50,9 @@ npx -y @ottermind/sqlx@latest --help
 | ------------------- | ---------------------------------- |
 | not given           | `./sqlx` in the current directory  |
 | `codex`             | `~/.agents/skills/sqlx`            |
+| `dsh`               | `~/.agents/skills/sqlx`            |
 | `claude`            | `~/.claude/skills/sqlx`            |
+| `pi`                | `~/.pi/agent/skills/sqlx`          |
 | any other value     | that path, used as the directory   |
 
 Relative paths are resolved against the directory the command runs from, not
