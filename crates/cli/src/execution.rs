@@ -3,7 +3,7 @@ use crate::{
     storage::Datasource,
 };
 use anyhow::{bail, Context, Result};
-use sqlx_protocol::{Action, Database, Event, Request, VERSION};
+use sqlx_protocol::{Action, Connection, Database, Event, Request, VERSION};
 use std::{
     io::{self, Write},
     path::PathBuf,
@@ -98,6 +98,16 @@ pub fn prepare(
     })
 }
 
+/// Some drivers only report a closed connection when the server does not serve TLS.
+/// Point at the documented fix when nothing was executed and TLS verification is on.
+fn connection_failure_hint(
+    connection: &Connection,
+    index: Option<usize>,
+    outcome: &str,
+) -> Option<&'static str> {
+    (index.is_none() && outcome == "not_started" && connection.tls == "verify-full")
+        .then_some("the connection failed before any statement; if this database does not serve TLS, retry with --tls disable")
+}
 pub fn run(
     root: PathBuf,
     manifest: String,
@@ -305,7 +315,12 @@ impl PreparedExecution {
                         }
                         next += 1;
                     }
-                    Event::Error { index, message, .. } => {
+                    Event::Error {
+                        index,
+                        message,
+                        outcome,
+                        ..
+                    } => {
                         failed = true;
                         if let Some(i) = index {
                             if active == Some(*i) {
@@ -317,6 +332,11 @@ impl PreparedExecution {
                             }
                         }
                         *message = sqlx_protocol::redact(message, &request.connection);
+                        if let Some(hint) =
+                            connection_failure_hint(&request.connection, *index, outcome)
+                        {
+                            message.push_str(&format!(" ({hint})"));
+                        }
                     }
                     Event::Complete { success } => {
                         if *success
@@ -370,5 +390,32 @@ impl PreparedExecution {
             );
         }
         Ok(success)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn connection(tls: &str) -> Connection {
+        Connection {
+            database_type: Database::Oracle,
+            host: "127.0.0.1".into(),
+            port: 1521,
+            database: String::new(),
+            service: "FREEPDB1".into(),
+            username: String::new(),
+            password: String::new(),
+            tls: tls.into(),
+            properties: std::collections::BTreeMap::new(),
+        }
+    }
+    #[test]
+    fn hints_at_tls_disable_only_before_any_statement() {
+        let verified = connection("verify-full");
+        assert!(connection_failure_hint(&verified, None, "not_started").is_some());
+        // A statement that already ran must not suggest changing the transport.
+        assert!(connection_failure_hint(&verified, Some(0), "failed").is_none());
+        assert!(connection_failure_hint(&verified, None, "unknown").is_none());
+        assert!(connection_failure_hint(&connection("disable"), None, "not_started").is_none());
     }
 }
