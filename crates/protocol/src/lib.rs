@@ -198,8 +198,75 @@ pub fn redact(message: &str, connection: &Connection) -> String {
     let mut text = message.to_owned();
     for secret in [&connection.password, &connection.username] {
         if !secret.is_empty() {
-            text = text.replace(secret, "[redacted]");
+            text = redact_secret(&text, secret);
         }
     }
     text
+}
+/// Replace standalone occurrences of a secret. A secret that is only part of a word or a
+/// hostname stays: the password `oracle` must not turn `docs.oracle.com` into
+/// `docs.[redacted].com`, and the username `app` must not mangle `application`.
+fn redact_secret(text: &str, secret: &str) -> String {
+    let boundary = |c: char| !(c.is_alphanumeric() || c == '.');
+    let mut out = String::with_capacity(text.len());
+    let mut index = 0;
+    while let Some(offset) = text[index..].find(secret) {
+        let start = index + offset;
+        let end = start + secret.len();
+        let standalone = text[..start].chars().next_back().is_none_or(boundary)
+            && text[end..].chars().next().is_none_or(boundary);
+        out.push_str(&text[index..start]);
+        out.push_str(if standalone { "[redacted]" } else { secret });
+        index = end;
+    }
+    out.push_str(&text[index..]);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn connection(username: &str, password: &str) -> Connection {
+        Connection {
+            database_type: Database::Oracle,
+            host: "127.0.0.1".into(),
+            port: 1521,
+            database: String::new(),
+            service: "FREEPDB1".into(),
+            username: username.into(),
+            password: password.into(),
+            tls: "verify-full".into(),
+            properties: std::collections::BTreeMap::new(),
+        }
+    }
+    #[test]
+    fn redaction_keeps_hostnames_and_words() {
+        let connection = connection("app", "oracle");
+        assert_eq!(
+            redact(
+                "https://docs.oracle.com/error-help/db/ora-17002/",
+                &connection
+            ),
+            "https://docs.oracle.com/error-help/db/ora-17002/"
+        );
+        assert_eq!(
+            redact("the application could not start", &connection),
+            "the application could not start"
+        );
+    }
+    #[test]
+    fn redaction_still_covers_credentials() {
+        let connection = connection("app", "s3cret");
+        assert_eq!(
+            redact(
+                "password authentication failed for user \"app\" with s3cret",
+                &connection
+            ),
+            "password authentication failed for user \"[redacted]\" with [redacted]"
+        );
+        assert_eq!(
+            redact("jdbc:mysql://app:s3cret@db:3306/app", &connection),
+            "jdbc:mysql://[redacted]:[redacted]@db:3306/[redacted]"
+        );
+    }
 }
