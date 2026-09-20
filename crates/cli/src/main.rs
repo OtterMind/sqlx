@@ -212,6 +212,11 @@ enum SkillCommand {
     },
     Update,
     Status,
+    /// Stop managing a Skill installation; its files are left in place.
+    Remove {
+        #[arg(long)]
+        path: PathBuf,
+    },
 }
 fn main() {
     let cli = Cli::parse();
@@ -478,6 +483,7 @@ fn run(cli: Cli) -> Result<bool> {
                 }
                 SkillCommand::Update => skill::update(&manager)?,
                 SkillCommand::Status => skill::status(&manager)?,
+                SkillCommand::Remove { path } => skill::remove(&manager, path)?,
             };
             print(value);
         }
