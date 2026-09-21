@@ -53,7 +53,20 @@ ORDER BY table_name
 
 **Official documentation:** [ALL_TABLES](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/ALL_TABLES.html)
 
-## 4. Inspect column definitions
+## 4. Read a table's CREATE statement
+
+**Purpose:** Ask Oracle to generate a table's creation definition. Replace the second argument with the table name and the third with the owner. The first argument, `'TABLE'`, is an object type and must not be replaced with a table name.
+
+```sql
+SELECT DBMS_METADATA.GET_DDL('TABLE', 'TABLE_NAME', 'OWNER_NAME') AS ddl
+FROM dual
+```
+
+**Result:** A CLOB containing DDL. Metadata access privileges are required, especially across owners. DBMS_METADATA transform settings affect the output. This is not a complete schema export including every related object and its data.
+
+**Official documentation:** [DBMS_METADATA.GET_DDL](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_METADATA.html)
+
+## 5. Inspect column definitions
 
 **Purpose:** Inspect column order, types, length, numeric precision, nullability, and defaults. Replace owner and table names.
 
@@ -68,19 +81,6 @@ ORDER BY column_id
 **Result:** One row per column. `data_length` is measured in bytes and must not automatically be treated as a character count. `data_precision` and `data_scale` describe numeric precision and fractional digits.
 
 **Official documentation:** [ALL_TAB_COLUMNS](https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/ALL_TAB_COLUMNS.html)
-
-## 5. Obtain table DDL
-
-**Purpose:** Ask Oracle to generate a table's creation definition. Replace the second argument with the table name and the third with the owner. The first argument, `'TABLE'`, is an object type and must not be replaced with a table name.
-
-```sql
-SELECT DBMS_METADATA.GET_DDL('TABLE', 'TABLE_NAME', 'OWNER_NAME') AS ddl
-FROM dual
-```
-
-**Result:** A CLOB containing DDL. Metadata access privileges are required, especially across owners. DBMS_METADATA transform settings affect the output. This is not a complete schema export including every related object and its data.
-
-**Official documentation:** [DBMS_METADATA.GET_DDL](https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_METADATA.html)
 
 ## 6. List a table's indexes
 

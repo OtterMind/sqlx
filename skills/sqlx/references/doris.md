@@ -47,19 +47,7 @@ SHOW TABLES FROM `database_name`;
 
 **Official documentation:** [SHOW TABLES](https://doris.apache.org/docs/sql-manual/sql-statements/table-and-view/table/SHOW-TABLES/)
 
-## 4. Inspect columns
-
-**Purpose:** Inspect a table's columns, types, keys, and aggregation types. Replace the identifiers.
-
-```sql
-DESC `database_name`.`table_name` ALL;
-```
-
-**Result:** One row per column with `Field`, `Type`, `Null`, `Key`, `Default`, and `Extra`. `DESC ... ALL` also lists hidden columns.
-
-**Official documentation:** [DESC](https://doris.apache.org/docs/sql-manual/sql-statements/table-and-view/table/DESC-TABLE/)
-
-## 5. Read a table's CREATE statement
+## 4. Read a table's CREATE statement
 
 **Purpose:** Obtain the DDL that Doris would use to recreate the table, including its data model and properties. Replace the identifiers.
 
@@ -70,6 +58,18 @@ SHOW CREATE TABLE `catalog_name`.`database_name`.`table_name`;
 **Result:** One row with the table name and its CREATE TABLE statement, including `ENGINE`, `DISTRIBUTED BY`, and `PROPERTIES` such as the replication number.
 
 **Official documentation:** [SHOW CREATE TABLE](https://doris.apache.org/docs/sql-manual/sql-statements/table-and-view/table/SHOW-CREATE-TABLE/)
+
+## 5. Inspect columns
+
+**Purpose:** Inspect a table's columns, types, keys, and aggregation types. Replace the identifiers.
+
+```sql
+DESC `database_name`.`table_name` ALL;
+```
+
+**Result:** One row per column with `Field`, `Type`, `Null`, `Key`, `Default`, and `Extra`. `DESC ... ALL` also lists hidden columns.
+
+**Official documentation:** [DESC](https://doris.apache.org/docs/sql-manual/sql-statements/table-and-view/table/DESC-TABLE/)
 
 ## 6. Inspect table status and data size
 

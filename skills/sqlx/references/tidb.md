@@ -44,7 +44,19 @@ SHOW FULL TABLES FROM `database_name`;
 
 **Official documentation:** [SHOW TABLES](https://docs.pingcap.com/tidb/stable/sql-statement-show-tables/)
 
-## 4. Inspect columns and indexes
+## 4. Read a table's CREATE statement
+
+**Purpose:** Obtain the exact DDL that TiDB would use to recreate the table. Replace the identifiers.
+
+```sql
+SHOW CREATE TABLE `database_name`.`table_name`;
+```
+
+**Result:** One row with the table name and its CREATE TABLE statement, including TiDB-specific table options such as `AUTO_ID_CACHE` and `SHARD_ROW_ID_BITS`.
+
+**Official documentation:** [SHOW CREATE TABLE](https://docs.pingcap.com/tidb/stable/sql-statement-show-create-table/)
+
+## 5. Inspect columns and indexes
 
 **Purpose:** Inspect a table's column types and its indexes. Replace the identifiers.
 
@@ -56,18 +68,6 @@ SHOW INDEX FROM `table_name` FROM `database_name`;
 **Result:** `SHOW COLUMNS` returns one row per column with its type, nullability, key membership, default, and extra attributes. `SHOW INDEX` returns one row per index column.
 
 **Official documentation:** [SHOW INDEX](https://docs.pingcap.com/tidb/stable/sql-statement-show-index/)
-
-## 5. Read a table's CREATE statement
-
-**Purpose:** Obtain the exact DDL that TiDB would use to recreate the table. Replace the identifiers.
-
-```sql
-SHOW CREATE TABLE `database_name`.`table_name`;
-```
-
-**Result:** One row with the table name and its CREATE TABLE statement, including TiDB-specific table options such as `AUTO_ID_CACHE` and `SHARD_ROW_ID_BITS`.
-
-**Official documentation:** [SHOW CREATE TABLE](https://docs.pingcap.com/tidb/stable/sql-statement-show-create-table/)
 
 ## 6. Inspect table size and row estimates
 

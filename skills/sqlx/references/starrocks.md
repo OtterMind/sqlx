@@ -47,7 +47,19 @@ SHOW TABLES FROM `database_name`;
 
 **Official documentation:** [SHOW TABLES](https://docs.starrocks.io/docs/4.0/sql-reference/sql-statements/table_bucket_part_index/SHOW_TABLES/)
 
-## 4. Inspect columns
+## 4. Read a table's CREATE statement
+
+**Purpose:** Obtain the DDL that StarRocks would use to recreate the table, including its key model and properties. Replace the identifiers.
+
+```sql
+SHOW CREATE TABLE `catalog_name`.`database_name`.`table_name`;
+```
+
+**Result:** One row with the table name and its CREATE TABLE statement, including `ENGINE`, `DISTRIBUTED BY`, `PARTITION BY`, and `PROPERTIES` such as the replication number.
+
+**Official documentation:** [SHOW CREATE TABLE](https://docs.starrocks.io/docs/4.0/sql-reference/sql-statements/table_bucket_part_index/SHOW_CREATE_TABLE/)
+
+## 5. Inspect columns
 
 **Purpose:** Inspect a table's columns, types, keys, and generated expressions. Replace the identifiers.
 
@@ -59,18 +71,6 @@ SHOW FULL COLUMNS FROM `database_name`.`table_name`;
 **Result:** One row per column with `Field`, `Type`, `Null`, `Key`, `Default`, and `Extra`. `SHOW FULL COLUMNS` adds collation and comment details.
 
 **Official documentation:** [DESCRIBE](https://docs.starrocks.io/docs/4.0/sql-reference/sql-statements/table_bucket_part_index/DESCRIBE/)
-
-## 5. Read a table's CREATE statement
-
-**Purpose:** Obtain the DDL that StarRocks would use to recreate the table, including its key model and properties. Replace the identifiers.
-
-```sql
-SHOW CREATE TABLE `catalog_name`.`database_name`.`table_name`;
-```
-
-**Result:** One row with the table name and its CREATE TABLE statement, including `ENGINE`, `DISTRIBUTED BY`, `PARTITION BY`, and `PROPERTIES` such as the replication number.
-
-**Official documentation:** [SHOW CREATE TABLE](https://docs.starrocks.io/docs/4.0/sql-reference/sql-statements/table_bucket_part_index/SHOW_CREATE_TABLE/)
 
 ## 6. Inspect partitions and tablets
 
