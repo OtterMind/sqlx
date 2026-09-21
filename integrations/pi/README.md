@@ -1,6 +1,6 @@
 # @ottermind/pi-sqlx
 
-Native SQLX tools for the Pi coding agent. The extension registers five `registerTool` tools and
+Native SQLX tools for the Pi coding agent. The extension registers six `registerTool` tools and
 calls the `sqlx` CLI for each one, so encrypted credentials, TLS policy, worker downloads and local
 result pages stay CLI responsibilities.
 
@@ -25,6 +25,7 @@ Add `-l` to install into the project (`./.pi/settings.json`) instead of the user
 | Tool | Purpose | May modify data |
 |---|---|---|
 | `sqlx_datasource_list` | List saved datasources (no secrets) | no |
+| `sqlx_datasource_show` | Show one datasource by UUID or unique name | no |
 | `sqlx_datasource_test` | Test connectivity; executes no SQL | no |
 | `sqlx_sql_execute` | Execute statements, return the full structured result | yes |
 | `sqlx_sql_view` | Execute once, return a local result-page URL | yes |
