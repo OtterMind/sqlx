@@ -13,7 +13,7 @@ thin native-tool packages for harnesses that register tools themselves.
 
 ## Requirements
 
-The `sqlx` CLI (0.1.10 or later, which provides `sqlx mcp`). Every integration resolves it the same
+The `sqlx` CLI (0.1.11 or later, which provides `sqlx mcp`). Every integration resolves it the same
 way: `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
 (`SQLX_INSTALL_DIR`, `~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`), and when none of
 them exists it installs the CLI itself with the official npm installer, so installing the plugin or

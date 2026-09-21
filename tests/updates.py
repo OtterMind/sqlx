@@ -14,8 +14,8 @@ import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT = "0.1.10"
-NEXT = "0.1.11"
+CURRENT = "0.1.11"
+NEXT = "0.1.12"
 SUFFIX = ".exe" if os.name == "nt" else ""
 NAME = "sqlx" + SUFFIX
 CLI = ROOT / "target/debug" / NAME

@@ -17,7 +17,7 @@ Add `-l` to install into the project (`./.pi/settings.json`) instead of the user
 - Pi 0.86 or later.
 - `@earendil-works/pi-coding-agent` and `typebox` are declared as peer dependencies; pi bundles
   both, and `pi install` runs npm with `--omit=peer`, so nothing extra is installed.
-- The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.10 or later. The extension
+- The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.11 or later. The extension
   looks for `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
   (`~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`, or `SQLX_INSTALL_DIR`), and when
   none of them exists it installs the CLI itself with
