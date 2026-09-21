@@ -24,8 +24,8 @@ case "$kind" in
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar' -o target/debug/trino-jdbc.jar
     ;;
   tdengine)
-    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3.jar' -o target/debug/taos-jdbcdriver.jar
-    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.16/slf4j-api-2.0.16.jar' -o target/debug/slf4j-api.jar
+    # The bundled jar carries the driver's own dependencies; the bundle has no slf4j binding.
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar' -o target/debug/taos-jdbcdriver.jar
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/2.0.16/slf4j-nop-2.0.16.jar' -o target/debug/slf4j-nop.jar
     ;;
   *) echo 'Unsupported fixture' >&2; exit 1 ;;

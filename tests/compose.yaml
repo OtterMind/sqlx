@@ -113,6 +113,8 @@ services:
       retries: 60
   opengauss:
     image: opengauss/opengauss:7.0.0-RC3.B025
+    # The image sets up its data directory with privileged operations.
+    privileged: true
     environment:
       # openGauss rejects a password without upper case, lower case, a digit and a special character.
       GS_PASSWORD: SQLX_Test_Only_12345
