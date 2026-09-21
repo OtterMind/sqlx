@@ -136,7 +136,14 @@ public final class JdbcWorker {
                 code = "jdbc." + Objects.toString(e.getSQLState(), "unknown") + "." + e.getErrorCode();
                 if (e.getSQLState() != null && !e.getSQLState().startsWith("08") && !e.getSQLState().startsWith("HYT") && !(e instanceof SQLTimeoutException) && !(e instanceof SQLRecoverableException)) outcome = "failed";
             }
-            String message = Objects.toString(failure.getMessage(), failure.getClass().getSimpleName());
+            String message = Objects.toString(failure.getMessage(), "");
+            if (message.isBlank()) {
+                // A driver may throw without a message; name the class, and its cause, so the failure stays readable.
+                message = failure.getClass().getName();
+                if (failure.getCause() != null && failure.getCause() != failure) {
+                    message += ": " + Objects.toString(failure.getCause().getMessage(), failure.getCause().getClass().getName());
+                }
+            }
             for (String key : List.of("username", "password")) { String secret=config.path(key).asText(); if (!secret.isEmpty()) message=redactSecret(message, secret); }
             emit("error", "index", current, "code", code, "message", message, "outcome", outcome);
             for (int i=current==null ? 0 : current+1; i<sql.size(); i++) emit("skipped", "index", i);
