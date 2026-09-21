@@ -8,6 +8,7 @@ import json
 import os
 import platform
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -115,27 +116,40 @@ def exercise(cli):
         finally:server.shutdown();server.server_close();thread.join()
 
 def check_skill_source():
-    """Verify the Skill shipped by releases still carries the Agent approval contract."""
+    """Verify the Skill shipped by releases stays an index of the approval and download contracts."""
     skill=ROOT/'skills/sqlx'
     def read(name):return (skill/name).read_text(encoding='utf-8').replace('\r\n','\n')
     text=read('SKILL.md');reference=read('references/local-ui.md')
     assert text.startswith('---\nname: sqlx\n'),'SKILL.md frontmatter name changed'
-    clauses=[
-        '### Approval before state-changing SQL',
-        'classify the whole batch as read-only, state-changing, or unknown',
-        'If the user has not explicitly authorized that operation and scope, pause and ask for confirmation',
-        'Establish the blast radius with read-only SQL before asking',
-        'The same approval gate applies to `--view`',
-        'A one-time approval does not authorize future reruns',
-        'This is an Agent workflow rule, not a database permission mechanism',
-        '## Downloads on first use',
-        'sqlx prefetch <component>',
-        'retried up to three times',
-        'components that are already installed are reused',
-    ]
-    missing=[clause for clause in clauses if clause not in text]
-    assert not missing,f'SKILL.md no longer states the approval contract: {missing}'
+    # SKILL.md is an index: it routes the agent to one reference per task instead of restating it.
+    index_budget=45
+    lines=text.splitlines()
+    assert len(lines)<=index_budget,f'SKILL.md grew to {len(lines)} lines; move detail into references/'
+    clauses={
+        'references/approval.md':[
+            'classify the whole batch as read-only, state-changing, or unknown',
+            'If the user has not explicitly authorized that operation and scope, pause and ask for confirmation',
+            'Establish the blast radius with read-only SQL before asking',
+            'The same approval gate applies to `--view`',
+            'A one-time approval does not authorize future reruns',
+            'This is an Agent workflow rule, not a database permission mechanism',
+        ],
+        'references/downloads.md':[
+            'sqlx prefetch <component>',
+            'retried up to three times',
+            'components that are already installed are reused',
+        ],
+    }
+    for name,expected in clauses.items():
+        body=read(name)
+        missing=[clause for clause in expected if clause not in body]
+        assert not missing,f'{name} no longer states its contract: {missing}'
+        assert f'({name})' in text,f'SKILL.md does not link {name}'
     assert "The Skill's approval gate therefore applies on the agent side" in reference,'references/local-ui.md no longer applies the approval gate to refresh'
+    # Every reference must be reachable from the index, and each database from its own recipe.
+    linked={name for name in re.findall(r'\(references/([a-z-]+\.md)\)',text)}
+    present={path.name for path in (skill/'references').glob('*.md')}
+    assert present<=linked,f'SKILL.md does not link every reference: {sorted(present-linked)}'
     databases=('mysql','mariadb','tidb','postgresql','cockroachdb','yugabytedb','oracle','sqlserver','clickhouse','trino','starrocks','doris')
     for database in databases:
         assert (skill/'references'/f'{database}.md').is_file(),f'missing database reference references/{database}.md'
@@ -149,7 +163,7 @@ def check_skill_source():
         assert body.count('```')%2==0,f'unbalanced code fences in {name}'
         trailing=[number for number,line in enumerate(body.splitlines(),1) if line.rstrip()!=line]
         assert not trailing,f'trailing whitespace in {name} at {trailing}'
-    print(f'skill source: approval contract clauses, {len(databases)} per-database references and formatting passed')
+    print(f'skill source: {len(lines)}-line index, approval and download contracts, {len(databases)} per-database references and formatting passed')
 
 def check_release_contract():
     """The release manifest gate must accept exactly the components the packagers emit.
