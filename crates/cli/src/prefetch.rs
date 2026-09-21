@@ -29,13 +29,15 @@ pub(crate) const CHOICES: [&str; 19] = [
 /// Resolve one requested component into the manifest entries it needs.
 fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
     let entries = match name {
-        // MariaDB, TiDB, StarRocks and Doris speak the MySQL protocol, and CockroachDB and
-        // YugabyteDB the PostgreSQL protocol, so all of them reuse a native worker.
+        // MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Doris speak the MySQL protocol, and
+        // CockroachDB, YugabyteDB and openGauss the PostgreSQL protocol, so they reuse a worker.
         "mysql" | "postgres" => vec![(name.to_owned(), platform.to_owned())],
-        "mariadb" | "tidb" | "starrocks" | "doris" => {
+        "mariadb" | "tidb" | "greatsql" | "oceanbase" | "starrocks" | "doris" => {
             vec![("mysql".to_owned(), platform.to_owned())]
         }
-        "cockroachdb" | "yugabytedb" => vec![("postgres".to_owned(), platform.to_owned())],
+        "cockroachdb" | "yugabytedb" | "opengauss" => {
+            vec![("postgres".to_owned(), platform.to_owned())]
+        }
         // The JDBC databases need the shared runner and the pinned JRE as well.
         "oracle" | "sqlserver" | "clickhouse" | "trino" | "tdengine" => vec![
             ("java".to_owned(), platform.to_owned()),
