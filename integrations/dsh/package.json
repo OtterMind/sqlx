@@ -1,5 +1,5 @@
 {
-  "name": "@ottermind/dsh-sqlx",
+  "name": "@ottermind/sqlx-dsh",
   "version": "0.1.9",
   "description": "OtterMind SQLX tools for DeepSeek Harness: list datasources, test connections, execute SQL and open local result pages.",
   "type": "module",

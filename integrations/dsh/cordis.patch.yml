@@ -1,8 +1,8 @@
-# Bundle patch for @ottermind/dsh-sqlx.
+# Bundle patch for @ottermind/sqlx-dsh.
 #
-# `dsh plugin --profile <name> add @ottermind/dsh-sqlx` installs the package and, because this
+# `dsh plugin --profile <name> add @ottermind/sqlx-dsh` installs the package and, because this
 # file is declared as `dsh.bundle.patch`, appends the package to the profile's bundle stack.
 # The row below mounts the plugin module; no profile file edits are required.
 - insert:
     - id: sqlx
-      name: '@ottermind/dsh-sqlx'
+      name: '@ottermind/sqlx-dsh'

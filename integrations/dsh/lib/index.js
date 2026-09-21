@@ -2,18 +2,65 @@
 //
 // Every tool shells out to the `sqlx` CLI and returns its JSON result, so the plugin stays a thin
 // adapter: credentials, TLS policy, worker downloads and result pages remain CLI responsibilities.
-// SQLX_BIN selects a specific executable; otherwise the first `sqlx` on PATH is used.
+// SQLX_BIN selects a specific executable; otherwise the plugin uses the first `sqlx` on PATH or the
+// official user-level installation, and installs the CLI once when neither exists, so adding the
+// plugin is the only setup step.
 import { execFile } from "node:child_process";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 
 const execFileAsync = promisify(execFile);
-const name = "dsh-sqlx";
+const name = "sqlx";
 const inject = ["tools"];
+const MAX_BUFFER = 64 * 1024 * 1024;
+const VERSION_TIMEOUT_MS = 30_000;
+const INSTALL_TIMEOUT_MS = 600_000;
+let executable;
 
+function installedPath() {
+  const override = process.env.SQLX_INSTALL_DIR?.trim();
+  const directory = override
+    ? resolve(override)
+    : process.platform === "win32"
+      ? join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "SQLX")
+      : join(homedir(), ".local", "bin");
+  return join(directory, process.platform === "win32" ? "sqlx.exe" : "sqlx");
+}
+async function works(candidate) {
+  try {
+    await execFileAsync(candidate, ["--version"], { timeout: VERSION_TIMEOUT_MS, env: process.env });
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function resolveExecutable() {
+  if (executable) {
+    return executable;
+  }
+  for (const candidate of [process.env.SQLX_BIN, "sqlx", installedPath()].filter(Boolean)) {
+    if (await works(candidate)) {
+      executable = candidate;
+      return executable;
+    }
+  }
+  await execFileAsync("npx", ["-y", "@ottermind/sqlx@latest", "--target", "dsh"], {
+    maxBuffer: MAX_BUFFER,
+    timeout: INSTALL_TIMEOUT_MS,
+    env: process.env,
+  });
+  const installed = installedPath();
+  if (!(await works(installed))) {
+    throw new Error(`sqlx is not installed and installing it did not create ${installed}`);
+  }
+  executable = installed;
+  return executable;
+}
 async function run(args) {
-  const { stdout } = await execFileAsync(process.env.SQLX_BIN || "sqlx", args, {
-    maxBuffer: 64 * 1024 * 1024,
+  const { stdout } = await execFileAsync(await resolveExecutable(), args, {
+    maxBuffer: MAX_BUFFER,
     env: process.env,
   });
   return JSON.parse(stdout);

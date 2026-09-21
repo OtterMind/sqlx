@@ -8,8 +8,8 @@ thin native-tool packages for harnesses that register tools themselves.
 |---|---|---|---|
 | Claude Code | `claude/` | plugin `.mcp.json` → `sqlx mcp` | `claude plugin marketplace add <repo>` then `claude plugin install sqlx@ottermind` (or `--plugin-dir` while developing) |
 | Codex | `codex/` | plugin `.mcp.json` → `sqlx mcp` | `codex plugin marketplace add <repo>` then `codex plugin add sqlx@ottermind` |
-| DeepSeek Harness | `dsh/` | native `defineTool` tools | `dsh plugin --profile <profile> add @ottermind/dsh-sqlx` |
-| Pi | `pi/` | native `registerTool` extension | `pi install npm:@ottermind/pi-sqlx` |
+| DeepSeek Harness | `dsh/` | native `defineTool` tools | `dsh plugin --profile <profile> add @ottermind/sqlx-dsh` |
+| Pi | `pi/` | native `registerTool` extension | `pi install npm:@ottermind/sqlx-pi` |
 
 ## Requirements
 
