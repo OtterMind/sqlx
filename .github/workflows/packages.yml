@@ -111,12 +111,12 @@ jobs:
           passed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length')
           test "$passed" -gt 0
           # checkout's shallow SHA fetch creates a local lightweight tag; retrieve the actual tag object.
-          git fetch --force origin refs/tags/v0.1.8:refs/tags/v0.1.8
-          test "$(git rev-parse 'v0.1.8^{commit}')" = "$GITHUB_SHA"
-          test "$(git describe --tags --exact-match HEAD)" = v0.1.8
-          test "$(git cat-file -t refs/tags/v0.1.8)" = tag
-          gh release create v0.1.8 --draft --verify-tag --title 'SQLX 0.1.8' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
-          gh release edit v0.1.8 --draft=false --latest
+          git fetch --force origin refs/tags/v0.1.9:refs/tags/v0.1.9
+          test "$(git rev-parse 'v0.1.9^{commit}')" = "$GITHUB_SHA"
+          test "$(git describe --tags --exact-match HEAD)" = v0.1.9
+          test "$(git cat-file -t refs/tags/v0.1.9)" = tag
+          gh release create v0.1.9 --draft --verify-tag --title 'SQLX 0.1.9' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
+          gh release edit v0.1.9 --draft=false --latest
   npm:
     needs: [assemble]
     if: inputs.publish
@@ -132,6 +132,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          test "$GITHUB_REF_NAME" = v0.1.8
+          test "$GITHUB_REF_NAME" = v0.1.9
           test "$(node -p 'require("./package.json").version')" = "${GITHUB_REF_NAME#v}"
           npm publish --access public

@@ -13,7 +13,7 @@ thin native-tool packages for harnesses that register tools themselves.
 
 ## Requirements
 
-The `sqlx` CLI (0.1.8 or later, which provides `sqlx mcp`) must be installed and on `PATH`.
+The `sqlx` CLI (0.1.9 or later, which provides `sqlx mcp`) must be installed and on `PATH`.
 `SQLX_BIN` selects a specific executable; otherwise the first `sqlx` on `PATH` is used.
 
 ## Tools
