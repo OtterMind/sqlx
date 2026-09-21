@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `database_name`, `table_name`, and `view_name` with actual identifiers. Quote identifiers with double quotes and double embedded quotes; unquoted identifiers fold to lowercase, as in PostgreSQL.
 
-CockroachDB speaks the PostgreSQL wire protocol, so `--type cockroachdb` uses the PostgreSQL worker and a `postgresql` datasource reaches the same server. Default connections use port 26257. Official links target the stable CockroachDB documentation. Match the connected server version when you look them up.
+CockroachDB speaks the PostgreSQL wire protocol, so `--type cockroachdb` uses the PostgreSQL worker and a `postgresql` datasource reaches the same server. Default connections use port 26257. Official links target the stable CockroachDB documentation. The documentation root is https://www.cockroachlabs.com/docs/stable. Match the connected server version when you look them up.
 
 ## 1. Identify the current connection
 

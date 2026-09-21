@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `database_name`, `table_name`, `view_name`, and `procedure_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
-MariaDB speaks the MySQL protocol, so `--type mariadb` uses the MySQL worker and a `mysql` datasource reaches the same server. Official links target the current MariaDB documentation. Match the connected server version when you look them up.
+MariaDB speaks the MySQL protocol, so `--type mariadb` uses the MySQL worker and a `mysql` datasource reaches the same server. Official links target the current MariaDB documentation. The documentation root is https://mariadb.com/kb/en/documentation/. Match the connected server version when you look them up.
 
 ## 1. Identify the current connection
 

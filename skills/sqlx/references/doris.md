@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `catalog_name`, `database_name`, `table_name`, and `job_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
-Doris speaks the MySQL protocol, so `--type doris` uses the MySQL worker and a `mysql` datasource reaches the same server. Doris serves the protocol on port 9030 by default. Official links target the current Doris documentation. Match the connected server version when you look them up.
+Doris speaks the MySQL protocol, so `--type doris` uses the MySQL worker and a `mysql` datasource reaches the same server. Doris serves the protocol on port 9030 by default. Official links target the current Doris documentation. The documentation root is https://doris.apache.org/docs/. Match the connected server version when you look them up.
 
 ## 1. Identify the current frontend and backend
 
