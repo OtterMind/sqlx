@@ -110,7 +110,7 @@ public final class JdbcWorker {
                                     if (hasRows) {
                                         try (ResultSet rs = st.getResultSet()) { rows(rs, i, result); }
                                     } else {
-                                        long count = st.getLargeUpdateCount();
+                                        long count = updateCount(st);
                                         if (count == -1) break;
                                         emit("columns", "index", i, "result", result, "columns", List.of());
                                         emit("result_end", "index", i, "result", result, "rows", "0", "affected_rows", Long.toString(count));
@@ -136,7 +136,14 @@ public final class JdbcWorker {
                 code = "jdbc." + Objects.toString(e.getSQLState(), "unknown") + "." + e.getErrorCode();
                 if (e.getSQLState() != null && !e.getSQLState().startsWith("08") && !e.getSQLState().startsWith("HYT") && !(e instanceof SQLTimeoutException) && !(e instanceof SQLRecoverableException)) outcome = "failed";
             }
-            String message = Objects.toString(failure.getMessage(), failure.getClass().getSimpleName());
+            String message = Objects.toString(failure.getMessage(), "");
+            if (message.isBlank()) {
+                // A driver may throw without a message; name the class, and its cause, so the failure stays readable.
+                message = failure.getClass().getName();
+                if (failure.getCause() != null && failure.getCause() != failure) {
+                    message += ": " + Objects.toString(failure.getCause().getMessage(), failure.getCause().getClass().getName());
+                }
+            }
             for (String key : List.of("username", "password")) { String secret=config.path(key).asText(); if (!secret.isEmpty()) message=redactSecret(message, secret); }
             emit("error", "index", current, "code", code, "message", message, "outcome", outcome);
             for (int i=current==null ? 0 : current+1; i<sql.size(); i++) emit("skipped", "index", i);
@@ -155,13 +162,32 @@ public final class JdbcWorker {
                 yield "jdbc:clickhouse://" + authority + "/" + (database.isEmpty() ? "default" : database)
                     + (c.path("tls").asText().equals("disable") ? "" : "?ssl=true");
             }
+            case "opengauss" -> "jdbc:opengauss://" + authority + "/" + c.path("database").asText();
+            case "tdengine" -> {
+                // The RESTful driver reaches taosAdapter over HTTP, so the native client is not needed.
+                String database = c.path("database").asText();
+                yield "jdbc:TAOS-WS://" + authority + "/" + database;
+            }
             case "trino" -> {
                 // Trino addresses a catalog and an optional schema; --database carries catalog[.schema].
                 yield "jdbc:trino://" + authority + "/" + c.path("database").asText().replace('.', '/')
                     + (c.path("tls").asText().equals("disable") ? "" : "?SSL=true");
             }
-            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse and trino");
+            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine and opengauss");
         };
+    }
+    /** Some drivers, such as the TDengine RESTful driver, only implement the JDBC 1 update count. */
+    static long updateCount(Statement st) throws SQLException {
+        try {
+            return st.getLargeUpdateCount();
+        } catch (SQLException | RuntimeException | Error unsupported) {
+            try {
+                return st.getUpdateCount();
+            } catch (SQLException fallback) {
+                if (unsupported instanceof SQLException sql) throw sql;
+                throw fallback;
+            }
+        }
     }
     void rows(ResultSet rs, int index, int result) throws SQLException, IOException {
         ResultSetMetaData md=rs.getMetaData(); int count=md.getColumnCount();

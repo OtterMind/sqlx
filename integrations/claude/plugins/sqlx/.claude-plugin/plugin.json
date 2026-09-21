@@ -1,6 +1,6 @@
 {
   "name": "sqlx",
-  "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, MariaDB, TiDB, PostgreSQL, CockroachDB, YugabyteDB, Oracle, SQL Server, ClickHouse, Trino, StarRocks and Apache Doris, and open local result pages. Credentials stay in the SQLX data directory. Requires the sqlx CLI (0.1.11+) on PATH.",
+  "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris and TDengine, and open local result pages. Credentials stay in the SQLX data directory. Requires the sqlx CLI (0.1.11+) on PATH.",
   "version": "0.1.11",
   "author": {
     "name": "OtterMind"
@@ -14,15 +14,19 @@
     "mysql",
     "mariadb",
     "tidb",
+    "greatsql",
+    "oceanbase",
     "postgresql",
     "cockroachdb",
     "yugabytedb",
+    "opengauss",
     "oracle",
     "sqlserver",
     "clickhouse",
     "trino",
     "starrocks",
     "doris",
+    "tdengine",
     "mcp"
   ]
 }

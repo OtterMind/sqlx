@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, TiDB, PostgreSQL, CockroachDB, YugabyteDB, Oracle, SQL Server, ClickHouse, Trino, StarRocks and Apache Doris from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris and TDengine from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
 
 ## Quick start
 
@@ -147,15 +147,19 @@ sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELEC
 | MySQL | `mysql` | native worker | port 3306 by default |
 | MariaDB | `mariadb` | reuses the MySQL worker | port 3306 by default |
 | TiDB | `tidb` | reuses the MySQL worker | port 4000 by default |
+| GreatSQL | `greatsql` | reuses the MySQL worker | port 3306 by default |
+| OceanBase | `oceanbase`, `ob` | reuses the MySQL worker | port 2881 by default; connect as `user@tenant` |
 | StarRocks | `starrocks` | reuses the MySQL worker | port 9030 by default; has no user database until one is created |
 | Apache Doris | `doris` | reuses the MySQL worker | port 9030 by default; has no user database until one is created |
 | PostgreSQL | `postgresql`, `postgres`, `pgsql` | native worker | port 5432 by default |
 | CockroachDB | `cockroachdb`, `cockroach`, `crdb` | reuses the PostgreSQL worker | |
 | YugabyteDB | `yugabytedb`, `yugabyte`, `yb` | reuses the PostgreSQL worker | port 5433 by default |
+| openGauss | `opengauss`, `gaussdb` | JDBC worker | port 5432 by default; authenticates with its own driver |
 | Oracle | `oracle` | JDBC worker | `--service <service-name>` is required |
 | SQL Server | `sqlserver`, `mssql` | JDBC worker | port 1433 by default |
 | ClickHouse | `clickhouse` | JDBC worker | connects to the HTTP port, 8123 by default |
 | Trino | `trino` | JDBC worker | `--database <catalog>[.<schema>]` is required |
+| TDengine | `tdengine`, `taos` | JDBC worker | connects through taosAdapter, 6041 by default |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name.
 
@@ -212,7 +216,7 @@ Datasource responses omit usernames, passwords and vendor properties.
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `skill` or `all`) |
 | Execute and open a result page | `sqlx sql execute --datasource dev --sql "SELECT 1" --view` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
 | Serve MCP over stdio | `sqlx mcp` |
@@ -261,13 +265,13 @@ To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the 
 
 User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
 
-The main executable contains no database drivers; each database's worker is downloaded on first use (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
+The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine and openGauss use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
 
 Downloads happen on first use and are cached afterwards. Each one prints `Downloading …` with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and rerunning a failed command reuses every component that is already installed. To avoid waiting inside the first query or page:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, MariaDB, TiDB, StarRocks, Doris, Oracle, SQL Server, ClickHouse and Trino workers, the JDBC runtime and the JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino and TDengine components, the JDBC runtime and the JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.
@@ -368,6 +372,9 @@ python3 tests/databases.py starrocks
 docker compose -f tests/compose.yaml down -v
 docker compose -f tests/compose.yaml up -d --wait doris
 python3 tests/databases.py doris
+docker compose -f tests/compose.yaml down -v
+docker compose -f tests/compose.yaml up -d --wait greatsql tdengine
+python3 tests/databases.py greatsql tdengine
 docker compose -f tests/compose.yaml down -v
 ```
 

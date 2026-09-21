@@ -43,12 +43,12 @@ enum Commands {
     Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
-        /// Components to download: mysql, mariadb, tidb, starrocks, doris, postgres, cockroachdb, yugabytedb, oracle, sqlserver, clickhouse, trino, ui, skill or all.
+        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, ui, skill or all.
         #[arg(
             value_name = "COMPONENT",
             required = true,
             num_args = 1..,
-            value_parser = ["mysql", "mariadb", "tidb", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "oracle", "sqlserver", "clickhouse", "trino", "ui", "skill", "all"]
+            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "ui", "skill", "all"]
         )]
         components: Vec<String>,
     },
@@ -611,13 +611,17 @@ impl ConnectionArgs {
                 port: match database_type {
                     Database::Mysql | Database::Mariadb => 3306,
                     Database::Tidb => 4000,
+                    Database::Greatsql => 3306,
+                    Database::Oceanbase => 2881,
                     Database::Postgresql | Database::Cockroachdb => 5432,
                     Database::Yugabytedb => 5433,
+                    Database::Opengauss => 5432,
                     Database::Oracle => 1521,
                     Database::Sqlserver => 1433,
                     Database::Clickhouse => 8123,
                     Database::Trino => 8080,
                     Database::Starrocks | Database::Doris => 9030,
+                    Database::Tdengine => 6041,
                 },
                 database: String::new(),
                 service: String::new(),

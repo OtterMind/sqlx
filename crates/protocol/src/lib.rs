@@ -15,15 +15,19 @@ pub enum Database {
     Mysql,
     Mariadb,
     Tidb,
+    Greatsql,
+    Oceanbase,
     Postgresql,
     Cockroachdb,
     Yugabytedb,
+    Opengauss,
     Oracle,
     Sqlserver,
     Clickhouse,
     Trino,
     Starrocks,
     Doris,
+    Tdengine,
 }
 
 impl std::str::FromStr for Database {
@@ -33,17 +37,21 @@ impl std::str::FromStr for Database {
             "mysql" => Ok(Self::Mysql),
             "mariadb" => Ok(Self::Mariadb),
             "tidb" => Ok(Self::Tidb),
+            "greatsql" => Ok(Self::Greatsql),
+            "oceanbase" | "ob" => Ok(Self::Oceanbase),
             "postgresql" | "postgres" | "pgsql" => Ok(Self::Postgresql),
             "cockroachdb" | "cockroach" | "crdb" => Ok(Self::Cockroachdb),
             "yugabytedb" | "yugabyte" | "yb" => Ok(Self::Yugabytedb),
+            "opengauss" | "gaussdb" => Ok(Self::Opengauss),
             "oracle" => Ok(Self::Oracle),
             "sqlserver" | "mssql" => Ok(Self::Sqlserver),
             "clickhouse" => Ok(Self::Clickhouse),
             "trino" => Ok(Self::Trino),
             "starrocks" => Ok(Self::Starrocks),
             "doris" => Ok(Self::Doris),
+            "tdengine" | "taos" => Ok(Self::Tdengine),
             _ => Err(
-                "expected mysql, mariadb, tidb, postgresql, cockroachdb, yugabytedb, oracle, sqlserver, clickhouse, trino, starrocks, or doris"
+                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, or tdengine"
                     .into(),
             ),
         }

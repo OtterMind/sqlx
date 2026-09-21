@@ -25,6 +25,8 @@ fn native_worker(kind: Database) -> Option<&'static str> {
         Database::Mysql
         | Database::Mariadb
         | Database::Tidb
+        | Database::Greatsql
+        | Database::Oceanbase
         | Database::Starrocks
         | Database::Doris => Some("mysql"),
         Database::Postgresql | Database::Cockroachdb | Database::Yugabytedb => Some("postgres"),
@@ -52,6 +54,14 @@ fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
         Database::Trino => JdbcDriver {
             component: "trino",
             jars: &["trino-jdbc.jar"],
+        },
+        Database::Opengauss => JdbcDriver {
+            component: "opengauss",
+            jars: &["opengauss-jdbc.jar"],
+        },
+        Database::Tdengine => JdbcDriver {
+            component: "tdengine",
+            jars: &["taos-jdbcdriver.jar", "slf4j-nop.jar"],
         },
         other => bail!("{other:?} is not a JDBC database"),
     })
@@ -137,6 +147,8 @@ pub fn prepare(
         Database::Sqlserver => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
         Database::Clickhouse => "com.clickhouse.jdbc.ClickHouseDriver",
         Database::Trino => "io.trino.jdbc.TrinoDriver",
+        Database::Tdengine => "com.taosdata.jdbc.ws.WebSocketDriver",
+        Database::Opengauss => "org.opengauss.Driver",
         _ => "",
     }
     .into();

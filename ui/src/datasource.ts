@@ -8,15 +8,19 @@ const databaseNames: Record<DatabaseType, string> = {
   mysql: "MySQL",
   mariadb: "MariaDB",
   tidb: "TiDB",
+  greatsql: "GreatSQL",
+  oceanbase: "OceanBase",
   postgresql: "PostgreSQL",
   cockroachdb: "CockroachDB",
   yugabytedb: "YugabyteDB",
+  opengauss: "openGauss",
   oracle: "Oracle",
   sqlserver: "SQL Server",
   clickhouse: "ClickHouse",
   trino: "Trino",
   starrocks: "StarRocks",
   doris: "Apache Doris",
+  tdengine: "TDengine",
 };
 
 export function datasourceList(

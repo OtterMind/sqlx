@@ -99,3 +99,52 @@ services:
       interval: 5s
       timeout: 5s
       retries: 120
+
+  greatsql:
+    image: greatsql/greatsql:8.4.4-5
+    environment:
+      MYSQL_ROOT_PASSWORD: sqlx_test_only_password
+      MYSQL_DATABASE: sqlx_test
+    ports: ["127.0.0.1:23308:3306"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -uroot -psqlx_test_only_password -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+  opengauss:
+    image: opengauss/opengauss:5.0.0
+    # The image sets up its data directory with privileged operations.
+    privileged: true
+    environment:
+      # openGauss rejects a password without upper case, lower case, a digit and a symbol.
+      GS_PASSWORD: SQLX@TestOnly12345
+    ports: ["127.0.0.1:24320:5432"]
+    healthcheck:
+      # The client inside the image needs its own library directory, so check the listener instead
+      # and let the test verify that the CLI can authenticate.
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/5432'"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+  oceanbase:
+    image: oceanbase/oceanbase-ce:4.4.2-lts
+    environment:
+      # mini is the documented single-container profile; the default profile does not fit a runner.
+      MODE: mini
+      OB_SYS_PASSWORD: SQLX@TestOnly12345
+      OB_TENANT_PASSWORD: SQLX@TestOnly12345
+    ports: ["127.0.0.1:28811:2881"]
+    healthcheck:
+      # The image has no client, so wait for the listener and let the test authenticate.
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/2881'"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+  tdengine:
+    image: tdengine/tdengine:3.3.6.13
+    ports: ["127.0.0.1:26041:6041", "127.0.0.1:26042:6030"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6041/-/ping >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 60

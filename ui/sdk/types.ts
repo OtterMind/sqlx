@@ -4,15 +4,19 @@ export type DatabaseType =
   | "mysql"
   | "mariadb"
   | "tidb"
+  | "greatsql"
+  | "oceanbase"
   | "postgresql"
   | "cockroachdb"
   | "yugabytedb"
+  | "opengauss"
   | "oracle"
   | "sqlserver"
   | "clickhouse"
   | "trino"
   | "starrocks"
-  | "doris";
+  | "doris"
+  | "tdengine";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;
