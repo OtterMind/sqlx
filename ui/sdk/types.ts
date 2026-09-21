@@ -1,6 +1,14 @@
 /** Browser API v1. No saved password or local encryption key is returned by these APIs. */
 export const UI_API_VERSION = 1;
-export type DatabaseType = "mysql" | "postgresql" | "oracle" | "sqlserver";
+export type DatabaseType =
+  | "mysql"
+  | "mariadb"
+  | "postgresql"
+  | "cockroachdb"
+  | "oracle"
+  | "sqlserver"
+  | "clickhouse"
+  | "trino";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;

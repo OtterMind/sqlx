@@ -58,7 +58,8 @@ services:
     image: trinodb/trino:476
     ports: ["127.0.0.1:28082:8080"]
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/v1/info"]
+      # /v1/info answers before the coordinator accepts queries, so wait for starting:false.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/v1/info | grep -q '\"starting\":false'"]
       interval: 5s
       timeout: 5s
       retries: 40

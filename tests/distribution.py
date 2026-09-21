@@ -136,11 +136,20 @@ def check_skill_source():
     missing=[clause for clause in clauses if clause not in text]
     assert not missing,f'SKILL.md no longer states the approval contract: {missing}'
     assert "The Skill's approval gate therefore applies on the agent side" in reference,'references/local-ui.md no longer applies the approval gate to refresh'
-    for name,body in (('SKILL.md',text),('references/local-ui.md',reference)):
+    databases=('mysql','mariadb','postgresql','cockroachdb','oracle','sqlserver','clickhouse','trino')
+    for database in databases:
+        assert (skill/'references'/f'{database}.md').is_file(),f'missing database reference references/{database}.md'
+        assert f'(references/{database}.md)' in text,f'SKILL.md does not link references/{database}.md'
+    assert not (skill/'references'/'additional-databases.md').exists(),'databases must be documented in one reference file each'
+    documents=[('SKILL.md',text)]+[
+        (f'references/{path.name}',read(f'references/{path.name}'))
+        for path in sorted((skill/'references').glob('*.md'))
+    ]
+    for name,body in documents:
         assert body.count('```')%2==0,f'unbalanced code fences in {name}'
         trailing=[number for number,line in enumerate(body.splitlines(),1) if line.rstrip()!=line]
         assert not trailing,f'trailing whitespace in {name} at {trailing}'
-    print('skill source: approval contract clauses, local page refresh coverage and formatting passed')
+    print(f'skill source: approval contract clauses, {len(databases)} per-database references and formatting passed')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();check_skill_source();exercise(args.cli)

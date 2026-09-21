@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Instant};
 
 /// Components accepted on the command line, in the order `all` downloads them.
-const CHOICES: [&str; 11] = [
+pub(crate) const CHOICES: [&str; 11] = [
     "mysql",
     "mariadb",
     "postgres",

@@ -42,9 +42,13 @@ export async function setupPage(
     "database_type",
     [
       ["mysql", "MySQL"],
+      ["mariadb", "MariaDB"],
       ["postgresql", "PostgreSQL"],
+      ["cockroachdb", "CockroachDB"],
       ["oracle", "Oracle"],
       ["sqlserver", "SQL Server"],
+      ["clickhouse", "ClickHouse"],
+      ["trino", "Trino"],
     ],
     setup.connection.database_type,
   );
