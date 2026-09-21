@@ -10,20 +10,32 @@
   ],
   "license": "LicenseRef-Chat2DB",
   "type": "module",
+  "homepage": "https://github.com/OtterMind/sqlx/tree/main/integrations/pi#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OtterMind/sqlx.git",
     "directory": "integrations/pi"
+  },
+  "bugs": {
+    "url": "https://github.com/OtterMind/sqlx/issues"
+  },
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "pi": {
     "extensions": [
       "./extensions"
     ]
   },
-  "dependencies": {
-    "typebox": "^1.3.27"
-  },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
   }
 }
