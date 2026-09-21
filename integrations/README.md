@@ -13,11 +13,12 @@ thin native-tool packages for harnesses that register tools themselves.
 
 ## Requirements
 
-The `sqlx` CLI (0.1.10 or later, which provides `sqlx mcp`) is required. The Claude Code and Codex
-plugins launch it through `bin/sqlx-mcp`, which uses `SQLX_BIN` when set and otherwise the first
-`sqlx` on `PATH`. The DeepSeek Harness and Pi packages look for `SQLX_BIN`, then `sqlx` on `PATH`,
-then the official user-level installation, and install the CLI themselves with
-`npx -y @ottermind/sqlx@latest` when none of them exists.
+The `sqlx` CLI (0.1.10 or later, which provides `sqlx mcp`). Every integration resolves it the same
+way: `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
+(`SQLX_INSTALL_DIR`, `~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`), and when none of
+them exists it installs the CLI itself with the official npm installer, so installing the plugin or
+the extension is the only setup step. The official location also covers harnesses started from a
+GUI, where `~/.local/bin` is normally missing from `PATH`.
 
 ## Tools
 

@@ -1,5 +1,46 @@
 #!/bin/sh
 # Launch the OtterMind SQLX CLI as an MCP stdio server.
-# SQLX_BIN selects a specific executable; otherwise the first `sqlx` on PATH is used.
+#
+# The executable is resolved in this order: SQLX_BIN, `sqlx` on PATH, the official user-level
+# installation (SQLX_INSTALL_DIR, ~/.local/bin/sqlx, %LOCALAPPDATA%\Programs\SQLX\sqlx.exe). When
+# none of them exists the launcher installs the CLI with the official npm installer, so adding the
+# plugin is the only setup step. The official location also covers harnesses started from a GUI,
+# where ~/.local/bin is normally missing from PATH.
 set -eu
-exec "${SQLX_BIN:-sqlx}" mcp "$@"
+
+install_directory() {
+  if [ -n "${SQLX_INSTALL_DIR:-}" ]; then
+    printf '%s' "$SQLX_INSTALL_DIR"
+  elif [ -n "${LOCALAPPDATA:-}" ]; then
+    printf '%s/Programs/SQLX' "$LOCALAPPDATA"
+  else
+    printf '%s/.local/bin' "${HOME:-}"
+  fi
+}
+binary_name() {
+  case "$(install_directory)" in
+    */Programs/SQLX) printf 'sqlx.exe' ;;
+    *) printf 'sqlx' ;;
+  esac
+}
+runs() {
+  [ -n "$1" ] && [ -x "$1" ] && "$1" --version >/dev/null 2>&1
+}
+
+if runs "${SQLX_BIN:-}"; then
+  exec "$SQLX_BIN" mcp "$@"
+fi
+if command -v sqlx >/dev/null 2>&1; then
+  exec sqlx mcp "$@"
+fi
+installed="$(install_directory)/$(binary_name)"
+if ! runs "$installed"; then
+  echo "sqlx is not installed; installing it with 'npx -y @ottermind/sqlx@latest --target codex'" >&2
+  npx -y @ottermind/sqlx@latest --target codex >&2 || true
+fi
+if runs "$installed"; then
+  exec "$installed" mcp "$@"
+fi
+echo "sqlx is not installed and could not be installed automatically." >&2
+echo "Install it with 'npx -y @ottermind/sqlx@latest' and start the plugin again." >&2
+exit 127
