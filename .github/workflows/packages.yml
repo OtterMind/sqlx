@@ -1,5 +1,7 @@
 name: Packages
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       publish:
@@ -104,11 +106,20 @@ jobs:
           name: release-bundle
           path: dist/
       - name: Publish release
-        if: inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          passed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length')
+          # A tag push can start before the CI run for the same commit has finished, so wait for it
+          # (up to 20 minutes) and stop early when it already failed.
+          passed=0
+          for _ in $(seq 1 40); do
+            passed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length')
+            if [ "$passed" -gt 0 ]; then break; fi
+            failed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status failure --json databaseId --jq 'length')
+            if [ "$failed" -gt 0 ]; then break; fi
+            sleep 30
+          done
           test "$passed" -gt 0
           # checkout's shallow SHA fetch creates a local lightweight tag; retrieve the actual tag object.
           git fetch --force origin refs/tags/v0.1.10:refs/tags/v0.1.10
@@ -119,7 +130,7 @@ jobs:
           gh release edit v0.1.10 --draft=false --latest
   npm:
     needs: [assemble]
-    if: inputs.publish
+    if: github.event_name == 'push' || inputs.publish
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
