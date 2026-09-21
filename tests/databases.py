@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "sqlx_test_only_password"
 # openGauss and OceanBase reject a password without upper case, lower case, a digit and a symbol.
-COMPLEX_PASSWORD = "SQLX_Test_Only_12345"
+COMPLEX_PASSWORD = "SQLX@TestOnly12345"
 QUALIFIED = "sqlx_test.sqlx_values"
 FIXTURES = {
     "mariadb": {"port": 23307, "database": "sqlx_test", "username": "root", "password": PASSWORD},
@@ -25,8 +25,8 @@ FIXTURES = {
     # openGauss takes the PostgreSQL worker, so it authenticates like the PostgreSQL fixture.
     "opengauss": {"port": 24320, "database": "postgres", "username": "gaussdb", "password": COMPLEX_PASSWORD},
     "oceanbase": {"port": 28811, "database": "oceanbase", "username": "root@sys", "password": COMPLEX_PASSWORD},
-    # The TDengine RESTful driver reaches taosAdapter and has no user password change here.
-    "tdengine": {"port": 26041, "database": "sqlx_probe", "username": "root", "password": "taosdata"},
+    # TDengine starts without the scratch database, so connect to its catalog and create one.
+    "tdengine": {"port": 26041, "database": "information_schema", "username": "root", "password": "taosdata"},
 }
 # Statements that must run before the table batch, for engines without a scratch database.
 PREPARE = {
