@@ -1,0 +1,37 @@
+name: Plugins branch
+
+# Rebuilds the orphan `plugins` distribution branch from `integrations/` so Codex and Claude Code
+# users install SQLX without cloning the source tree. The branch is generated output: every run
+# replaces it (single commit) instead of appending to it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "integrations/**"
+      - "scripts/sync-plugins-branch.py"
+      - ".github/workflows/plugins-branch.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: plugins-branch
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: python3 scripts/sync-plugins-branch.py --output dist-plugins
+      - name: Publish the distribution branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist-plugins
+          git init -q -b plugins
+          git add -A
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "Build plugin distribution from ${GITHUB_SHA}"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" plugins
