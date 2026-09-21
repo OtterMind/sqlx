@@ -129,15 +129,17 @@ services:
   oceanbase:
     image: oceanbase/oceanbase-ce:4.4.2-lts
     environment:
-      OB_TENANT_PASSWORD: SQLX@TestOnly12345
-      OB_MEMORY_LIMIT: 4G
+      # mini is the documented single-container profile; the default profile does not fit a runner.
+      MODE: mini
       OB_SYS_PASSWORD: SQLX@TestOnly12345
+      OB_TENANT_PASSWORD: SQLX@TestOnly12345
     ports: ["127.0.0.1:28811:2881"]
     healthcheck:
-      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot@sys -pSQLX@TestOnly12345 -e 'SELECT 1' >/dev/null 2>&1"]
+      # The image has no client, so wait for the listener and let the test authenticate.
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/2881'"]
       interval: 10s
       timeout: 10s
-      retries: 120
+      retries: 60
   tdengine:
     image: tdengine/tdengine:3.3.6.13
     ports: ["127.0.0.1:26041:6041", "127.0.0.1:26042:6030"]
