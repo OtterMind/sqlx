@@ -114,22 +114,23 @@ services:
   opengauss:
     image: opengauss/opengauss:7.0.0-RC3.B025
     environment:
-      GS_PASSWORD: sqlx_test_only_password
+      # openGauss rejects a password without upper case, lower case, a digit and a special character.
+      GS_PASSWORD: SQLX_Test_Only_12345
     ports: ["127.0.0.1:24320:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "gsql -d postgres -p 5432 -c 'SELECT 1' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "PGPASSWORD=SQLX_Test_Only_12345 gsql -h 127.0.0.1 -U gaussdb -d postgres -p 5432 -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 120
   oceanbase:
     image: oceanbase/oceanbase-ce:4.4.2-lts
     environment:
-      OB_TENANT_PASSWORD: sqlx_test_only_password
+      OB_TENANT_PASSWORD: SQLX_Test_Only_12345
       OB_MEMORY_LIMIT: 4G
-      OB_SYS_PASSWORD: sqlx_test_only_password
+      OB_SYS_PASSWORD: SQLX_Test_Only_12345
     ports: ["127.0.0.1:28811:2881"]
     healthcheck:
-      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot@sys -psqlx_test_only_password -e 'SELECT 1' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot@sys -pSQLX_Test_Only_12345 -e 'SELECT 1' >/dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 120

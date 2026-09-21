@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "sqlx_test_only_password"
+# openGauss and OceanBase reject a password without upper case, lower case, a digit and a symbol.
+COMPLEX_PASSWORD = "SQLX_Test_Only_12345"
 QUALIFIED = "sqlx_test.sqlx_values"
 FIXTURES = {
     "mariadb": {"port": 23307, "database": "sqlx_test", "username": "root", "password": PASSWORD},
@@ -21,8 +23,8 @@ FIXTURES = {
     "yugabytedb": {"port": 25433, "database": "yugabyte", "username": "yugabyte", "password": ""},
     "greatsql": {"port": 23308, "database": "sqlx_test", "username": "root", "password": PASSWORD},
     # openGauss takes the PostgreSQL worker, so it authenticates like the PostgreSQL fixture.
-    "opengauss": {"port": 24320, "database": "postgres", "username": "gaussdb", "password": PASSWORD},
-    "oceanbase": {"port": 28811, "database": "oceanbase", "username": "root@sys", "password": PASSWORD},
+    "opengauss": {"port": 24320, "database": "postgres", "username": "gaussdb", "password": COMPLEX_PASSWORD},
+    "oceanbase": {"port": 28811, "database": "oceanbase", "username": "root@sys", "password": COMPLEX_PASSWORD},
     # The TDengine RESTful driver reaches taosAdapter and has no user password change here.
     "tdengine": {"port": 26041, "database": "sqlx_probe", "username": "root", "password": "taosdata"},
 }

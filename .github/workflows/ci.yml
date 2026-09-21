@@ -188,10 +188,14 @@ jobs:
       # OceanBase runs a whole cluster in one container, so the two take turns.
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 opengauss
       - run: python3 tests/databases.py opengauss
+      - if: failure()
+        run: docker logs sqlx-integration-opengauss-1 --tail 60 || true
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 oceanbase
       - run: python3 tests/databases.py oceanbase
+      - if: failure()
+        run: docker logs sqlx-integration-oceanbase-1 --tail 60 || true
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
   jdbc:
