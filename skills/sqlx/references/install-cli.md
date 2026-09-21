@@ -15,4 +15,16 @@ For local development only, build with `cargo build --workspace` and use `SQLX_W
 
 The README provides copyable installation commands for both operating-system families. Release installers are [install.sh](https://github.com/OtterMind/sqlx/blob/main/scripts/install.sh) for macOS/Linux and [install.ps1](https://github.com/OtterMind/sqlx/blob/main/scripts/install.ps1) for Windows x64. They select a fixed release version, verify SHA-256, install to a user directory, and preserve unrelated same-name executables. Add the printed directory to the current shell's PATH and verify the actual executable before initialization.
 
-If the installed CLI is 0.1.0/0.1.1, rerun the installer to get an updater-capable version. From 0.1.2, use `sqlx update check` and an explicitly requested `sqlx update install`.
+If the installed CLI is 0.1.0/0.1.1, rerun the installer to get an updater-capable version. From 0.1.2, use `sqlx update check` and an explicitly requested `sqlx update install`; see [CLI updates](updates.md).
+
+## Manage this Skill
+
+```sh
+sqlx skill install --target codex      # also claude, dsh, pi
+sqlx skill install --path <skill-directory>
+sqlx skill status
+sqlx skill update
+sqlx skill remove --path <skill-directory>
+```
+
+After installing or updating, follow the target agent's discovery or reload mechanism. Codex and dsh share `~/.agents/skills`, Claude Code uses `~/.claude/skills`, and Pi uses `~/.pi/agent/skills`. `status` and `update` operate on SQLX-managed installations and preserve locally modified Skill files; a record whose directory no longer exists is marked `missing: true`. `remove` stops managing that installation without deleting any files.

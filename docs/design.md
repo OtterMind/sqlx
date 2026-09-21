@@ -411,19 +411,22 @@ Skill 入口及全部参考文档统一使用英文；每个 SQL 操作分别说
 
 ### 9.1 内容组织
 
-建议结构：
+`SKILL.md` is an index, not a manual. It only states how to confirm the CLI, gives the shortest command example, routes the agent to one reference file per task, and lists the rules that always apply: read the approval contract before a state-changing statement, let the user type credentials in the local page, return the page URL to the user, keep TLS verification on, and explain that a first command can wait for a download. The file is capped at 45 lines; `tests/distribution.py` asserts that cap, asserts that the index links every file under `references/`, and asserts that the approval and download contracts still live in their own files.
 
 ```text
-SKILL.md
+SKILL.md                       # index: routing table plus the always-applied rules
 references/
-├── install-cli.md
-├── mysql.md
-├── postgresql.md
-├── oracle.md
-└── sqlserver.md
+├── install-cli.md             # installing or repairing the CLI, PATH, managing this Skill
+├── updates.md                 # checking, installing and troubleshooting CLI updates
+├── connections.md             # init, list/create/edit/test a datasource, TLS, engine-specific fields
+├── local-ui.md                # browser password entry, result pages, refresh, UI plugins and lifecycle
+├── approval.md                # the mandatory approval contract before state-changing SQL
+├── execution.md               # execution semantics, output fields, partial and unknown outcomes, retries
+├── downloads.md               # first-use downloads, progress and retries, prefetch components
+└── <database>.md              # one SQL recipe per supported engine
 ```
 
-`SKILL.md` 首先说明如何检查 CLI 是否已安装、版本是否兼容；未安装时引导 Agent 读取 `references/install-cli.md` 完成安装。随后说明初始化、数据源选择、连接测试、SQL 参数形式、结果格式和默认失败语义。Agent 按数据源类型读取对应数据库文档，再通过相同 SQL 入口执行。
+The agent reads the index first, then loads only the reference the current task and connected datasource need. Each database keeps its own recipe instead of sharing a generic document. The approval contract and the execution semantics live in their own files, but the index requires reading the approval file before any state-changing statement, so neither can be skipped.
 
 数据库配方覆盖查看 database、schema、表、列、索引、约束和 DDL，以及标识符引用、常见错误和适用版本。各库对 database、schema、service 等概念的差异应直接说明。 每个操作独立说明用途、需替换参数、SQL、返回字段和限制，并在操作旁附对应的官方文档链接。Agent 有联网工具时可按实际服务器版本查阅官方说明；没有联网能力时使用包内配方，不声称已经在线核实。
 
