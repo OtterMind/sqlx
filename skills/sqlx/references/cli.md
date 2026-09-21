@@ -1,6 +1,6 @@
 # Install, update and manage the CLI
 
-The repository is https://github.com/OtterMind/sqlx. The supported CLI range for this Skill is `>=0.1.11, <0.2.0`. The local-page commands are not available in 0.1.0; check the actual version before using them.
+The repository is https://github.com/OtterMind/sqlx. The supported CLI range for this Skill is `>=0.1.11, <0.2.0`; check `sqlx --version` before relying on a command from this file.
 
 ## Install
 

@@ -4,7 +4,7 @@ Each SQL block is a separate operation submitted through `sqlx sql execute --dat
 
 Choose the datasource's database first, then a schema within it. `public` is an example schema; replace it and all object-name placeholders. Double quotes delimit identifiers, with embedded quotes doubled. Single quotes delimit filter strings. Preserve the exact spelling of quoted mixed-case names.
 
-Official links target PostgreSQL 17. Check the connected version and select its official documentation when versions differ. Use web tools when available; otherwise use these bundled recipes without claiming live verification.
+Official links target PostgreSQL 17. The documentation root is https://www.postgresql.org/docs/17/index.html. Match the connected server version when you look them up.
 
 ## 1. Identify the current server, database, and schema
 

@@ -4,7 +4,7 @@ These operations run in the datasource's selected database. Submit each block as
 
 `dbo` is an example schema. Replace it and placeholders such as `table_name` and `view_or_procedure`. Brackets delimit identifiers, with embedded `]` doubled. `N'...'` denotes a Unicode SQL string.
 
-Links point to official Microsoft Learn pages. Select the connected server's version on the documentation site when behavior is version-dependent. Open links with web tools when available; otherwise use the bundled recipes without claiming live verification.
+Links point to official Microsoft Learn pages. The documentation root is https://learn.microsoft.com/en-us/sql/sql-server/. Match the connected server version when you look them up.
 
 ## 1. Identify the current connection
 

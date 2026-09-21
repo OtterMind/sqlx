@@ -1,6 +1,6 @@
 # Local credential and result pages
 
-This Skill requires SQLX 0.1.11. Basic local-page commands were introduced in 0.1.1; saved-datasource browsing, data refresh and session renewal were introduced in 0.1.3. Reusable local links and stable restart addresses require 0.1.4. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+This Skill requires SQLX 0.1.11. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
 
 ## Deliver the page link
 
@@ -52,7 +52,11 @@ sqlx sql execute --datasource <datasource-id> --sql "SELECT id, name FROM users 
 
 **Replace:** The datasource ID and query. Repeat `--sql` for multiple complete statements in one connection, following normal CLI execution semantics.
 
-**Result:** A local URL and `result_id`. Execution starts in the UI service once; the page automatically shows progress and then results. It includes per-statement/result-set tabs, exact values, pagination, full cell inspection, and errors with skipped statements. Browser reload, pagination and reopening read the cached snapshot. **Refresh** reruns the exact original SQL batch, in order, against the saved datasource; it does not rewrite, classify, or gate SQL. The Skill's approval gate therefore applies on the agent side: state the side effect and get explicit approval before preparing `--view`, before asking the user to refresh a state-changing or unknown batch, and before enabling the interval, because one approval does not cover later reruns. The optional 5/10/30/60-second interval repeats this operation only while enabled on the visible page. It waits for completion before scheduling the next run and stops on failure. Closing, navigating away from or reloading the page disables the interval.
+**Result:** A local URL and `result_id`. Execution starts in the UI service once; the page automatically shows progress and then results. It includes per-statement/result-set tabs, exact values, pagination, full cell inspection, and errors with skipped statements. Browser reload, pagination and reopening read the cached snapshot.
+
+### Refresh and approval
+
+**Refresh** reruns the exact original SQL batch, in order, against the saved datasource; it does not rewrite, classify, or gate SQL. The Skill's approval gate therefore applies on the agent side: state the side effect and get explicit approval before preparing `--view`, before asking the user to refresh a state-changing or unknown batch, and before enabling the interval, because one approval does not cover later reruns. The optional 5/10/30/60-second interval repeats this operation only while enabled on the visible page. It waits for completion before scheduling the next run and stops on failure. Closing, navigating away from or reloading the page disables the interval.
 
 Rows remain complete in a local snapshot, while the browser loads only a page at a time. A successful data refresh atomically replaces the snapshot at the same page URL without adding a query-history entry. Failed or cancelled refreshes preserve the preceding snapshot; they do not roll back database writes. Reusing a refresh request ID reads its prior outcome and never submits the batch again. Cached results expire after 24 hours. Completed results can be viewed after restarting the UI service; unfinished results recover as interrupted and are never automatically replayed. A cancelled or disconnected write can still have an unknown database outcome.
 
