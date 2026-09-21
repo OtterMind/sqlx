@@ -1,6 +1,6 @@
 # @ottermind/dsh-sqlx
 
-Native SQLX tools for DeepSeek Harness. The plugin registers five `defineTool` tools and calls the
+Native SQLX tools for DeepSeek Harness. The plugin registers six `defineTool` tools and calls the
 `sqlx` CLI for each one, so encrypted credentials, TLS policy, worker downloads and local result
 pages stay CLI responsibilities.
 
@@ -27,6 +27,7 @@ row to the profile's bundle stack; no profile file edits are needed. Remove it w
 | Tool | Purpose | May modify data |
 |---|---|---|
 | `sqlx_datasource_list` | List saved datasources (no secrets) | no |
+| `sqlx_datasource_show` | Show one datasource by UUID or unique name | no |
 | `sqlx_datasource_test` | Test connectivity; executes no SQL | no |
 | `sqlx_sql_execute` | Execute statements, return the full structured result | yes |
 | `sqlx_sql_view` | Execute once, return a local result-page URL | yes |

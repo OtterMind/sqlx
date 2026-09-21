@@ -32,6 +32,15 @@ function apply(ctx) {
     },
   }));
   ctx.tools.register(defineTool({
+    name: "sqlx_datasource_show",
+    description: "Show one saved SQLX datasource by its UUID or unique name. Never returns usernames or passwords.",
+    parameters: { id: { type: "string", required: true, description: "Datasource UUID or unique name" } },
+    output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
+    async execute(args) {
+      return (await run(["datasource", "show", "--id", args.id])).data;
+    },
+  }));
+  ctx.tools.register(defineTool({
     name: "sqlx_datasource_test",
     description: "Open one connection through SQLX and report whether the datasource is reachable. Executes no SQL.",
     parameters: { id: { type: "string", required: true, description: "Datasource UUID or unique name" } },

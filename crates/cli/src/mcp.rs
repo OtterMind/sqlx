@@ -359,6 +359,66 @@ mod tests {
         );
     }
     #[test]
+    fn native_integrations_expose_every_mcp_tool() {
+        // Codex and Claude Code call this server, while the dsh and pi packages register the same
+        // tools natively and document them in their own README. Every list must stay identical.
+        let mut server: Vec<String> = tools()
+            .iter()
+            .filter_map(|tool| tool["name"].as_str())
+            .map(str::to_owned)
+            .collect();
+        server.sort();
+        assert_eq!(server.len(), 6);
+        for (label, source) in [
+            (
+                "dsh tools",
+                include_str!("../../../integrations/dsh/lib/index.js"),
+            ),
+            (
+                "pi tools",
+                include_str!("../../../integrations/pi/extensions/sqlx.ts"),
+            ),
+        ] {
+            let mut registered: Vec<String> = source
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix("name: \""))
+                .filter_map(|rest| rest.strip_suffix("\","))
+                .filter(|name| name.starts_with("sqlx_"))
+                .map(str::to_owned)
+                .collect();
+            registered.sort();
+            registered.dedup();
+            assert_eq!(
+                registered, server,
+                "the {label} list must match the MCP server"
+            );
+        }
+        for (label, source) in [
+            (
+                "dsh README",
+                include_str!("../../../integrations/dsh/README.md"),
+            ),
+            (
+                "pi README",
+                include_str!("../../../integrations/pi/README.md"),
+            ),
+        ] {
+            let mut documented: Vec<String> = source
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix("| `"))
+                .filter_map(|rest| rest.split('`').next())
+                .filter(|name| name.starts_with("sqlx_"))
+                .map(str::to_owned)
+                .collect();
+            documented.sort();
+            documented.dedup();
+            assert_eq!(
+                documented, server,
+                "the {label} tool table must match the MCP server"
+            );
+        }
+    }
+    #[test]
     fn initialize_negotiates_the_client_protocol() {
         let root = PathBuf::from("/tmp/sqlx-mcp-test");
         let response = handle(

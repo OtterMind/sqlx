@@ -35,6 +35,19 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		name: "sqlx_datasource_show",
+		label: "SQLX datasource",
+		description:
+			"Show one saved OtterMind SQLX datasource by its UUID or unique name. Never returns usernames or passwords.",
+		parameters: Type.Object({
+			id: Type.String({ description: "Datasource UUID or unique name" }),
+		}),
+		async execute(_toolCallId, params) {
+			return result((await sqlx(["datasource", "show", "--id", params.id])).data);
+		},
+	});
+
+	pi.registerTool({
 		name: "sqlx_datasource_test",
 		label: "SQLX connection test",
 		description: "Open one connection through SQLX and report whether the datasource is reachable. Executes no SQL.",
