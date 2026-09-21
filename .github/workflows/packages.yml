@@ -135,3 +135,13 @@ jobs:
           test "$GITHUB_REF_NAME" = v0.1.9
           test "$(node -p 'require("./package.json").version')" = "${GITHUB_REF_NAME#v}"
           npm publish --access public
+      - name: Publish the harness integrations
+        working-directory: integrations
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          test "$GITHUB_REF_NAME" = v0.1.9
+          for package in dsh pi; do
+            test "$(node -p "require('./${package}/package.json').version")" = "${GITHUB_REF_NAME#v}"
+            npm publish "${package}" --access public
+          done
