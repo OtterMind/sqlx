@@ -112,7 +112,7 @@ services:
       timeout: 5s
       retries: 60
   opengauss:
-    image: opengauss/opengauss:7.0.0-RC3.B025
+    image: opengauss/opengauss:5.0.0
     # The image sets up its data directory with privileged operations.
     privileged: true
     environment:
