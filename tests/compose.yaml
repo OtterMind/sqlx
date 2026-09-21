@@ -99,3 +99,45 @@ services:
       interval: 5s
       timeout: 5s
       retries: 120
+
+  greatsql:
+    image: greatsql/greatsql:8.4.4-5
+    environment:
+      MYSQL_ROOT_PASSWORD: sqlx_test_only_password
+      MYSQL_DATABASE: sqlx_test
+    ports: ["127.0.0.1:23308:3306"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -uroot -psqlx_test_only_password -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+  opengauss:
+    image: opengauss/opengauss:7.0.0-RC3.B025
+    environment:
+      GS_PASSWORD: sqlx_test_only_password
+    ports: ["127.0.0.1:24320:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "gsql -d postgres -p 5432 -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 120
+  oceanbase:
+    image: oceanbase/oceanbase-ce:4.4.2-lts
+    environment:
+      OB_TENANT_PASSWORD: sqlx_test_only_password
+      OB_MEMORY_LIMIT: 4G
+      OB_SYS_PASSWORD: sqlx_test_only_password
+    ports: ["127.0.0.1:28811:2881"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot@sys -psqlx_test_only_password -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+  tdengine:
+    image: tdengine/tdengine:3.3.6.13
+    ports: ["127.0.0.1:26041:6041", "127.0.0.1:26042:6030"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6041/-/ping >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 60

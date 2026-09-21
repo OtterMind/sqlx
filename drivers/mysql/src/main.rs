@@ -19,6 +19,8 @@ async fn main() {
             Database::Mysql
                 | Database::Mariadb
                 | Database::Tidb
+                | Database::Greatsql
+                | Database::Oceanbase
                 | Database::Starrocks
                 | Database::Doris
         ) {

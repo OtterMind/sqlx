@@ -19,11 +19,18 @@ FIXTURES = {
     "starrocks": {"port": 29030, "database": "information_schema", "username": "root", "password": ""},
     "doris": {"port": 29031, "database": "information_schema", "username": "root", "password": ""},
     "yugabytedb": {"port": 25433, "database": "yugabyte", "username": "yugabyte", "password": ""},
+    "greatsql": {"port": 23308, "database": "sqlx_test", "username": "root", "password": PASSWORD},
+    # openGauss takes the PostgreSQL worker, so it authenticates like the PostgreSQL fixture.
+    "opengauss": {"port": 24320, "database": "postgres", "username": "gaussdb", "password": PASSWORD},
+    "oceanbase": {"port": 28811, "database": "oceanbase", "username": "root@sys", "password": PASSWORD},
+    # The TDengine RESTful driver reaches taosAdapter and has no user password change here.
+    "tdengine": {"port": 26041, "database": "sqlx_probe", "username": "root", "password": "taosdata"},
 }
 # Statements that must run before the table batch, for engines without a scratch database.
 PREPARE = {
     "starrocks": "CREATE DATABASE IF NOT EXISTS sqlx_test",
     "doris": "CREATE DATABASE IF NOT EXISTS sqlx_test",
+    "tdengine": "CREATE DATABASE IF NOT EXISTS sqlx_probe",
 }
 # Engines that answer a query before a storage backend can serve DDL. Wait on an idempotent write,
 # not on a status column: an OLAP frontend reports a live backend, and even accepts `CREATE TABLE`,
@@ -45,6 +52,14 @@ BACKEND_CLEANUP = {
     "starrocks": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
     "doris": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
 }
+# TDengine reserves "value", so its readiness and error probes alias the column differently.
+ALIASES = {"tdengine": "ok"}
+
+
+def alias(kind):
+    return ALIASES.get(kind, "value")
+
+
 DROP_IF_EXISTS = {
     "mariadb": "DROP TABLE IF EXISTS sqlx_values",
     "cockroachdb": "DROP TABLE IF EXISTS sqlx_values",
@@ -54,6 +69,10 @@ DROP_IF_EXISTS = {
     "starrocks": f"DROP TABLE IF EXISTS {QUALIFIED}",
     "doris": f"DROP TABLE IF EXISTS {QUALIFIED}",
     "yugabytedb": "DROP TABLE IF EXISTS sqlx_values",
+    "greatsql": "DROP TABLE IF EXISTS sqlx_values",
+    "opengauss": "DROP TABLE IF EXISTS sqlx_values",
+    "oceanbase": "DROP TABLE IF EXISTS sqlx_values",
+    "tdengine": "DROP TABLE IF EXISTS sqlx_probe.recipe_values",
 }
 CREATE = {
     "mariadb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
@@ -64,6 +83,10 @@ CREATE = {
     "starrocks": f"CREATE TABLE {QUALIFIED} (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "doris": f"CREATE TABLE {QUALIFIED} (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "yugabytedb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "greatsql": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "opengauss": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "oceanbase": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "tdengine": "CREATE TABLE sqlx_probe.recipe_values (ts TIMESTAMP, id BIGINT, amount DECIMAL(30,4), label NCHAR(100))",
 }
 INSERT = {
     "mariadb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
@@ -74,6 +97,10 @@ INSERT = {
     "starrocks": f"INSERT INTO {QUALIFIED} VALUES (9007199254740993, 123.4500, 'hello')",
     "doris": f"INSERT INTO {QUALIFIED} VALUES (9007199254740993, 123.4500, 'hello')",
     "yugabytedb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "greatsql": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "opengauss": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "oceanbase": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "tdengine": "INSERT INTO sqlx_probe.recipe_values VALUES (NOW, 9007199254740993, 123.4500, 'hello')",
 }
 SELECT = {
     "mariadb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
@@ -85,6 +112,10 @@ SELECT = {
     "starrocks": f"SELECT id AS DUP, id AS DUP, amount, label FROM {QUALIFIED}",
     "doris": f"SELECT id AS DUP, id AS DUP, amount, label FROM {QUALIFIED}",
     "yugabytedb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "greatsql": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "opengauss": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "oceanbase": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "tdengine": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_probe.recipe_values",
 }
 
 
@@ -124,7 +155,8 @@ def exercise(cli, bin_dir, kind):
             time.sleep(3)
         # A reachable endpoint can still refuse queries while the engine registers its worker.
         for attempt in range(40):
-            code, result = call("sql", "execute", "--datasource", "fixture", "--sql", "SELECT 1 AS value", ok=False)
+            code, result = call("sql", "execute", "--datasource", "fixture",
+                                "--sql", f"SELECT 1 AS {alias(kind)}", ok=False)
             if code == 0:
                 break
             if attempt == 39:
@@ -166,8 +198,10 @@ def exercise(cli, bin_dir, kind):
             assert columns["columns"][0]["name"] == columns["columns"][1]["name"], columns
             assert columns["columns"][0]["name"].lower() == "dup", columns
         def first_error_batch():
-            code, result = call("sql", "execute", "--datasource", "fixture", "--sql", "SELECT 1 AS value",
-                                "--sql", "SELECT * FROM sqlx_missing_table", "--sql", "SELECT 2 AS value", ok=False)
+            code, result = call("sql", "execute", "--datasource", "fixture",
+                                "--sql", f"SELECT 1 AS {alias(kind)}",
+                                "--sql", "SELECT * FROM sqlx_missing_table",
+                                "--sql", f"SELECT 2 AS {alias(kind)}", ok=False)
             error = next((e for e in result["events"] if e["event"] == "error"), None)
             assert error is not None and error["index"] == 1, result
             assert code != 0 and any(e["event"] == "skipped" and e["index"] == 2 for e in result["events"]), result
