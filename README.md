@@ -1,32 +1,29 @@
 # SQLX
 
-Connect to MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse, and Trino from your terminal or agent. Save encrypted connections, run one or more SQL statements, and receive complete structured results.
+Connect to MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse and Trino from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
 
-Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let your agent set up the CLI.
+## Quick start
 
-Download prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), install with `npx -y @ottermind/sqlx@latest`, or use the installers below. See [build from source](#build-from-source) for development.
+```sh
+# 1. Install the CLI (macOS, Linux and Windows x64; Node.js 22 or newer)
+npx -y @ottermind/sqlx@latest
+export PATH="$HOME/.local/bin:$PATH"
 
-The [v0.1.4 release acceptance report](docs/release-acceptance-v0.1.4.md) records a real 0.1.3-to-0.1.4 self-update, public-download verification, preserved in-flight SQL/UI, and browser refresh/restart recovery. Earlier [v0.1.3](docs/release-acceptance-v0.1.3.md), [v0.1.2](docs/release-acceptance-v0.1.2.md) and [v0.1.1](docs/release-acceptance-v0.1.1.md) reports cover prior public upgrades and four-database/plugin acceptance.
+# 2. Create a connection (an interactive terminal prompts for the username and password)
+sqlx datasource add --name dev --type postgresql --host db.example.com --port 5432 --database app
+sqlx datasource test --id dev
+
+# 3. Run SQL
+sqlx sql execute --datasource dev --sql "SELECT current_database()"
+```
+
+Using an agent? See [Use with your agent](#use-with-your-agent): install one plugin or extension and the agent calls SQLX directly.
 
 ## Install the CLI
 
-### With Node.js
-
-On macOS, Linux, and Windows x64 with Node.js 22 or newer:
-
-```sh
-npx -y @ottermind/sqlx@latest
-export PATH="$HOME/.local/bin:$PATH"
-sqlx --version
-```
-
-The installer verifies the release manifest, `SHA256SUMS`, and the downloaded archive before installing. It puts the CLI in the same user-level location as the platform installers and installs the Skill into `./sqlx`; use `--target codex`, `--target claude`, `--target dsh`, `--target pi`, or `--target <directory>` to place the Skill somewhere else. Node.js is required only to run the installer: the CLI itself has no Node.js runtime dependency.
-
-macOS and Linux install to `~/.local/bin`; Windows x64 installs to `%LOCALAPPDATA%\Programs\SQLX`. Add that directory to your persistent PATH, as in the platform sections below. When it is missing from PATH, the `npx` installer prints the exact line for the current shell together with the profile change that keeps it.
+Three channels, pick one: prebuilt packages from [GitHub Releases](https://github.com/OtterMind/sqlx/releases), the `npx` installer, or the platform install scripts.
 
 ### macOS and Linux
-
-Run:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OtterMind/sqlx/main/scripts/install.sh | sh
@@ -35,7 +32,7 @@ sqlx --version
 sqlx init
 ```
 
-The installer selects your platform, downloads the executable from GitHub Releases, and verifies its SHA-256. It installs to `~/.local/bin`. Add that directory to your shell's persistent PATH for future sessions. Set `SQLX_INSTALL_DIR` to choose another directory or `SQLX_VERSION` to select a release version.
+The installer selects your platform, downloads the executable and verifies its SHA-256. It installs to `~/.local/bin`; add that directory to your shell's persistent PATH. `SQLX_INSTALL_DIR` chooses another directory and `SQLX_VERSION` selects a release version.
 
 ### Windows x64
 
@@ -50,146 +47,94 @@ sqlx --version
 sqlx init
 ```
 
-Add `%LOCALAPPDATA%\Programs\SQLX` to your user PATH for future sessions. The installer verifies the download before installing. Both installers preserve an unrelated executable already named `sqlx`; use a different install directory in that case.
+Add `%LOCALAPPDATA%\Programs\SQLX` to your user PATH for future sessions. Neither installer overwrites an unrelated executable already named `sqlx`; use a different install directory in that case.
 
-Prebuilt targets are macOS ARM64/x64, Linux ARM64/x64, and Windows x64. The initial Linux build baseline is Ubuntu 24.04; older distributions have not been verified. Release users do not need to install Rust, Java, or database drivers separately, and Node.js is needed only for the `npx` installer above. Database workers and a private JRE are downloaded only when needed.
+Prebuilt targets are macOS ARM64/x64, Linux ARM64/x64 and Windows x64; the Linux baseline is Ubuntu 24.04. Release users do not need Rust, Java or database drivers: database workers and a private JRE are downloaded only when needed.
 
-## Check and install updates
+### Node.js (`npx`)
 
-Starting with 0.1.2, the CLI can update its own executable:
+macOS, Linux and Windows x64 with Node.js 22 or newer:
 
 ```sh
-sqlx update check
-sqlx update install
-sqlx update status
+npx -y @ottermind/sqlx@latest
+export PATH="$HOME/.local/bin:$PATH"
+sqlx --version
 ```
 
-`check` contacts GitHub and reports the latest stable version without installing it. `install` downloads the package for this platform, verifies its checksums and version, replaces the executable and verifies the installed path. Use `sqlx update install --version <version>` for an exact stable version. Updates do not stop running SQL or the UI service, modify saved connections, or automatically update Skills/plugins. Use `sqlx skill update` separately for managed Skills; UI plugins retain the user's selected version.
+The installer verifies the release manifest, `SHA256SUMS` and the downloaded archive before installing. It uses the same user-level location as the platform installers and installs the Skill into `./sqlx`; `--target codex`, `--target claude`, `--target dsh`, `--target pi` or `--target <directory>` place the Skill somewhere else. Node.js is needed only by the installer, never by the CLI.
 
-Interactive use checks in the background at most once per day and shows a cached notice on stderr. It does not install updates automatically. Piped/CI commands do not start automatic checks; `SQLX_NO_UPDATE_CHECK=1` also disables them. Explicit update commands still work. `status` reads local history without network access. See [update behavior and recovery](docs/updates.md).
+### Updates
 
-Versions 0.1.0 and 0.1.1 do not have update commands. Rerun the installer above once to get the latest version; existing connections are preserved. Source builds and package-manager-owned paths use their original installation method.
-
-## Install the Skill
-
-### If the CLI is already installed
-
-Choose the agent you use:
+The CLI updates its own executable:
 
 ```sh
-# Codex, or dsh (both use the shared Agent Skills directory)
-sqlx skill install --target codex
+sqlx update check       # report the latest stable version without installing it
+sqlx update install     # download, verify and replace the executable
+sqlx update status      # read local history without network access
+```
 
-# Claude Code
+`sqlx update install --version <version>` installs an exact stable version. Updates do not stop running SQL or the UI service, do not modify saved connections, and do not update Skills or plugins automatically; use `sqlx skill update` for managed Skills, and UI plugins keep the version you selected.
+
+Interactive use checks in the background at most once per day and only prints a notice on stderr. Piped and CI commands skip that check, and `SQLX_NO_UPDATE_CHECK=1` disables it. Source builds and package-manager-owned paths keep their own installation method.
+
+## Use with your agent
+
+All four are ready as soon as they are installed: the plugin or extension installs the `sqlx` CLI itself on first use, so you never install it separately.
+
+### Codex
+
+```sh
+codex plugin marketplace add OtterMind/sqlx@plugins
+codex plugin add sqlx@ottermind
+```
+
+The plugin starts `sqlx mcp` over MCP. Read-only operations run directly; the two execution tools (`sqlx_sql_execute` and `sqlx_sql_view`) are marked destructive and Codex asks for approval by default.
+
+### Claude Code
+
+```sh
+claude plugin marketplace add OtterMind/sqlx@plugins
+claude plugin install sqlx@ottermind
+```
+
+Headless runs need an explicit tool allowlist:
+
+```sh
+claude --allowedTools "mcp__plugin_sqlx_sqlx__*" -p "List my SQLX datasources"
+```
+
+### DeepSeek Harness
+
+```sh
+dsh plugin --profile web add @ottermind/sqlx-dsh    # browser UI
+dsh plugin --profile tui add @ottermind/sqlx-dsh    # terminal UI
+```
+
+Plugins belong to a profile: install it into the profile you use, then restart dsh.
+
+### Pi
+
+```sh
+pi install npm:@ottermind/sqlx-pi
+```
+
+### Skill only
+
+```sh
+sqlx skill install --target codex     # Codex and dsh share ~/.agents/skills
 sqlx skill install --target claude
-
-# Pi
+sqlx skill install --target dsh
 sqlx skill install --target pi
+
+sqlx skill status                     # list managed installations
+sqlx skill update                     # update them, keeping local edits
 ```
 
-For another agent, provide its complete skill directory:
+For another agent, pass its skill directory with `sqlx skill install --path <directory>`.
 
-```sh
-sqlx skill install --path /path/to/agent/skills/sqlx
-sqlx skill status
-```
+## Connections and SQL
 
-The CLI downloads the Skill from GitHub Releases. Reload skills or start a new agent session according to your agent's discovery mechanism. Later, `sqlx skill update` updates managed installations while preserving local edits.
-
-### If you want to install the Skill first
-
-The Skill source is available now and does not require the CLI. On macOS or Linux, install it for Codex with:
-
-```sh
-sqlx_checkout="$(mktemp -d)"
-git clone --depth 1 https://github.com/OtterMind/sqlx.git "$sqlx_checkout"
-mkdir -p "$HOME/.agents/skills"
-if [ ! -e "$HOME/.agents/skills/sqlx" ]; then
-  cp -R "$sqlx_checkout/skills/sqlx" "$HOME/.agents/skills/sqlx"
-else
-  echo "Skill directory already exists; existing files were preserved."
-fi
-```
-
-For Claude Code, use `~/.claude/skills/sqlx` as the destination. On Windows, the equivalent PowerShell steps for Codex are:
-
-```powershell
-$checkout = Join-Path $env:TEMP ('sqlx-skill-' + [guid]::NewGuid())
-git clone --depth 1 https://github.com/OtterMind/sqlx.git $checkout
-$skillRoot = Join-Path $env:USERPROFILE '.agents\skills'
-New-Item -ItemType Directory -Force $skillRoot | Out-Null
-if (-not (Test-Path (Join-Path $skillRoot 'sqlx'))) {
-  Copy-Item -Recurse (Join-Path $checkout 'skills\sqlx') $skillRoot
-} else {
-  Write-Output 'Skill directory already exists; existing files were preserved.'
-}
-```
-
-For another agent, copy the entire `skills/sqlx` folder, including `references`, into the agent's supported skill directory. Manual source installations remain manually managed; the CLI will not overwrite them as if it owned them.
-
-After your agent discovers the Skill, you can ask:
-
-> Use the SQLX skill to install the OtterMind SQLX CLI if needed, then help me add and test a PostgreSQL connection. Ask me for missing connection details.
-
-The Skill includes [CLI installation instructions](skills/sqlx/references/install-cli.md), so the agent can check its environment and follow the appropriate installation path.
-
-## Local browser pages (0.1.1)
-
-Available starting with SQLX 0.1.1. Install the latest CLI using the instructions above, or rerun the installer to upgrade from 0.1.0; your saved connections are preserved.
-
-Let the user enter the password directly in a local page. The CLI pre-fills the known connection settings:
-
-```sh
-sqlx datasource add --ui --name dev --type postgresql --host db.example.com --port 5432 --database app
-```
-
-The command returns immediately with a page URL and `request_id`. The user fills in their credentials and chooses **Save & connect**. SQLX verifies the connection and encrypts the saved configuration. The agent checks completion without receiving the password:
-
-```sh
-sqlx datasource setup-status --request-id <request-id>
-```
-
-To edit an existing connection while keeping its saved password unless explicitly replaced:
-
-```sh
-sqlx datasource update --id dev --ui
-```
-
-To send an already written query to a results page:
-
-```sh
-sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id" --view
-```
-
-SQLX executes once and returns a result URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Reloading, paging or reopening the page reads the cached result. In 0.1.3, **Refresh** explicitly reruns the original SQL batch against the database. Optional 5/10/30/60-second refresh intervals are off by default, wait for the previous run to finish, pause in hidden tabs, and stop on failure or navigation. SQL is executed unchanged, so any writes in the batch run again. A successful refresh replaces the displayed snapshot at the same URL; failures keep the previous result and do not roll back database changes. Results are retained locally for 24 hours, with owner-restricted permissions. The usual CLI execution mode still streams complete JSON to stdout.
-
-`sqlx ui` opens the local workspace; `sqlx ui status` and `sqlx ui stop` inspect or stop it. `--no-open` returns a link without launching a browser. Pages are accessible on the same machine as SQLX. The local UI service and default UI plugin are separate packages, downloaded only when needed. SQLX 0.1.4 returns ordinary local URLs with no token or opening deadline. Loading a page establishes an HttpOnly browser session automatically, and authenticated activity renews it for another 12 hours. The open page sends a heartbeat every 30 seconds. Unfinished setup requests expire after 30 minutes. The service stays running until stopped with `sqlx ui stop`. It saves its local port and reuses it after restart.
-
-Password entry through the page keeps credentials out of the normal agent conversation and tool response. It does not isolate credentials from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
-
-### Choose your UI
-
-SQLX 0.1.3 lists saved datasources in the workbench. Select a connection to inspect its settings, test connectivity or open its edit form while keeping the saved password.
-
-The default interface is a plugin. CLI updates retain its selected version. To use the 0.1.4 page features after upgrading, let active work finish, run `sqlx ui stop`, install `ui-default-0.1.4.zip` from the [0.1.4 release](https://github.com/OtterMind/sqlx/releases/tag/v0.1.4) with its SHA-256 from `SHA256SUMS`, and select `default --version 0.1.4` using the commands below. The next `sqlx ui` starts the matching service.
-
-You can also install a community interface and switch without changing saved connections or rerunning queries:
-
-```sh
-sqlx ui plugin install --url <plugin-zip-url> --sha256 <published-sha256>
-sqlx ui plugin list
-sqlx ui plugin use <plugin-id>
-```
-
-Installation does not activate a plugin. After selecting it, reload an open page or run `sqlx ui`. To return to the default interface, run `sqlx ui plugin use default`. To remove an inactive version, stop the service with `sqlx ui stop`, then run `sqlx ui plugin remove <plugin-id> --version <version>`.
-
-Plugins run locally and can access entered credentials and displayed data. Install interfaces from authors you trust; a checksum verifies the downloaded bytes, not the author's trustworthiness. SQLX validates API/CLI compatibility and preserves installed versions.
-
-To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), [typed browser SDK](ui/sdk/client.ts), and independent [terminal UI example](examples/terminal-ui/). Any framework that produces static browser assets can use the API. No Node.js runtime is needed by users.
-
-## First connection and query
-
-Create a PostgreSQL connection. Replace the host and database with your own values; an interactive terminal prompts for the username and password:
+### Create a connection
 
 ```sh
 sqlx datasource add --name dev --type postgresql --host db.example.com --port 5432 --database app
@@ -197,7 +142,29 @@ sqlx datasource test --id dev
 sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELECT 1"
 ```
 
-MySQL, Oracle, and SQL Server work the same way with `--type mysql --port 3306`, `--type oracle --service <service-name>`, and `--type sqlserver --port 1433`. A database running in a local container usually does not serve a certificate your machine trusts, and `verify-full` fails there with `invalid peer certificate: UnknownIssuer` (MySQL), `error performing TLS handshake` (PostgreSQL), or a closed connection (Oracle). Create or update that connection with `--tls disable`:
+| Database | `--type` values | Execution | Required values and defaults |
+|---|---|---|---|
+| MySQL | `mysql` | native worker | port 3306 by default |
+| MariaDB | `mariadb` | reuses the MySQL worker | port 3306 by default |
+| PostgreSQL | `postgresql`, `postgres`, `pgsql` | native worker | port 5432 by default |
+| CockroachDB | `cockroachdb`, `cockroach`, `crdb` | reuses the PostgreSQL worker | |
+| Oracle | `oracle` | JDBC worker | `--service <service-name>` is required |
+| SQL Server | `sqlserver`, `mssql` | JDBC worker | port 1433 by default |
+| ClickHouse | `clickhouse` | JDBC worker | connects to the HTTP port, 8123 by default |
+| Trino | `trino` | JDBC worker | `--database <catalog>[.<schema>]` is required |
+
+`--id` and `--datasource` accept a stable datasource UUID or its unique name.
+
+To let the user type the password in a local page, so it never enters the conversation or a tool response:
+
+```sh
+sqlx datasource add --ui --name dev --type postgresql --host db.example.com --port 5432 --database app
+sqlx datasource setup-status --request-id <request-id>
+```
+
+To edit an existing connection and keep its saved password unless you replace it: `sqlx datasource update --id dev --ui`.
+
+TLS verifies the database certificate by default. A database in a local container usually does not serve a certificate your machine trusts, and then the connection fails with `invalid peer certificate: UnknownIssuer` (MySQL), `error performing TLS handshake` (PostgreSQL) or a closed connection (Oracle). Disable the transport explicitly for such a connection:
 
 ```sh
 sqlx datasource add --name dev --type mysql --host 127.0.0.1 --port 3306 --database app \
@@ -205,30 +172,13 @@ sqlx datasource add --name dev --type mysql --host 127.0.0.1 --port 3306 --datab
 sqlx datasource update --id dev --tls disable
 ```
 
-For an agent or script, provide credentials through environment variables or a connection JSON object on stdin, as described below. TLS verifies the database certificate by default; disable it only for a connection that does not serve a certificate you trust. When a connection fails before any statement, the error message repeats that the transport can be disabled.
+### Credentials
 
-## Commands
+Credentials come from named environment variables, hidden interactive prompts, or a connection JSON object on stdin. Never put a literal password in a command argument.
 
-| Operation | Command |
-|---|---|
-| Initialize local storage | `sqlx init` |
-| Create a datasource | `sqlx datasource add --name dev --type mysql --host localhost --database app --username-env DB_USER --password-env DB_PASSWORD` |
-| List connections | `sqlx datasource list` |
-| Inspect a connection | `sqlx datasource show --id dev` |
-| Change connection settings | `sqlx datasource update --id dev --host db.example.com` |
-| Remove a saved connection | `sqlx datasource remove --id dev` |
-| Test connectivity | `sqlx datasource test --id dev` |
-| Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `postgres`, `cockroachdb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `skill` or `all`) |
-| Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
-| Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
-| Inspect/update managed Skills | `sqlx skill status`, `sqlx skill update` |
-| Stop managing a Skill installation | `sqlx skill remove --path /path/to/skills/sqlx` (files are kept) |
-| Help/version | `sqlx --help`, `sqlx --version` |
-
-`--id` and `--datasource` accept a stable datasource UUID or its unique name. Supported database type names are `mysql`, `mariadb`, `postgresql` (`postgres`/`pgsql`), `cockroachdb` (`cockroach`/`crdb`), `oracle`, `sqlserver` (`mssql`), `clickhouse`, and `trino`. Oracle requires `--service`; Trino requires `--database <catalog>[.<schema>]`; ClickHouse connects to its HTTP port (8123 by default); MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers. See the [per-database references](skills/sqlx/references/). TLS defaults to certificate verification; `--tls disable` is available for explicitly unencrypted connections. The first authentication profile is username/password.
-
-Credentials are read from named environment variables, hidden interactive prompts, or a connection JSON object on stdin. Do not put literal passwords in command arguments. For noninteractive creation or complete replacement, `--connection-stdin` accepts:
+```sh
+sqlx datasource add --name dev --connection-stdin
+```
 
 ```json
 {
@@ -244,34 +194,94 @@ Credentials are read from named environment variables, hidden interactive prompt
 }
 ```
 
-The object goes to stdin of `sqlx datasource add --name dev --connection-stdin`. It is not a SQL file input. Datasource responses omit usernames, passwords, and vendor properties.
+Datasource responses omit usernames, passwords and vendor properties.
 
-## Execution behavior
+### Commands
 
-Each invocation owns one database connection. Repeated `--sql` arguments execute in order, initially with autocommit, and stop at the first error. There is no implicit all-or-nothing transaction. Temporary tables and session variables do not survive another invocation. Do not submit client directives such as `GO`, `DELIMITER`, or psql backslash commands.
+| Operation | Command |
+|---|---|
+| Initialize local storage | `sqlx init` |
+| Create a connection | `sqlx datasource add --name dev --type mysql --host localhost --database app --username-env DB_USER --password-env DB_PASSWORD` |
+| List connections | `sqlx datasource list` |
+| Inspect a connection | `sqlx datasource show --id dev` |
+| Change connection settings | `sqlx datasource update --id dev --host db.example.com` |
+| Remove a saved connection | `sqlx datasource remove --id dev` |
+| Test connectivity | `sqlx datasource test --id dev` |
+| Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `postgres`, `cockroachdb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `skill` or `all`) |
+| Execute and open a result page | `sqlx sql execute --datasource dev --sql "SELECT 1" --view` |
+| Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
+| Serve MCP over stdio | `sqlx mcp` |
+| Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
+| Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
+| Inspect and update managed Skills | `sqlx skill status`, `sqlx skill update` |
+| Stop managing a Skill installation | `sqlx skill remove --path /path/to/skills/sqlx` (files are kept) |
+| Help and version | `sqlx --help`, `sqlx --version` |
 
-SQL output is one JSON object containing `protocol_version`, `datasource_id`, an ordered `events` array, and `success`. Events distinguish columns, positional row values, result boundaries, statement completion, errors, skipped statements, and overall completion. Duplicate labels remain distinct. Numbers are encoded as strings to preserve integer and decimal precision. Binary data and PostgreSQL types without a text decoder use Base64 with type metadata; an explicit SQL cast to text is available when a readable database representation is preferable.
+### Execution behavior
 
-Rows are streamed without a CLI row limit or silent truncation. The agent's own tool output limits still apply. Check the final success flag and exit status. An incomplete response or unknown write outcome must not trigger automatic replay.
+Each invocation owns one database connection. Repeated `--sql` arguments execute in order, initially with autocommit, and stop at the first error; there is no implicit all-or-nothing transaction. Temporary tables and session variables do not survive another invocation. Do not submit client directives such as `GO`, `DELIMITER` or psql backslash commands.
 
-## Local data and downloaded resources
+SQL output is one JSON object containing `protocol_version`, `datasource_id`, an ordered `events` array and `success`. Events distinguish columns, positional row values, result boundaries, statement completion, errors, skipped statements and overall completion; duplicate labels remain distinct. Numbers are encoded as strings to preserve integer and decimal precision; binary data and PostgreSQL types without a text decoder use Base64 with type metadata, and an explicit SQL cast to text is available when a readable database representation is preferable.
 
-User data lives in `~/.sqlx/`. Use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key. Back up the key together with the encrypted data; losing the key prevents decryption. Device identity is generated locally, and this version does not upload device information.
+Rows are streamed without a CLI row limit or silent truncation; the agent's own tool output limits still apply. Check the final `success` flag and the exit status, and never replay an uncertain write automatically.
 
-The main executable contains no database drivers. MySQL, MariaDB, PostgreSQL and CockroachDB use separate native Rust workers; Oracle, SQL Server, ClickHouse and Trino use a separate JDBC worker. The JDBC worker keeps vendor driver logging off, so a failed connection reports only the SQLX error; set `SQLX_JDBC_DEBUG=1` to also see the driver's own diagnostics on stderr. Downloaded resources are selected from the running CLI version's fixed GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
+## Local pages
 
-Downloads happen on first use and are cached afterwards. Each one prints `Downloading …`, a progress line with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and re-running a failed command reuses every component that is already installed. To avoid waiting inside the first query or page, fetch components ahead of time:
+Let the user inspect results in a browser and enter the password there.
+
+```sh
+sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id" --view
+```
+
+SQLX executes once and returns a local URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Reloading, paging or reopening the page reads the cached result; **Refresh** on the page reruns the original SQL batch against the database, so any writes in that batch run again. A successful refresh replaces the displayed snapshot at the same URL; a failure keeps the previous result and does not roll back database changes. Results are retained locally for 24 hours.
+
+`sqlx ui` opens the local workbench, `sqlx ui status` and `sqlx ui stop` inspect or stop the service, and `--no-open` returns a link without launching a browser. Pages are reachable only on the machine running SQLX, load an HttpOnly browser session automatically, and the service stays up until `sqlx ui stop`.
+
+Typing the password into the page keeps credentials out of the conversation, but it does not isolate them from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
+
+### Choose your UI
+
+```sh
+sqlx ui plugin install --url <plugin-zip-url> --sha256 <published-sha256>
+sqlx ui plugin list
+sqlx ui plugin use <plugin-id>          # default restores the default interface
+sqlx ui plugin remove <plugin-id> --version <version>
+```
+
+Installing does not activate a plugin; after selecting it, reload an open page or run `sqlx ui`. CLI updates keep the UI plugin version you selected, and switching versions needs `sqlx ui stop` first. Plugins run locally and can access entered credentials and displayed data, so install interfaces from authors you trust: a checksum proves the downloaded bytes are intact, not that the author is trustworthy.
+
+To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the [typed browser SDK](ui/sdk/client.ts) and the independent [terminal UI example](examples/terminal-ui/). Users need no Node.js runtime.
+
+## Data and downloads
+
+User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
+
+The main executable contains no database drivers; each database's worker is downloaded on first use (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
+
+Downloads happen on first use and are cached afterwards. Each one prints `Downloading …` with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and rerunning a failed command reuses every component that is already installed. To avoid waiting inside the first query or page:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds PostgreSQL, CockroachDB, MariaDB, Oracle, SQL Server, ClickHouse, Trino, the JDBC runtime and JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, MariaDB, Oracle, SQL Server, ClickHouse and Trino workers, the JDBC runtime and the JRE
 ```
 
-The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result, and official documentation link.
+The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.
+
+## Troubleshooting
+
+| Symptom | What to do |
+|---|---|
+| `invalid peer certificate: UnknownIssuer`, `error performing TLS handshake` | The database serves no certificate your machine trusts (common in local containers); add `--tls disable` to that connection |
+| `sqlx: command not found` | The install directory is missing from PATH: `~/.local/bin` (macOS, Linux) or `%LOCALAPPDATA%\Programs\SQLX` (Windows) |
+| The first query seems stuck downloading | Run `sqlx prefetch <component>` first; after an interruption, rerunning reuses installed components |
+| Switching the UI plugin version fails | Run `sqlx ui stop` first, then `sqlx ui plugin remove` |
+| An update fails | Check `sqlx update status`; rerun the installer if needed, saved connections are unaffected |
+| Oracle or SQL Server reports a JDBC-related error | Rerun with `SQLX_JDBC_DEBUG=1` to see the driver's own diagnostics |
 
 ## Build from source
 
-Source development requires Git, Rust 1.95, Node.js 22, and the platform's native build tools. Node.js only builds UI plugin assets; release users do not need it. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
+Source development requires Git, Rust 1.95, Node.js 22 and the platform's native build tools; Node.js only builds UI plugin assets. For Oracle or SQL Server development, also install a Java 17 JDK and Maven.
 
 On macOS or Linux:
 
@@ -305,7 +315,7 @@ sqlx ui plugin install --path ui/dist
 sqlx ui plugin use default
 ```
 
-Keep the checkout at that location, or copy the CLI and both native workers into a dedicated directory and update PATH and `SQLX_WORKER_DIR` accordingly. Add these settings to future sessions when needed. This source-build setup makes MySQL and PostgreSQL usable without a published worker manifest.
+Keep the checkout at that location, or copy the CLI and both native workers into a dedicated directory and update PATH and `SQLX_WORKER_DIR` accordingly. This source build makes MySQL and PostgreSQL usable without a published worker manifest.
 
 For Oracle and SQL Server, build the JDBC worker and place its driver JARs alongside those workers. On macOS or Linux:
 
@@ -349,7 +359,16 @@ docker compose -f tests/compose.yaml down -v
 
 For local native workers, set `SQLX_WORKER_DIR` to the absolute `target/debug` directory. For JDBC development, that directory also contains `sqlx-jdbc.jar` and `ojdbc.jar` or `mssql-jdbc.jar`; `SQLX_JAVA_BIN` can select Java 17 explicitly. These overrides are for development, not prerequisites for release users. The fixture scripts use dedicated test containers and test-only credentials.
 
-See [the design](docs/design.md) for implementation boundaries and deferred features. SQL-file input, persistent sessions, configurable transaction/error modes, result-file export, unattended update installation and telemetry are not included.
+## Releases and documentation
+
+- Packages and checksums: [GitHub Releases](https://github.com/OtterMind/sqlx/releases)
+- Release notes: [docs/release-notes.md](docs/release-notes.md)
+- Design and implementation boundaries: [docs/design.md](docs/design.md)
+- Update behavior and recovery: [docs/updates.md](docs/updates.md)
+- Local interface and plugins: [docs/local-ui.md](docs/local-ui.md), [docs/ui-plugins.md](docs/ui-plugins.md)
+- Agent integrations: [integrations/README.md](integrations/README.md), [Skill](skills/sqlx/SKILL.md)
+
+Not included: SQL-file input, persistent sessions, configurable transaction and error modes, result-file export, unattended update installation, and telemetry.
 
 ## License
 
