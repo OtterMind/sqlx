@@ -447,6 +447,40 @@ mod tests {
                 "the {package} package must honour SQLX_INSTALL_DIR"
             );
         }
+        for (plugin, source, target) in [
+            (
+                "codex plugin",
+                include_str!("../../../integrations/codex/plugins/sqlx/bin/sqlx-mcp"),
+                "--target codex",
+            ),
+            (
+                "claude plugin",
+                include_str!("../../../integrations/claude/plugins/sqlx/bin/sqlx-mcp"),
+                "--target claude",
+            ),
+        ] {
+            assert!(
+                source.contains("@ottermind/sqlx@latest"),
+                "the {plugin} launcher must install the CLI when it is missing"
+            );
+            assert!(
+                source.contains(target),
+                "the {plugin} launcher must install its own Skill target"
+            );
+            assert!(
+                source.contains("SQLX_INSTALL_DIR"),
+                "the {plugin} launcher must honour SQLX_INSTALL_DIR"
+            );
+        }
+        // Codex passes only the variables named here to the MCP server, so the launcher's fallback
+        // paths need HOME and LOCALAPPDATA to be on the list.
+        let codex = include_str!("../../../integrations/codex/plugins/sqlx/.mcp.json");
+        for variable in ["SQLX_INSTALL_DIR", "HOME", "LOCALAPPDATA", "PATH"] {
+            assert!(
+                codex.contains(variable),
+                "the codex plugin must pass {variable} to the launcher"
+            );
+        }
     }
     #[test]
     fn initialize_negotiates_the_client_protocol() {
