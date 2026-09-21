@@ -16,4 +16,4 @@ Complete this check for the entire batch before executing any statement. Do not 
 
 The same approval gate applies to `--view`, manual result Refresh, and automatic refresh. A one-time approval does not authorize future reruns of a state-changing or unknown batch. Keep automatic refresh disabled unless the user explicitly approves repeated execution, its interval, and its side effects. Reloading, pagination, reconnecting, and returning to a page read cached results and do not authorize a new SQL execution.
 
-After a state-changing execution, report the actual target, statement outcome, affected-row or result information provided by the driver, and any partial or unknown outcome. Offer a focused read-only verification when useful, but do not issue an unrequested compensating write or claim that a failed client response rolled back database changes. Read [execution and results](execution.md) for how partial and unknown outcomes are represented.
+Read [execution and results](execution.md) for how a partial or unknown outcome is represented, and report it as that file describes.
