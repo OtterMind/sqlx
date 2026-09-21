@@ -3,6 +3,23 @@
 import argparse,hashlib,io,json,time,urllib.parse,urllib.request,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+# Components that exist once per platform, in this script's case the pinned JRE.
+PLATFORM_KINDS=('java',)
+# Components that exist once for all platforms.
+SHARED_KINDS=('jdbc','skill','ui-default')
+# Licensed vendor drivers, one component per engine the JDBC worker can reach.
+VENDORS={
+    'oracle':dict(files=[('https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar','ojdbc.jar')],entry='ojdbc.jar',license_url='https://www.oracle.com/downloads/licenses/oracle-free-license.html',license_from_jar='META-INF/license.txt'),
+    'sqlserver':dict(files=[('https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar','mssql-jdbc.jar')],entry='mssql-jdbc.jar',license_url='https://raw.githubusercontent.com/microsoft/mssql-jdbc/v12.10.1/LICENSE'),
+    # The all-in-one ClickHouse driver still needs a logging API, so the component ships both.
+    'clickhouse':dict(files=[('https://repo.maven.apache.org/maven2/com/clickhouse/clickhouse-jdbc/0.9.0/clickhouse-jdbc-0.9.0-all.jar','clickhouse-jdbc.jar'),
+                             ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.16/slf4j-api-2.0.16.jar','slf4j-api.jar'),
+                             ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/2.0.16/slf4j-nop-2.0.16.jar','slf4j-nop.jar')],
+                      entry='clickhouse-jdbc.jar',license_url='https://raw.githubusercontent.com/ClickHouse/clickhouse-java/main/LICENSE',
+                      extra_licenses={'LICENSE-slf4j.txt':('slf4j-api.jar','META-INF/LICENSE.txt')}),
+    'trino':dict(files=[('https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar','trino-jdbc.jar')],entry='trino-jdbc.jar',license_url='https://raw.githubusercontent.com/trinodb/trino/master/LICENSE'),
+}
+VENDOR_KINDS=tuple(VENDORS)
 def get(url):
     for attempt in range(3):
         try:
@@ -14,6 +31,10 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.10');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
     records={};base=f'https://github.com/OtterMind/sqlx/releases/download/v{a.version}/'
     def add(name,entries,entrypoint,version=None):
+        # Every component must be declared above, so the release manifest gate stays in sync
+        # with what this script actually packages.
+        if name not in SHARED_KINDS and name not in VENDOR_KINDS:
+            raise ValueError(f'{name} is not listed in SHARED_KINDS or VENDORS')
         component_version=version or a.version
         path=a.output/f'{name}-{component_version}.zip'
         with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED) as z:
@@ -25,18 +46,7 @@ def main():
     add('jdbc',{'sqlx-jdbc.jar':(ROOT/f'java/jdbc/target/sqlx-jdbc-{a.version}.jar').read_bytes(),'LICENSE':(ROOT/'LICENSE').read_bytes(),'NOTICE':(ROOT/'NOTICE').read_bytes()},'sqlx-jdbc.jar')
     skill=ROOT/'skills/sqlx';add('skill',{str(f.relative_to(skill)).replace('\\','/'):f.read_bytes() for f in skill.rglob('*') if f.is_file()},'SKILL.md')
     plugin=ROOT/'ui/dist';add('ui-default',{str(f.relative_to(plugin)).replace('\\','/'):f.read_bytes() for f in plugin.rglob('*') if f.is_file()},'ui-plugin.json',version=json.loads((plugin/'ui-plugin.json').read_text())['version'])
-    vendors={
-        'oracle':dict(files=[('https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar','ojdbc.jar')],entry='ojdbc.jar',license_url='https://www.oracle.com/downloads/licenses/oracle-free-license.html',license_from_jar='META-INF/license.txt'),
-        'sqlserver':dict(files=[('https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar','mssql-jdbc.jar')],entry='mssql-jdbc.jar',license_url='https://raw.githubusercontent.com/microsoft/mssql-jdbc/v12.10.1/LICENSE'),
-        # The all-in-one ClickHouse driver still needs a logging API, so the component ships both.
-        'clickhouse':dict(files=[('https://repo.maven.apache.org/maven2/com/clickhouse/clickhouse-jdbc/0.9.0/clickhouse-jdbc-0.9.0-all.jar','clickhouse-jdbc.jar'),
-                                 ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.16/slf4j-api-2.0.16.jar','slf4j-api.jar'),
-                                 ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/2.0.16/slf4j-nop-2.0.16.jar','slf4j-nop.jar')],
-                          entry='clickhouse-jdbc.jar',license_url='https://raw.githubusercontent.com/ClickHouse/clickhouse-java/main/LICENSE',
-                          extra_licenses={'LICENSE-slf4j.txt':('slf4j-api.jar','META-INF/LICENSE.txt')}),
-        'trino':dict(files=[('https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar','trino-jdbc.jar')],entry='trino-jdbc.jar',license_url='https://raw.githubusercontent.com/trinodb/trino/master/LICENSE'),
-    }
-    for name,spec in vendors.items():
+    for name,spec in VENDORS.items():
         entries={};sources=[]
         for url,filename in spec['files']:
             entries[filename]=get(url);sources.append(url)
