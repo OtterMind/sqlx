@@ -22,3 +22,43 @@ services:
       interval: 3s
       timeout: 3s
       retries: 30
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: sqlx_test_only_password
+      MARIADB_DATABASE: sqlx_test
+    ports: ["127.0.0.1:23307:3306"]
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-psqlx_test_only_password"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  cockroachdb:
+    image: cockroachdb/cockroach:v24.3.0
+    command: start-single-node --insecure
+    ports: ["127.0.0.1:26257:26257"]
+    healthcheck:
+      test: ["CMD", "cockroach", "sql", "--insecure", "--host=127.0.0.1:26257", "-e", "SELECT 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    environment:
+      CLICKHOUSE_USER: sqlx
+      CLICKHOUSE_PASSWORD: sqlx_test_only_password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports: ["127.0.0.1:28123:8123"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  trino:
+    image: trinodb/trino:476
+    ports: ["127.0.0.1:28082:8080"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/v1/info"]
+      interval: 5s
+      timeout: 5s
+      retries: 40

@@ -219,14 +219,14 @@ For an agent or script, provide credentials through environment variables or a c
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`postgres`, `oracle`, `sqlserver`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `postgres`, `cockroachdb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `skill` or `all`) |
 | Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
 | Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
 | Inspect/update managed Skills | `sqlx skill status`, `sqlx skill update` |
 | Stop managing a Skill installation | `sqlx skill remove --path /path/to/skills/sqlx` (files are kept) |
 | Help/version | `sqlx --help`, `sqlx --version` |
 
-`--id` and `--datasource` accept a stable datasource UUID or its unique name. Supported database type names are `mysql`, `postgresql` (`postgres`/`pgsql`), `oracle`, and `sqlserver` (`mssql`). Oracle requires `--service`. TLS defaults to certificate verification; `--tls disable` is available for explicitly unencrypted connections. The first authentication profile is username/password.
+`--id` and `--datasource` accept a stable datasource UUID or its unique name. Supported database type names are `mysql`, `mariadb`, `postgresql` (`postgres`/`pgsql`), `cockroachdb` (`cockroach`/`crdb`), `oracle`, `sqlserver` (`mssql`), `clickhouse`, and `trino`. Oracle requires `--service`; Trino requires `--database <catalog>[.<schema>]`; ClickHouse connects to its HTTP port (8123 by default); MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers. See [additional databases](skills/sqlx/references/additional-databases.md). TLS defaults to certificate verification; `--tls disable` is available for explicitly unencrypted connections. The first authentication profile is username/password.
 
 Credentials are read from named environment variables, hidden interactive prompts, or a connection JSON object on stdin. Do not put literal passwords in command arguments. For noninteractive creation or complete replacement, `--connection-stdin` accepts:
 

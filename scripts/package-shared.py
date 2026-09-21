@@ -26,16 +26,29 @@ def main():
     skill=ROOT/'skills/sqlx';add('skill',{str(f.relative_to(skill)).replace('\\','/'):f.read_bytes() for f in skill.rglob('*') if f.is_file()},'SKILL.md')
     plugin=ROOT/'ui/dist';add('ui-default',{str(f.relative_to(plugin)).replace('\\','/'):f.read_bytes() for f in plugin.rglob('*') if f.is_file()},'ui-plugin.json',version=json.loads((plugin/'ui-plugin.json').read_text())['version'])
     vendors={
-        'oracle':('https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar','ojdbc.jar','https://www.oracle.com/downloads/licenses/oracle-free-license.html'),
-        'sqlserver':('https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar','mssql-jdbc.jar','https://raw.githubusercontent.com/microsoft/mssql-jdbc/v12.10.1/LICENSE'),
+        'oracle':dict(files=[('https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar','ojdbc.jar')],entry='ojdbc.jar',license_url='https://www.oracle.com/downloads/licenses/oracle-free-license.html',license_from_jar='META-INF/license.txt'),
+        'sqlserver':dict(files=[('https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar','mssql-jdbc.jar')],entry='mssql-jdbc.jar',license_url='https://raw.githubusercontent.com/microsoft/mssql-jdbc/v12.10.1/LICENSE'),
+        # The all-in-one ClickHouse driver still needs a logging API, so the component ships both.
+        'clickhouse':dict(files=[('https://repo.maven.apache.org/maven2/com/clickhouse/clickhouse-jdbc/0.9.0/clickhouse-jdbc-0.9.0-all.jar','clickhouse-jdbc.jar'),
+                                 ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.16/slf4j-api-2.0.16.jar','slf4j-api.jar'),
+                                 ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/2.0.16/slf4j-nop-2.0.16.jar','slf4j-nop.jar')],
+                          entry='clickhouse-jdbc.jar',license_url='https://raw.githubusercontent.com/ClickHouse/clickhouse-java/main/LICENSE',
+                          extra_licenses={'LICENSE-slf4j.txt':('slf4j-api.jar','META-INF/LICENSE.txt')}),
+        'trino':dict(files=[('https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar','trino-jdbc.jar')],entry='trino-jdbc.jar',license_url='https://raw.githubusercontent.com/trinodb/trino/master/LICENSE'),
     }
-    for name,(url,filename,license_url) in vendors.items():
-        driver=get(url)
-        if name=='oracle':
+    for name,spec in vendors.items():
+        entries={};sources=[]
+        for url,filename in spec['files']:
+            entries[filename]=get(url);sources.append(url)
+        if 'license_from_jar' in spec:
             # Preserve the license shipped with this exact driver; the HTML page blocks automated downloads.
-            with zipfile.ZipFile(io.BytesIO(driver)) as jar:license_text=jar.read('META-INF/license.txt')
-        else:license_text=get(license_url)
-        add(name,{filename:driver,'LICENSE.txt':license_text,'SOURCE.txt':(url+'\n'+license_url+'\n').encode()},filename)
+            with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:license_text=jar.read(spec['license_from_jar'])
+        else:license_text=get(spec['license_url'])
+        entries['LICENSE.txt']=license_text
+        for target,(archive,member) in spec.get('extra_licenses',{}).items():
+            with zipfile.ZipFile(io.BytesIO(entries[archive])) as jar:entries[target]=jar.read(member)
+        entries['SOURCE.txt']=('\n'.join(sources+[spec['license_url']])+'\n').encode()
+        add(name,entries,spec['entry'])
     for platform,os_name,arch in [('macos-arm64','mac','aarch64'),('macos-x64','mac','x64'),('windows-x64','windows','x64'),('linux-arm64','linux','aarch64'),('linux-x64','linux','x64')]:
         params=urllib.parse.urlencode(dict(architecture=arch,image_type='jre',os=os_name,vendor='eclipse'))
         releases=json.loads(get('https://api.adoptium.net/v3/assets/latest/17/hotspot?'+params))

@@ -43,12 +43,12 @@ enum Commands {
     Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
-        /// Components to download: mysql, postgres, oracle, sqlserver, ui, skill or all.
+        /// Components to download: mysql, mariadb, postgres, cockroachdb, oracle, sqlserver, clickhouse, trino, ui, skill or all.
         #[arg(
             value_name = "COMPONENT",
             required = true,
             num_args = 1..,
-            value_parser = ["mysql", "postgres", "oracle", "sqlserver", "ui", "skill", "all"]
+            value_parser = ["mysql", "mariadb", "postgres", "cockroachdb", "oracle", "sqlserver", "clickhouse", "trino", "ui", "skill", "all"]
         )]
         components: Vec<String>,
     },
@@ -609,10 +609,12 @@ impl ConnectionArgs {
                 database_type,
                 host: "localhost".into(),
                 port: match database_type {
-                    Database::Mysql => 3306,
-                    Database::Postgresql => 5432,
+                    Database::Mysql | Database::Mariadb => 3306,
+                    Database::Postgresql | Database::Cockroachdb => 5432,
                     Database::Oracle => 1521,
                     Database::Sqlserver => 1433,
+                    Database::Clickhouse => 8123,
+                    Database::Trino => 8080,
                 },
                 database: String::new(),
                 service: String::new(),

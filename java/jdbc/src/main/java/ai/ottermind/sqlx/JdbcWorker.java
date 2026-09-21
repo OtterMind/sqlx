@@ -150,7 +150,17 @@ public final class JdbcWorker {
         return switch (c.path("database_type").asText()) {
             case "oracle" -> "jdbc:oracle:thin:@" + new URI(c.path("tls").asText().equals("disable") ? "tcp" : "tcps", null, host, port, "/"+c.path("service").asText(), null, null).toASCIIString();
             case "sqlserver" -> "jdbc:sqlserver://"+authority;
-            default -> throw new IllegalArgumentException("JDBC worker supports oracle and sqlserver");
+            case "clickhouse" -> {
+                String database = c.path("database").asText();
+                yield "jdbc:clickhouse://" + authority + "/" + (database.isEmpty() ? "default" : database)
+                    + (c.path("tls").asText().equals("disable") ? "" : "?ssl=true");
+            }
+            case "trino" -> {
+                // Trino addresses a catalog and an optional schema; --database carries catalog[.schema].
+                yield "jdbc:trino://" + authority + "/" + c.path("database").asText().replace('.', '/')
+                    + (c.path("tls").asText().equals("disable") ? "" : "?SSL=true");
+            }
+            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse and trino");
         };
     }
     void rows(ResultSet rs, int index, int result) throws SQLException, IOException {
