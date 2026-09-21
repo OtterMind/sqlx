@@ -144,16 +144,16 @@ def check_skill_source():
         body=read(name)
         missing=[clause for clause in expected if clause not in body]
         assert not missing,f'{name} no longer states its contract: {missing}'
-        assert f'({name})' in text,f'SKILL.md does not link {name}'
+        assert f'`{name}`' in text,f'SKILL.md does not name {name}'
     assert "The Skill's approval gate therefore applies on the agent side" in reference,'references/local-ui.md no longer applies the approval gate to refresh'
-    # Every reference must be reachable from the index, and each database from its own recipe.
-    linked={name for name in re.findall(r'\(references/([a-z-]+\.md)\)',text)}
+    # Every reference path must appear in the index, and each database must appear in the recipe list.
+    linked={name for name in re.findall(r'`references/([a-z-]+\.md)`',text)}
     present={path.name for path in (skill/'references').glob('*.md')}
-    assert present<=linked,f'SKILL.md does not link every reference: {sorted(present-linked)}'
+    assert present<=linked,f'SKILL.md does not name every reference: {sorted(present-linked)}'
     databases=('mysql','mariadb','tidb','postgresql','cockroachdb','yugabytedb','oracle','sqlserver','clickhouse','trino','starrocks','doris')
     for database in databases:
         assert (skill/'references'/f'{database}.md').is_file(),f'missing database reference references/{database}.md'
-        assert f'(references/{database}.md)' in text,f'SKILL.md does not link references/{database}.md'
+        assert f'`references/{database}.md`' in text,f'SKILL.md does not name references/{database}.md'
     assert not (skill/'references'/'additional-databases.md').exists(),'databases must be documented in one reference file each'
     documents=[('SKILL.md',text)]+[
         (f'references/{path.name}',read(f'references/{path.name}'))
