@@ -1,4 +1,4 @@
-# @ottermind/pi-sqlx
+# @ottermind/sqlx-pi
 
 Native SQLX tools for the Pi coding agent. The extension registers six `registerTool` tools and
 calls the `sqlx` CLI for each one, so encrypted credentials, TLS policy, worker downloads and local
@@ -7,7 +7,7 @@ result pages stay CLI responsibilities.
 ## Install
 
 ```bash
-pi install npm:@ottermind/pi-sqlx
+pi install npm:@ottermind/sqlx-pi
 ```
 
 Add `-l` to install into the project (`./.pi/settings.json`) instead of the user settings.
@@ -17,8 +17,12 @@ Add `-l` to install into the project (`./.pi/settings.json`) instead of the user
 - Pi 0.86 or later.
 - `@earendil-works/pi-coding-agent` and `typebox` are declared as peer dependencies; pi bundles
   both, and `pi install` runs npm with `--omit=peer`, so nothing extra is installed.
-- The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.9 or later on `PATH`.
-  Set `SQLX_BIN` to point at a specific executable instead.
+- The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.9 or later. The extension
+  looks for `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
+  (`~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`, or `SQLX_INSTALL_DIR`), and when
+  none of them exists it installs the CLI itself with
+  `npx -y @ottermind/sqlx@latest --target pi`. Installing the package is therefore the only setup
+  step.
 
 ## Tools
 

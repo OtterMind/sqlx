@@ -419,6 +419,36 @@ mod tests {
         }
     }
     #[test]
+    fn native_integrations_install_the_cli_on_demand() {
+        // The dsh and pi packages must be usable straight after installation: they resolve the CLI
+        // themselves and install it once when it is missing.
+        for (package, source, target) in [
+            (
+                "sqlx-dsh",
+                include_str!("../../../integrations/dsh/lib/index.js"),
+                "\"--target\", \"dsh\"",
+            ),
+            (
+                "sqlx-pi",
+                include_str!("../../../integrations/pi/extensions/sqlx.ts"),
+                "\"--target\", \"pi\"",
+            ),
+        ] {
+            assert!(
+                source.contains("@ottermind/sqlx@latest"),
+                "the {package} package must install the CLI when it is missing"
+            );
+            assert!(
+                source.contains(target),
+                "the {package} package must install the {package} Skill target"
+            );
+            assert!(
+                source.contains("SQLX_INSTALL_DIR"),
+                "the {package} package must honour SQLX_INSTALL_DIR"
+            );
+        }
+    }
+    #[test]
     fn initialize_negotiates_the_client_protocol() {
         let root = PathBuf::from("/tmp/sqlx-mcp-test");
         let response = handle(
