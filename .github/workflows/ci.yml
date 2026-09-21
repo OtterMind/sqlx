@@ -193,7 +193,7 @@ jobs:
           docker logs sqlx-integration-opengauss-1 --tail 40 || true
           docker inspect sqlx-integration-opengauss-1 --format '{{json .State.Health}}' || true
           docker exec sqlx-integration-opengauss-1 bash -lc 'ls /usr/local/opengauss/bin | head' || true
-          docker exec sqlx-integration-opengauss-1 bash -lc "PGPASSWORD=SQLX@TestOnly12345 /usr/local/opengauss/bin/gsql -h 127.0.0.1 -p 5432 -U gaussdb -d postgres -c 'SELECT 1'" || true
+          docker exec sqlx-integration-opengauss-1 bash -lc "LD_LIBRARY_PATH=/usr/local/opengauss/lib PGPASSWORD=SQLX@TestOnly12345 /usr/local/opengauss/bin/gsql -h 127.0.0.1 -p 5432 -U gaussdb -d postgres -c 'SELECT 1'" || true
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 oceanbase

@@ -120,8 +120,8 @@ services:
       GS_PASSWORD: SQLX@TestOnly12345
     ports: ["127.0.0.1:24320:5432"]
     healthcheck:
-      # gsql is not on PATH in this image, and openGauss needs the password in the environment.
-      test: ["CMD-SHELL", "PGPASSWORD=SQLX@TestOnly12345 /usr/local/opengauss/bin/gsql -h 127.0.0.1 -p 5432 -U gaussdb -d postgres -c 'SELECT 1' >/dev/null 2>&1"]
+      # gsql is not on PATH, needs the image's library directory, and reads the password from the environment.
+      test: ["CMD-SHELL", "LD_LIBRARY_PATH=/usr/local/opengauss/lib PGPASSWORD=SQLX@TestOnly12345 /usr/local/opengauss/bin/gsql -h 127.0.0.1 -p 5432 -U gaussdb -d postgres -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 60
