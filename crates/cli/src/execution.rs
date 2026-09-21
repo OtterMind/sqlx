@@ -148,6 +148,7 @@ pub fn prepare(
         Database::Clickhouse => "com.clickhouse.jdbc.ClickHouseDriver",
         Database::Trino => "io.trino.jdbc.TrinoDriver",
         Database::Tdengine => "com.taosdata.jdbc.ws.WebSocketDriver",
+        Database::Opengauss => "org.opengauss.Driver",
         _ => "",
     }
     .into();
