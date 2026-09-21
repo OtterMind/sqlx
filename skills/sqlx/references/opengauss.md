@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `schema_name`, `table_name`, and `column_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters; unquoted names are folded to lower case.
 
-openGauss speaks the PostgreSQL protocol, so `--type opengauss` (alias `gaussdb`) uses the PostgreSQL worker and a `postgresql` datasource reaches the same server. It serves the protocol on port 5432 by default. Official links target the current openGauss documentation; match the connected server version when you look them up. The documentation root is https://docs.opengauss.org/en/.
+`--type opengauss` (alias `gaussdb`) connects through the official openGauss JDBC driver, because openGauss authenticates in a way the generic PostgreSQL worker cannot follow. It listens on port 5432 by default. Official links target the current openGauss documentation; match the connected server version when you look them up. The documentation root is https://docs.opengauss.org/en/.
 
 ## 1. Identify the current connection
 

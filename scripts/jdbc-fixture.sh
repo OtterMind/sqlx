@@ -23,6 +23,9 @@ case "$kind" in
   trino)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar' -o target/debug/trino-jdbc.jar
     ;;
+  opengauss)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/opengauss/opengauss-jdbc/6.0.0-b041-og/opengauss-jdbc-6.0.0-b041-og.jar' -o target/debug/opengauss-jdbc.jar
+    ;;
   tdengine)
     # The bundled jar carries the driver's own dependencies; the bundle has no slf4j binding.
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar' -o target/debug/taos-jdbcdriver.jar

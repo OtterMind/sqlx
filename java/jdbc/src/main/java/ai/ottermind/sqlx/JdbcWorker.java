@@ -155,6 +155,7 @@ public final class JdbcWorker {
                 yield "jdbc:clickhouse://" + authority + "/" + (database.isEmpty() ? "default" : database)
                     + (c.path("tls").asText().equals("disable") ? "" : "?ssl=true");
             }
+            case "opengauss" -> "jdbc:opengauss://" + authority + "/" + c.path("database").asText();
             case "tdengine" -> {
                 // The RESTful driver reaches taosAdapter over HTTP, so the native client is not needed.
                 String database = c.path("database").asText();
@@ -165,7 +166,7 @@ public final class JdbcWorker {
                 yield "jdbc:trino://" + authority + "/" + c.path("database").asText().replace('.', '/')
                     + (c.path("tls").asText().equals("disable") ? "" : "?SSL=true");
             }
-            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino and tdengine");
+            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine and opengauss");
         };
     }
     /** Some drivers, such as the TDengine RESTful driver, only implement the JDBC 1 update count. */

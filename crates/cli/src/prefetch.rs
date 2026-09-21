@@ -35,11 +35,9 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
         "mariadb" | "tidb" | "greatsql" | "oceanbase" | "starrocks" | "doris" => {
             vec![("mysql".to_owned(), platform.to_owned())]
         }
-        "cockroachdb" | "yugabytedb" | "opengauss" => {
-            vec![("postgres".to_owned(), platform.to_owned())]
-        }
+        "cockroachdb" | "yugabytedb" => vec![("postgres".to_owned(), platform.to_owned())],
         // The JDBC databases need the shared runner and the pinned JRE as well.
-        "oracle" | "sqlserver" | "clickhouse" | "trino" | "tdengine" => vec![
+        "oracle" | "sqlserver" | "clickhouse" | "trino" | "tdengine" | "opengauss" => vec![
             ("java".to_owned(), platform.to_owned()),
             ("jdbc".to_owned(), "any".to_owned()),
             (name.to_owned(), "any".to_owned()),

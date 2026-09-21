@@ -29,10 +29,7 @@ fn native_worker(kind: Database) -> Option<&'static str> {
         | Database::Oceanbase
         | Database::Starrocks
         | Database::Doris => Some("mysql"),
-        Database::Postgresql
-        | Database::Cockroachdb
-        | Database::Yugabytedb
-        | Database::Opengauss => Some("postgres"),
+        Database::Postgresql | Database::Cockroachdb | Database::Yugabytedb => Some("postgres"),
         _ => None,
     }
 }
@@ -57,6 +54,10 @@ fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
         Database::Trino => JdbcDriver {
             component: "trino",
             jars: &["trino-jdbc.jar"],
+        },
+        Database::Opengauss => JdbcDriver {
+            component: "opengauss",
+            jars: &["opengauss-jdbc.jar"],
         },
         Database::Tdengine => JdbcDriver {
             component: "tdengine",

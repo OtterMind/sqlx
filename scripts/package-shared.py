@@ -18,6 +18,7 @@ VENDORS={
                       entry='clickhouse-jdbc.jar',license_url='https://raw.githubusercontent.com/ClickHouse/clickhouse-java/main/LICENSE',
                       extra_licenses={'LICENSE-slf4j.txt':('slf4j-api.jar','META-INF/LICENSE.txt')}),
     'trino':dict(files=[('https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar','trino-jdbc.jar')],entry='trino-jdbc.jar',license_url='https://raw.githubusercontent.com/trinodb/trino/master/LICENSE'),
+    'opengauss':dict(files=[('https://repo.maven.apache.org/maven2/org/opengauss/opengauss-jdbc/6.0.0-b041-og/opengauss-jdbc-6.0.0-b041-og.jar','opengauss-jdbc.jar')],entry='opengauss-jdbc.jar',license_url='https://raw.githubusercontent.com/opengauss-mirror/openGauss-connector-jdbc/master/LICENSE'),
     # The TDengine RESTful driver ships as one bundled jar (its own dependencies included) and
     # needs an slf4j binding, because the bundle carries the slf4j API without a provider.
     'tdengine':dict(files=[('https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar','taos-jdbcdriver.jar'),

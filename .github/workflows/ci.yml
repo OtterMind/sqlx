@@ -182,11 +182,20 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: java/jdbc/pom.xml
       - run: npm --prefix ui ci
       - run: npm --prefix ui run build
       - run: cargo build --workspace --locked
-      # OceanBase runs a whole cluster in one container, so the two take turns.
+      - run: mvn -B -f java/jdbc/pom.xml verify
+      # OceanBase runs a whole cluster in one container, so the two take turns; openGauss
+      # authenticates with its own driver, so it runs through the JDBC worker.
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 600 opengauss
+      - run: bash scripts/jdbc-fixture.sh opengauss
       - run: python3 tests/databases.py opengauss
       - if: failure()
         run: |

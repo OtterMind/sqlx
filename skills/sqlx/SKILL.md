@@ -32,7 +32,7 @@ Load the recipe of the connected datasource, and only that one. Each recipe link
 
 MySQL `references/mysql.md` · MariaDB `references/mariadb.md` · TiDB `references/tidb.md` · GreatSQL `references/greatsql.md` · OceanBase `references/oceanbase.md` · PostgreSQL `references/postgresql.md` · CockroachDB `references/cockroachdb.md` · YugabyteDB `references/yugabytedb.md` · openGauss `references/opengauss.md` · Oracle `references/oracle.md` · SQL Server `references/sqlserver.md` · ClickHouse `references/clickhouse.md` · Trino `references/trino.md` · StarRocks `references/starrocks.md` · Apache Doris `references/doris.md` · TDengine `references/tdengine.md`
 
-TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris reuse the MySQL worker, and YugabyteDB and openGauss reuse the PostgreSQL worker; ClickHouse needs its HTTP port, Trino needs `--database <catalog>[.<schema>]`, and TDengine connects through its JDBC driver on port 6041.
+TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris reuse the MySQL worker, and YugabyteDB reuses the PostgreSQL worker; ClickHouse needs its HTTP port, Trino needs `--database <catalog>[.<schema>]`, and TDengine, openGauss and the Oracle-style engines connect through the JDBC worker.
 
 ## Rules that always apply
 
