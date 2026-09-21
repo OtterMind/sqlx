@@ -25,10 +25,25 @@ PREPARE = {
     "starrocks": "CREATE DATABASE IF NOT EXISTS sqlx_test",
     "doris": "CREATE DATABASE IF NOT EXISTS sqlx_test",
 }
-# Engines that answer a query before a storage backend can serve DDL, with the check to wait for.
+# Engines that answer a query before a storage backend can serve DDL. Wait on an idempotent write,
+# not on a status column: an OLAP frontend reports a live backend, and even accepts `CREATE TABLE`,
+# before that backend can allocate the table's tablets, and only the insert tells those apart. Every
+# attempt starts by dropping the probe table, so a half-finished attempt can always be repeated.
 BACKENDS = {
-    "starrocks": "SHOW BACKENDS",
-    "doris": "SHOW BACKENDS",
+    "starrocks": [
+        "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
+        "CREATE TABLE sqlx_test.sqlx_ready (id BIGINT)",
+        "INSERT INTO sqlx_test.sqlx_ready VALUES (1)",
+    ],
+    "doris": [
+        "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
+        "CREATE TABLE sqlx_test.sqlx_ready (id BIGINT)",
+        "INSERT INTO sqlx_test.sqlx_ready VALUES (1)",
+    ],
+}
+BACKEND_CLEANUP = {
+    "starrocks": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
+    "doris": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
 }
 DROP_IF_EXISTS = {
     "mariadb": "DROP TABLE IF EXISTS sqlx_values",
@@ -115,21 +130,28 @@ def exercise(cli, bin_dir, kind):
             if attempt == 39:
                 raise AssertionError(result)
             time.sleep(3)
-        # An OLAP frontend accepts queries before a storage backend can hold a table.
+        # Engines without a scratch database need theirs before the readiness probe below.
+        if kind in PREPARE:
+            call("sql", "execute", "--datasource", "fixture", "--sql", PREPARE[kind])
+        # An OLAP frontend accepts queries, reports a live backend and even creates the table before
+        # that backend can allocate its tablets, so the probe writes a row. It starts by dropping the
+        # probe table, which keeps every retry repeatable, and the write batch below still runs once.
         if kind in BACKENDS:
             for attempt in range(60):
-                code, result = call("sql", "execute", "--datasource", "fixture", "--sql", BACKENDS[kind], ok=False)
-                if code == 0 and any(
-                    event["event"] == "row" and "true" in event["values"] for event in result["events"]
-                ):
+                for statement in BACKENDS[kind]:
+                    code, result = call("sql", "execute", "--datasource", "fixture", "--sql", statement, ok=False)
+                    if code != 0:
+                        break
+                if code == 0:
+                    call("sql", "execute", "--datasource", "fixture", "--sql", BACKEND_CLEANUP[kind], ok=False)
                     break
+                if attempt == 0:
+                    print(f"{kind}: waiting for a storage backend that can hold a table", flush=True)
                 if attempt == 59:
                     raise AssertionError(result)
                 time.sleep(5)
         # Writes are submitted once: replaying this batch could apply them twice.
         writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
-        if kind in PREPARE:
-            writes.insert(0, PREPARE[kind])
         call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--sql", statement)])
         _, result = retry(kind, "the read-only query", lambda: call(
             "sql", "execute", "--datasource", "fixture", "--sql", SELECT[kind]))
