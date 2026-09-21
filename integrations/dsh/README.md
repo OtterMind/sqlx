@@ -1,4 +1,4 @@
-# @ottermind/dsh-sqlx
+# @ottermind/sqlx-dsh
 
 Native SQLX tools for DeepSeek Harness. The plugin registers six `defineTool` tools and calls the
 `sqlx` CLI for each one, so encrypted credentials, TLS policy, worker downloads and local result
@@ -7,20 +7,23 @@ pages stay CLI responsibilities.
 ## Install
 
 ```bash
-dsh plugin --profile <profile> add @ottermind/dsh-sqlx
+dsh plugin --profile <profile> add @ottermind/sqlx-dsh
 ```
 
 `cordis.patch.yml` is declared as `dsh.bundle.patch`, so installing the package appends the plugin
 row to the profile's bundle stack; no profile file edits are needed. Remove it with
-`dsh plugin --profile <profile> remove @ottermind/dsh-sqlx`.
+`dsh plugin --profile <profile> remove @ottermind/sqlx-dsh`.
 
 ## Requirements
 
 - DeepSeek Harness 0.1.5 or later.
 - `@deepseek-ai/dsh-tools` (peer dependency) — bundled with dsh, and the profile installer runs
   pnpm with `autoInstallPeers: false`, so nothing extra is installed.
-- The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.10 or later on `PATH`.
-  Set `SQLX_BIN` to point at a specific executable instead.
+- The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.10 or later. The plugin looks
+  for `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
+  (`~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`, or `SQLX_INSTALL_DIR`), and when
+  none of them exists it installs the CLI itself with
+  `npx -y @ottermind/sqlx@latest --target dsh`. Adding the plugin is therefore the only setup step.
 
 ## Tools
 

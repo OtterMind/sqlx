@@ -8,13 +8,16 @@ thin native-tool packages for harnesses that register tools themselves.
 |---|---|---|---|
 | Claude Code | `claude/` | plugin `.mcp.json` → `sqlx mcp` | `claude plugin marketplace add <repo>` then `claude plugin install sqlx@ottermind` (or `--plugin-dir` while developing) |
 | Codex | `codex/` | plugin `.mcp.json` → `sqlx mcp` | `codex plugin marketplace add <repo>` then `codex plugin add sqlx@ottermind` |
-| DeepSeek Harness | `dsh/` | native `defineTool` tools | `dsh plugin --profile <profile> add @ottermind/dsh-sqlx` |
-| Pi | `pi/` | native `registerTool` extension | `pi install npm:@ottermind/pi-sqlx` |
+| DeepSeek Harness | `dsh/` | native `defineTool` tools | `dsh plugin --profile <profile> add @ottermind/sqlx-dsh` |
+| Pi | `pi/` | native `registerTool` extension | `pi install npm:@ottermind/sqlx-pi` |
 
 ## Requirements
 
-The `sqlx` CLI (0.1.10 or later, which provides `sqlx mcp`) must be installed and on `PATH`.
-`SQLX_BIN` selects a specific executable; otherwise the first `sqlx` on `PATH` is used.
+The `sqlx` CLI (0.1.10 or later, which provides `sqlx mcp`) is required. The Claude Code and Codex
+plugins launch it through `bin/sqlx-mcp`, which uses `SQLX_BIN` when set and otherwise the first
+`sqlx` on `PATH`. The DeepSeek Harness and Pi packages look for `SQLX_BIN`, then `sqlx` on `PATH`,
+then the official user-level installation, and install the CLI themselves with
+`npx -y @ottermind/sqlx@latest` when none of them exists.
 
 ## Tools
 
