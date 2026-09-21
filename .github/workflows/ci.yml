@@ -186,10 +186,14 @@ jobs:
       - run: npm --prefix ui run build
       - run: cargo build --workspace --locked
       # OceanBase runs a whole cluster in one container, so the two take turns.
-      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 opengauss
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 600 opengauss
       - run: python3 tests/databases.py opengauss
       - if: failure()
-        run: docker logs sqlx-integration-opengauss-1 --tail 60 || true
+        run: |
+          docker logs sqlx-integration-opengauss-1 --tail 40 || true
+          docker inspect sqlx-integration-opengauss-1 --format '{{json .State.Health}}' || true
+          docker exec sqlx-integration-opengauss-1 bash -lc 'ls /usr/local/opengauss/bin | head' || true
+          docker exec sqlx-integration-opengauss-1 bash -lc "PGPASSWORD=SQLX@TestOnly12345 /usr/local/opengauss/bin/gsql -h 127.0.0.1 -p 5432 -U gaussdb -d postgres -c 'SELECT 1'" || true
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 oceanbase

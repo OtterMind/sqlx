@@ -148,11 +148,12 @@ def exercise(cli, bin_dir, kind):
             return result.returncode, value
 
         call("datasource", "add", "--name", "fixture", "--connection-stdin", payload=connection)
-        for attempt in range(40):
+        # A heavy engine can take minutes to accept the first connection.
+        for attempt in range(60):
             code, result = call("datasource", "test", "--id", "fixture", ok=False)
             if code == 0:
                 break
-            if attempt == 39:
+            if attempt == 59:
                 raise AssertionError(result)
             time.sleep(3)
         # A reachable endpoint can still refuse queries while the engine registers its worker.

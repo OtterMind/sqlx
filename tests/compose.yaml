@@ -120,10 +120,11 @@ services:
       GS_PASSWORD: SQLX@TestOnly12345
     ports: ["127.0.0.1:24320:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=SQLX@TestOnly12345 gsql -h 127.0.0.1 -U gaussdb -d postgres -p 5432 -c 'SELECT 1' >/dev/null 2>&1"]
-      interval: 5s
-      timeout: 5s
-      retries: 120
+      # gsql is not on PATH in this image, and openGauss needs the password in the environment.
+      test: ["CMD-SHELL", "PGPASSWORD=SQLX@TestOnly12345 /usr/local/opengauss/bin/gsql -h 127.0.0.1 -p 5432 -U gaussdb -d postgres -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
   oceanbase:
     image: oceanbase/oceanbase-ce:4.4.2-lts
     environment:
