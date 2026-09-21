@@ -14,12 +14,16 @@ pub const VERSION: u32 = 1;
 pub enum Database {
     Mysql,
     Mariadb,
+    Tidb,
     Postgresql,
     Cockroachdb,
+    Yugabytedb,
     Oracle,
     Sqlserver,
     Clickhouse,
     Trino,
+    Starrocks,
+    Doris,
 }
 
 impl std::str::FromStr for Database {
@@ -28,14 +32,18 @@ impl std::str::FromStr for Database {
         match s {
             "mysql" => Ok(Self::Mysql),
             "mariadb" => Ok(Self::Mariadb),
+            "tidb" => Ok(Self::Tidb),
             "postgresql" | "postgres" | "pgsql" => Ok(Self::Postgresql),
             "cockroachdb" | "cockroach" | "crdb" => Ok(Self::Cockroachdb),
+            "yugabytedb" | "yugabyte" | "yb" => Ok(Self::Yugabytedb),
             "oracle" => Ok(Self::Oracle),
             "sqlserver" | "mssql" => Ok(Self::Sqlserver),
             "clickhouse" => Ok(Self::Clickhouse),
             "trino" => Ok(Self::Trino),
+            "starrocks" => Ok(Self::Starrocks),
+            "doris" => Ok(Self::Doris),
             _ => Err(
-                "expected mysql, mariadb, postgresql, cockroachdb, oracle, sqlserver, clickhouse, or trino"
+                "expected mysql, mariadb, tidb, postgresql, cockroachdb, yugabytedb, oracle, sqlserver, clickhouse, trino, starrocks, or doris"
                     .into(),
             ),
         }

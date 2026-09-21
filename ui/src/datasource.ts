@@ -7,12 +7,16 @@ import { navigate } from "./navigation";
 const databaseNames: Record<DatabaseType, string> = {
   mysql: "MySQL",
   mariadb: "MariaDB",
+  tidb: "TiDB",
   postgresql: "PostgreSQL",
   cockroachdb: "CockroachDB",
+  yugabytedb: "YugabyteDB",
   oracle: "Oracle",
   sqlserver: "SQL Server",
   clickhouse: "ClickHouse",
   trino: "Trino",
+  starrocks: "StarRocks",
+  doris: "Apache Doris",
 };
 
 export function datasourceList(

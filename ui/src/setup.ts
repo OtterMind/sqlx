@@ -43,12 +43,16 @@ export async function setupPage(
     [
       ["mysql", "MySQL"],
       ["mariadb", "MariaDB"],
+      ["tidb", "TiDB"],
       ["postgresql", "PostgreSQL"],
       ["cockroachdb", "CockroachDB"],
+      ["yugabytedb", "YugabyteDB"],
       ["oracle", "Oracle"],
       ["sqlserver", "SQL Server"],
       ["clickhouse", "ClickHouse"],
       ["trino", "Trino"],
+      ["starrocks", "StarRocks"],
+      ["doris", "Apache Doris"],
     ],
     setup.connection.database_type,
   );

@@ -71,7 +71,8 @@ def write_manifests(target: Path) -> None:
                 "owner": {"name": "OtterMind"},
                 "description": (
                     "OtterMind plugins for Claude Code. Currently ships SQLX for MySQL, "
-                    "MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse and Trino."
+                    "MariaDB, TiDB, PostgreSQL, CockroachDB, YugabyteDB, Oracle, SQL Server, "
+                    "ClickHouse, Trino, StarRocks and Apache Doris."
                 ),
                 "plugins": [
                     {

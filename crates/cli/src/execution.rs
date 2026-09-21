@@ -22,8 +22,12 @@ pub struct PreparedExecution {
 /// Wire-compatible engines reuse the native workers.
 fn native_worker(kind: Database) -> Option<&'static str> {
     match kind {
-        Database::Mysql | Database::Mariadb => Some("mysql"),
-        Database::Postgresql | Database::Cockroachdb => Some("postgres"),
+        Database::Mysql
+        | Database::Mariadb
+        | Database::Tidb
+        | Database::Starrocks
+        | Database::Doris => Some("mysql"),
+        Database::Postgresql | Database::Cockroachdb | Database::Yugabytedb => Some("postgres"),
         _ => None,
     }
 }

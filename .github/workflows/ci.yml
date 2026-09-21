@@ -54,7 +54,8 @@ jobs:
       - run: npm --prefix ui ci
       - run: npm --prefix ui run build
       - run: cargo build --workspace --locked
-      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 180
+      # These tests use the MySQL and PostgreSQL fixtures only; the other engines have their own jobs.
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 180 mysql postgres
       - run: python3 tests/integration.py
       - run: python3 tests/ui_api.py
       - if: always()
@@ -86,7 +87,55 @@ jobs:
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 300 mariadb cockroachdb clickhouse trino
       - run: bash scripts/jdbc-fixture.sh clickhouse
       - run: bash scripts/jdbc-fixture.sh trino
-      - run: python3 tests/databases.py
+      - run: python3 tests/databases.py mariadb cockroachdb clickhouse trino
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
+  wire-databases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
+      - run: cargo build --workspace --locked
+      # TiDB and YugabyteDB reuse the MySQL and PostgreSQL workers, so no JDBC runtime is needed.
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 600 tidb yugabytedb
+      - run: python3 tests/databases.py tidb yugabytedb
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
+  olap-databases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
+      - run: cargo build --workspace --locked
+      # Each of these runs a frontend and a backend in one container, so they take turns.
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 starrocks
+      - run: python3 tests/databases.py starrocks
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 doris
+      - run: python3 tests/databases.py doris
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
   jdbc:
