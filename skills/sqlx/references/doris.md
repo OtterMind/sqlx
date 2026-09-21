@@ -12,9 +12,9 @@ Doris speaks the MySQL protocol, so `--type doris` uses the MySQL worker and a `
 
 ```sql
 SELECT version() AS frontend_version,
-       current_catalog,
-       DATABASE(),
-       current_user();
+       CURRENT_CATALOG() AS current_catalog,
+       DATABASE() AS current_database,
+       USER() AS current_user;
 SHOW BACKENDS;
 ```
 

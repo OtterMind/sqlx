@@ -84,7 +84,7 @@ ORDER BY indexname;
 **Purpose:** Check which nodes serve the cluster and their role, before judging where data can be placed. No placeholders need replacement.
 
 ```sql
-SELECT host, port, node_type, cloud, region, zone, rack
+SELECT host, port, num_connections, node_type, cloud, region, zone
 FROM yb_servers()
 ORDER BY host;
 ```

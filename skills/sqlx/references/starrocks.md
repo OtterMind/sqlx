@@ -12,9 +12,9 @@ StarRocks speaks the MySQL protocol, so `--type starrocks` uses the MySQL worker
 
 ```sql
 SELECT current_version() AS frontend_version,
-       current_catalog,
-       current_database(),
-       current_user();
+       CATALOG() AS current_catalog,
+       DATABASE() AS current_database,
+       USER() AS current_user;
 SHOW BACKENDS;
 ```
 
