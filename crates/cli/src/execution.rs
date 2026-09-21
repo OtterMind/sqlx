@@ -5,6 +5,7 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use sqlx_protocol::{Action, Connection, Database, Event, Request, VERSION};
 use std::{
+    fs,
     io::{self, Write},
     path::PathBuf,
     process::Stdio,
@@ -18,6 +19,39 @@ pub struct PreparedExecution {
     request: Request,
 }
 
+/// Wire-compatible engines reuse the native workers.
+fn native_worker(kind: Database) -> Option<&'static str> {
+    match kind {
+        Database::Mysql | Database::Mariadb => Some("mysql"),
+        Database::Postgresql | Database::Cockroachdb => Some("postgres"),
+        _ => None,
+    }
+}
+struct JdbcDriver {
+    component: &'static str,
+    jars: &'static [&'static str],
+}
+fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
+    Ok(match kind {
+        Database::Oracle => JdbcDriver {
+            component: "oracle",
+            jars: &["ojdbc.jar"],
+        },
+        Database::Sqlserver => JdbcDriver {
+            component: "sqlserver",
+            jars: &["mssql-jdbc.jar"],
+        },
+        Database::Clickhouse => JdbcDriver {
+            component: "clickhouse",
+            jars: &["clickhouse-jdbc.jar", "slf4j-api.jar", "slf4j-nop.jar"],
+        },
+        Database::Trino => JdbcDriver {
+            component: "trino",
+            jars: &["trino-jdbc.jar"],
+        },
+        other => bail!("{other:?} is not a JDBC database"),
+    })
+}
 pub fn prepare(
     root: PathBuf,
     manifest: String,
@@ -36,11 +70,7 @@ pub fn prepare(
         driver_class: String::new(),
     };
     let mut args = Vec::new();
-    let native = match kind {
-        Database::Mysql => Some("mysql"),
-        Database::Postgresql => Some("postgres"),
-        _ => None,
-    };
+    let native = native_worker(kind);
     let binary = if let Some(dir) = local {
         if let Some(name) = native {
             dir.join(format!(
@@ -48,19 +78,20 @@ pub fn prepare(
                 std::env::consts::EXE_SUFFIX
             ))
         } else {
+            let driver = jdbc_driver(kind)?;
             args.extend([
                 "-jar".to_owned(),
                 dir.join("sqlx-jdbc.jar").to_string_lossy().into_owned(),
             ]);
-            let jar = dir
-                .join(if kind == Database::Oracle {
-                    "ojdbc.jar"
-                } else {
-                    "mssql-jdbc.jar"
-                })
-                .canonicalize()
-                .context("development JDBC driver is missing")?;
-            request.driver_jars.push(jar.to_string_lossy().into_owned());
+            for jar in driver.jars {
+                let path = dir
+                    .join(jar)
+                    .canonicalize()
+                    .with_context(|| format!("development JDBC driver {jar} is missing"))?;
+                request
+                    .driver_jars
+                    .push(path.to_string_lossy().into_owned());
+            }
             PathBuf::from(std::env::var_os("SQLX_JAVA_BIN").unwrap_or_else(|| "java".into()))
         }
     } else {
@@ -70,24 +101,38 @@ pub fn prepare(
         if let Some(name) = native {
             manager.ensure(name, &platform, manager.asset(&m, name, &platform)?)?
         } else {
+            let driver = jdbc_driver(kind)?;
             let java = manager.ensure("java", &platform, manager.asset(&m, "java", &platform)?)?;
             let runner = manager.ensure("jdbc", "any", manager.asset(&m, "jdbc", "any")?)?;
-            let name = if kind == Database::Oracle {
-                "oracle"
-            } else {
-                "sqlserver"
-            };
-            let driver = manager.ensure(name, "any", manager.asset(&m, name, "any")?)?;
+            let entry = manager.ensure(
+                driver.component,
+                "any",
+                manager.asset(&m, driver.component, "any")?,
+            )?;
             args.extend(["-jar".into(), runner.to_string_lossy().into_owned()]);
-            request
-                .driver_jars
-                .push(driver.canonicalize()?.to_string_lossy().into_owned());
+            // A JDBC component can ship more than the driver itself, such as a logging API.
+            let directory = entry.parent().context("JDBC component has no directory")?;
+            let mut jars: Vec<PathBuf> = fs::read_dir(directory)?
+                .filter_map(|item| item.ok().map(|item| item.path()))
+                .filter(|path| path.extension().is_some_and(|extension| extension == "jar"))
+                .collect();
+            jars.sort();
+            if jars.is_empty() {
+                bail!("JDBC component {} contains no jar", driver.component);
+            }
+            for jar in jars {
+                request
+                    .driver_jars
+                    .push(jar.canonicalize()?.to_string_lossy().into_owned());
+            }
             java
         }
     };
     request.driver_class = match kind {
         Database::Oracle => "oracle.jdbc.OracleDriver",
         Database::Sqlserver => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+        Database::Clickhouse => "com.clickhouse.jdbc.ClickHouseDriver",
+        Database::Trino => "io.trino.jdbc.TrinoDriver",
         _ => "",
     }
     .into();

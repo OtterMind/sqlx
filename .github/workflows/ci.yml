@@ -59,6 +59,36 @@ jobs:
       - run: python3 tests/ui_api.py
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
+  additional-databases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: java/jdbc/pom.xml
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
+      - run: cargo build --workspace --locked
+      - run: mvn -B -f java/jdbc/pom.xml verify
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 300 mariadb cockroachdb clickhouse trino
+      - run: bash scripts/jdbc-fixture.sh clickhouse
+      - run: bash scripts/jdbc-fixture.sh trino
+      - run: python3 tests/databases.py
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
   jdbc:
     runs-on: ubuntu-24.04
     steps:

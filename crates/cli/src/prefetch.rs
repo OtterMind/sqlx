@@ -5,11 +5,15 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Instant};
 
 /// Components accepted on the command line, in the order `all` downloads them.
-const CHOICES: [&str; 7] = [
+const CHOICES: [&str; 11] = [
     "mysql",
+    "mariadb",
     "postgres",
+    "cockroachdb",
     "oracle",
     "sqlserver",
+    "clickhouse",
+    "trino",
     "ui",
     "skill",
     "all",
@@ -17,9 +21,12 @@ const CHOICES: [&str; 7] = [
 /// Resolve one requested component into the manifest entries it needs.
 fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
     let entries = match name {
+        // MariaDB and CockroachDB are wire-compatible and reuse the native workers.
         "mysql" | "postgres" => vec![(name.to_owned(), platform.to_owned())],
+        "mariadb" => vec![("mysql".to_owned(), platform.to_owned())],
+        "cockroachdb" => vec![("postgres".to_owned(), platform.to_owned())],
         // The JDBC databases need the shared runner and the pinned JRE as well.
-        "oracle" | "sqlserver" => vec![
+        "oracle" | "sqlserver" | "clickhouse" | "trino" => vec![
             ("java".to_owned(), platform.to_owned()),
             ("jdbc".to_owned(), "any".to_owned()),
             (name.to_owned(), "any".to_owned()),
@@ -31,7 +38,18 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
         "skill" => vec![("skill".to_owned(), "any".to_owned())],
         "all" => {
             let mut all = Vec::new();
-            for target in ["mysql", "postgres", "ui", "skill", "oracle", "sqlserver"] {
+            for target in [
+                "mysql",
+                "mariadb",
+                "postgres",
+                "cockroachdb",
+                "ui",
+                "skill",
+                "oracle",
+                "sqlserver",
+                "clickhouse",
+                "trino",
+            ] {
                 all.extend(expand(target, platform)?);
             }
             all

@@ -20,7 +20,10 @@ async fn main() {
             protocol_version: VERSION,
         })?;
         let req = Request::read()?;
-        if req.connection.database_type != Database::Postgresql {
+        if !matches!(
+            req.connection.database_type,
+            Database::Postgresql | Database::Cockroachdb
+        ) {
             bail!("wrong database worker");
         }
         match execute(&req, &mut out).await {

@@ -21,6 +21,7 @@ Installation puts the executable in `~/.local/bin` on macOS and Linux, or `%LOCA
 - For structured noninteractive input, `--connection-stdin` accepts the connection object documented in the repository README. Do not place credentials in command arguments or logs.
 - TLS defaults to certificate verification. Use `--tls disable` only when that connection is explicitly intended to be unencrypted, such as the isolated test fixtures.
 - Test with `sqlx datasource test --id <id>`. Required workers and Java dependencies download automatically from the compatible release manifest.
+- MariaDB, CockroachDB, ClickHouse and Trino are also supported: MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers, ClickHouse needs its HTTP port, and Trino needs `--database <catalog>[.<schema>]` with a user but no password unless TLS is enabled. See [additional databases](references/additional-databases.md).
 
 ## Execute
 
@@ -74,6 +75,7 @@ Load only the reference for the selected datasource:
 - [PostgreSQL](references/postgresql.md): databases, schemas, catalog inspection, DDL boundaries.
 - [Oracle](references/oracle.md): service context, owners, metadata, DDL.
 - [SQL Server](references/sqlserver.md): databases, schemas, catalog inspection, DDL boundaries.
+- [MariaDB, CockroachDB, ClickHouse and Trino](references/additional-databases.md): connection defaults, protocol compatibility and per-engine limits.
 
 Each operation includes its purpose, placeholder replacements, expected result, and links to the corresponding official documentation. When syntax, version behavior, permissions, or a returned field needs clarification, use available web tools to open that operation's official link and select the connected server's version. If web access is unavailable, use the bundled recipe and state that the current official page was not checked. Keep vendor client commands such as `GO` and `DELIMITER` separate from SQL accepted by this CLI.
 

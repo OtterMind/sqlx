@@ -13,9 +13,13 @@ pub const VERSION: u32 = 1;
 #[serde(rename_all = "lowercase")]
 pub enum Database {
     Mysql,
+    Mariadb,
     Postgresql,
+    Cockroachdb,
     Oracle,
     Sqlserver,
+    Clickhouse,
+    Trino,
 }
 
 impl std::str::FromStr for Database {
@@ -23,10 +27,17 @@ impl std::str::FromStr for Database {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "mysql" => Ok(Self::Mysql),
+            "mariadb" => Ok(Self::Mariadb),
             "postgresql" | "postgres" | "pgsql" => Ok(Self::Postgresql),
+            "cockroachdb" | "cockroach" | "crdb" => Ok(Self::Cockroachdb),
             "oracle" => Ok(Self::Oracle),
             "sqlserver" | "mssql" => Ok(Self::Sqlserver),
-            _ => Err("expected mysql, postgresql, oracle, or sqlserver".into()),
+            "clickhouse" => Ok(Self::Clickhouse),
+            "trino" => Ok(Self::Trino),
+            _ => Err(
+                "expected mysql, mariadb, postgresql, cockroachdb, oracle, sqlserver, clickhouse, or trino"
+                    .into(),
+            ),
         }
     }
 }
@@ -65,6 +76,16 @@ impl Connection {
         }
         if self.database_type == Database::Oracle && self.service.trim().is_empty() {
             bail!("Oracle requires --service");
+        }
+        if self.database_type == Database::Trino {
+            // Trino addresses a catalog and an optional schema: --database catalog[.schema].
+            let parts: Vec<&str> = self.database.split('.').collect();
+            if parts.is_empty()
+                || parts.len() > 2
+                || parts.iter().any(|part| part.trim().is_empty())
+            {
+                bail!("Trino requires --database <catalog> or <catalog>.<schema>");
+            }
         }
         if self.properties.keys().any(|k| {
             ["user", "username", "password", "passwd"].contains(&k.to_ascii_lowercase().as_str())

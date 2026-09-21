@@ -47,7 +47,7 @@
 | 功能 | 首版支持内容 | 命令或触发方式 |
 |---|---|---|
 | 初始化 | 创建用户目录、独立加密密钥、设备 ID、安装实例 ID；重复初始化保留有效状态 | `sqlx init`；首次需要本地状态时也可自动初始化 |
-| 添加数据源 | 保存 MySQL、PostgreSQL、Oracle、SQL Server 的连接配置 | `sqlx datasource add ...` |
+| 添加数据源 | 保存 MySQL、MariaDB、PostgreSQL、CockroachDB、Oracle、SQL Server、ClickHouse、Trino 的连接配置 | `sqlx datasource add ...` |
 | 列出数据源 | 返回当前用户的数据源列表，隐藏敏感信息 | `sqlx datasource list` |
 | 查看数据源 | 查看一个数据源的非敏感配置 | `sqlx datasource show --id <id>` |
 | 修改数据源 | 修改连接配置或凭据，保持数据源 ID 不变 | `sqlx datasource update --id <id> ...` |
@@ -261,7 +261,7 @@ device_id = HMAC-SHA-256(
 
 每个数据源具有稳定 ID，保存名称、数据库类型、后端标识、连接参数和加密凭据。修改名称不改变数据源 ID。
 
-连接参数至少覆盖主机、端口、账号、密码以及数据库专属目标：MySQL 和 PostgreSQL 的 database、Oracle 的 service name 或 SID、SQL Server 的 database。TLS 等必要连接参数按实际驱动契约提供，不假定四种数据库具有完全相同的参数集。
+连接参数至少覆盖主机、端口、账号、密码以及数据库专属目标：MySQL、MariaDB、PostgreSQL、CockroachDB、ClickHouse 的 database、Oracle 的 service name 或 SID、SQL Server 的 database、Trino 的 catalog（可带 schema）。MariaDB 与 CockroachDB 分别复用 MySQL 与 PostgreSQL 的 native worker。TLS 等必要连接参数按实际驱动契约提供，不假定四种数据库具有完全相同的参数集。
 
 连接测试建立临时连接，完成握手和必要的轻量验证后关闭；返回结构化成功或失败信息，不建立跨调用连接。
 

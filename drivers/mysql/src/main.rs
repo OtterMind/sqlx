@@ -14,7 +14,10 @@ async fn main() {
             protocol_version: VERSION,
         })?;
         let req = Request::read()?;
-        if req.connection.database_type != Database::Mysql {
+        if !matches!(
+            req.connection.database_type,
+            Database::Mysql | Database::Mariadb
+        ) {
             bail!("wrong database worker");
         }
         let result = execute(&req, &mut out).await;
