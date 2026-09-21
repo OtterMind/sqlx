@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse and Trino from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, PostgreSQL, CockroachDB, YugabyteDB, Oracle, SQL Server, ClickHouse, Trino, StarRocks and Apache Doris from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
 
 ## Quick start
 
@@ -146,8 +146,12 @@ sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELEC
 |---|---|---|---|
 | MySQL | `mysql` | native worker | port 3306 by default |
 | MariaDB | `mariadb` | reuses the MySQL worker | port 3306 by default |
+| TiDB | `tidb` | reuses the MySQL worker | port 4000 by default |
+| StarRocks | `starrocks` | reuses the MySQL worker | port 9030 by default; has no user database until one is created |
+| Apache Doris | `doris` | reuses the MySQL worker | port 9030 by default; has no user database until one is created |
 | PostgreSQL | `postgresql`, `postgres`, `pgsql` | native worker | port 5432 by default |
 | CockroachDB | `cockroachdb`, `cockroach`, `crdb` | reuses the PostgreSQL worker | |
+| YugabyteDB | `yugabytedb`, `yugabyte`, `yb` | reuses the PostgreSQL worker | port 5433 by default |
 | Oracle | `oracle` | JDBC worker | `--service <service-name>` is required |
 | SQL Server | `sqlserver`, `mssql` | JDBC worker | port 1433 by default |
 | ClickHouse | `clickhouse` | JDBC worker | connects to the HTTP port, 8123 by default |
@@ -208,7 +212,7 @@ Datasource responses omit usernames, passwords and vendor properties.
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `postgres`, `cockroachdb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `skill` or `all`) |
 | Execute and open a result page | `sqlx sql execute --datasource dev --sql "SELECT 1" --view` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
 | Serve MCP over stdio | `sqlx mcp` |
@@ -263,7 +267,7 @@ Downloads happen on first use and are cached afterwards. Each one prints `Downlo
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds the PostgreSQL, CockroachDB, MariaDB, Oracle, SQL Server, ClickHouse and Trino workers, the JDBC runtime and the JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, MariaDB, TiDB, StarRocks, Doris, Oracle, SQL Server, ClickHouse and Trino workers, the JDBC runtime and the JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.
@@ -351,9 +355,19 @@ python3 tests/ui_lifecycle.py
 python3 tests/ui_distribution.py
 python3 tests/ui_plugins.py
 python3 tests/updates.py
-docker compose -f tests/compose.yaml up -d --wait
+docker compose -f tests/compose.yaml up -d --wait mysql postgres
 python3 tests/integration.py
 python3 tests/ui_api.py
+docker compose -f tests/compose.yaml down -v
+# one group at a time; StarRocks and Doris each need a frontend and a backend
+docker compose -f tests/compose.yaml up -d --wait tidb yugabytedb
+python3 tests/databases.py tidb yugabytedb
+docker compose -f tests/compose.yaml down -v
+docker compose -f tests/compose.yaml up -d --wait starrocks
+python3 tests/databases.py starrocks
+docker compose -f tests/compose.yaml down -v
+docker compose -f tests/compose.yaml up -d --wait doris
+python3 tests/databases.py doris
 docker compose -f tests/compose.yaml down -v
 ```
 

@@ -3,12 +3,16 @@ export const UI_API_VERSION = 1;
 export type DatabaseType =
   | "mysql"
   | "mariadb"
+  | "tidb"
   | "postgresql"
   | "cockroachdb"
+  | "yugabytedb"
   | "oracle"
   | "sqlserver"
   | "clickhouse"
-  | "trino";
+  | "trino"
+  | "starrocks"
+  | "doris";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;

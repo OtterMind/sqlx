@@ -16,7 +16,11 @@ async fn main() {
         let req = Request::read()?;
         if !matches!(
             req.connection.database_type,
-            Database::Mysql | Database::Mariadb
+            Database::Mysql
+                | Database::Mariadb
+                | Database::Tidb
+                | Database::Starrocks
+                | Database::Doris
         ) {
             bail!("wrong database worker");
         }

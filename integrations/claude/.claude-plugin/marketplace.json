@@ -7,8 +7,8 @@
     {
       "name": "sqlx",
       "source": "./plugins/sqlx",
-      "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse and Trino, and open local result pages. Credentials stay in the SQLX data directory."
+      "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, MariaDB, TiDB, PostgreSQL, CockroachDB, YugabyteDB, Oracle, SQL Server, ClickHouse, Trino, StarRocks and Apache Doris, and open local result pages. Credentials stay in the SQLX data directory."
     }
   ],
-  "description": "OtterMind plugins for Claude Code. Currently ships SQLX for MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse and Trino."
+  "description": "OtterMind plugins for Claude Code. Currently ships SQLX for MySQL, MariaDB, TiDB, PostgreSQL, CockroachDB, YugabyteDB, Oracle, SQL Server, ClickHouse, Trino, StarRocks and Apache Doris."
 }

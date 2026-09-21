@@ -5,11 +5,15 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Instant};
 
 /// Components accepted on the command line, in the order `all` downloads them.
-pub(crate) const CHOICES: [&str; 11] = [
+pub(crate) const CHOICES: [&str; 15] = [
     "mysql",
     "mariadb",
+    "tidb",
+    "starrocks",
+    "doris",
     "postgres",
     "cockroachdb",
+    "yugabytedb",
     "oracle",
     "sqlserver",
     "clickhouse",
@@ -21,10 +25,13 @@ pub(crate) const CHOICES: [&str; 11] = [
 /// Resolve one requested component into the manifest entries it needs.
 fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
     let entries = match name {
-        // MariaDB and CockroachDB are wire-compatible and reuse the native workers.
+        // MariaDB, TiDB, StarRocks and Doris speak the MySQL protocol, and CockroachDB and
+        // YugabyteDB the PostgreSQL protocol, so all of them reuse a native worker.
         "mysql" | "postgres" => vec![(name.to_owned(), platform.to_owned())],
-        "mariadb" => vec![("mysql".to_owned(), platform.to_owned())],
-        "cockroachdb" => vec![("postgres".to_owned(), platform.to_owned())],
+        "mariadb" | "tidb" | "starrocks" | "doris" => {
+            vec![("mysql".to_owned(), platform.to_owned())]
+        }
+        "cockroachdb" | "yugabytedb" => vec![("postgres".to_owned(), platform.to_owned())],
         // The JDBC databases need the shared runner and the pinned JRE as well.
         "oracle" | "sqlserver" | "clickhouse" | "trino" => vec![
             ("java".to_owned(), platform.to_owned()),
@@ -41,8 +48,12 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
             for target in [
                 "mysql",
                 "mariadb",
+                "tidb",
+                "starrocks",
+                "doris",
                 "postgres",
                 "cockroachdb",
+                "yugabytedb",
                 "ui",
                 "skill",
                 "oracle",

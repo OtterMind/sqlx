@@ -1,35 +1,64 @@
 #!/usr/bin/env python3
-"""Exercise MariaDB, CockroachDB, ClickHouse and Trino through the CLI against the compose fixtures."""
+"""Exercise every additional database through the CLI against the compose fixtures."""
 import argparse, json, os, subprocess, tempfile, time
 from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "sqlx_test_only_password"
+QUALIFIED = "sqlx_test.sqlx_values"
 FIXTURES = {
     "mariadb": {"port": 23307, "database": "sqlx_test", "username": "root", "password": PASSWORD},
     "cockroachdb": {"port": 26257, "database": "defaultdb", "username": "root", "password": PASSWORD},
     "clickhouse": {"port": 28123, "database": "default", "username": "sqlx", "password": PASSWORD},
     # Trino only accepts a password over TLS, so the plain fixture authenticates by user alone.
     "trino": {"port": 28082, "database": "tpch.tiny", "username": "sqlx", "password": ""},
+    "tidb": {"port": 24000, "database": "test", "username": "root", "password": ""},
+    # StarRocks and Doris have no default user database, so they connect to a system schema and
+    # create their own; TiDB and YugabyteDB ship one the fixture can use directly.
+    "starrocks": {"port": 29030, "database": "information_schema", "username": "root", "password": ""},
+    "doris": {"port": 29031, "database": "information_schema", "username": "root", "password": ""},
+    "yugabytedb": {"port": 25433, "database": "yugabyte", "username": "yugabyte", "password": ""},
+}
+# Statements that must run before the table batch, for engines without a scratch database.
+PREPARE = {
+    "starrocks": "CREATE DATABASE IF NOT EXISTS sqlx_test",
+    "doris": "CREATE DATABASE IF NOT EXISTS sqlx_test",
+}
+# Engines that answer a query before a storage backend can serve DDL, with the check to wait for.
+BACKENDS = {
+    "starrocks": "SHOW BACKENDS",
+    "doris": "SHOW BACKENDS",
 }
 DROP_IF_EXISTS = {
     "mariadb": "DROP TABLE IF EXISTS sqlx_values",
     "cockroachdb": "DROP TABLE IF EXISTS sqlx_values",
     "clickhouse": "DROP TABLE IF EXISTS sqlx_values",
     "trino": "DROP TABLE IF EXISTS memory.default.sqlx_values",
+    "tidb": "DROP TABLE IF EXISTS sqlx_values",
+    "starrocks": f"DROP TABLE IF EXISTS {QUALIFIED}",
+    "doris": f"DROP TABLE IF EXISTS {QUALIFIED}",
+    "yugabytedb": "DROP TABLE IF EXISTS sqlx_values",
 }
 CREATE = {
     "mariadb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "cockroachdb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "clickhouse": "CREATE TABLE sqlx_values (id Int64, amount Decimal(18,4), label String) ENGINE = Memory",
     "trino": "CREATE TABLE memory.default.sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "tidb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "starrocks": f"CREATE TABLE {QUALIFIED} (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "doris": f"CREATE TABLE {QUALIFIED} (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "yugabytedb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
 }
 INSERT = {
     "mariadb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "cockroachdb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "clickhouse": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "trino": "INSERT INTO memory.default.sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "tidb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "starrocks": f"INSERT INTO {QUALIFIED} VALUES (9007199254740993, 123.4500, 'hello')",
+    "doris": f"INSERT INTO {QUALIFIED} VALUES (9007199254740993, 123.4500, 'hello')",
+    "yugabytedb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
 }
 SELECT = {
     "mariadb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
@@ -37,6 +66,10 @@ SELECT = {
     # The ClickHouse JDBC driver rejects result sets whose columns share a label.
     "clickhouse": "SELECT id, amount, label FROM sqlx_values",
     "trino": "SELECT id AS DUP, id AS DUP, amount, label FROM memory.default.sqlx_values",
+    "tidb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "starrocks": f"SELECT id AS DUP, id AS DUP, amount, label FROM {QUALIFIED}",
+    "doris": f"SELECT id AS DUP, id AS DUP, amount, label FROM {QUALIFIED}",
+    "yugabytedb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
 }
 
 
@@ -82,9 +115,22 @@ def exercise(cli, bin_dir, kind):
             if attempt == 39:
                 raise AssertionError(result)
             time.sleep(3)
+        # An OLAP frontend accepts queries before a storage backend can hold a table.
+        if kind in BACKENDS:
+            for attempt in range(60):
+                code, result = call("sql", "execute", "--datasource", "fixture", "--sql", BACKENDS[kind], ok=False)
+                if code == 0 and any(
+                    event["event"] == "row" and "true" in event["values"] for event in result["events"]
+                ):
+                    break
+                if attempt == 59:
+                    raise AssertionError(result)
+                time.sleep(5)
         # Writes are submitted once: replaying this batch could apply them twice.
-        call("sql", "execute", "--datasource", "fixture", "--sql", DROP_IF_EXISTS[kind], "--sql", CREATE[kind],
-             "--sql", INSERT[kind])
+        writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
+        if kind in PREPARE:
+            writes.insert(0, PREPARE[kind])
+        call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--sql", statement)])
         _, result = retry(kind, "the read-only query", lambda: call(
             "sql", "execute", "--datasource", "fixture", "--sql", SELECT[kind]))
         row = next(e for e in result["events"] if e["event"] == "row" and e["index"] == 0)

@@ -136,7 +136,7 @@ def check_skill_source():
     missing=[clause for clause in clauses if clause not in text]
     assert not missing,f'SKILL.md no longer states the approval contract: {missing}'
     assert "The Skill's approval gate therefore applies on the agent side" in reference,'references/local-ui.md no longer applies the approval gate to refresh'
-    databases=('mysql','mariadb','postgresql','cockroachdb','oracle','sqlserver','clickhouse','trino')
+    databases=('mysql','mariadb','tidb','postgresql','cockroachdb','yugabytedb','oracle','sqlserver','clickhouse','trino','starrocks','doris')
     for database in databases:
         assert (skill/'references'/f'{database}.md').is_file(),f'missing database reference references/{database}.md'
         assert f'(references/{database}.md)' in text,f'SKILL.md does not link references/{database}.md'
