@@ -72,11 +72,11 @@ When the network is slow, prefetch ahead of time with `sqlx prefetch <component>
 Load only the reference for the selected datasource:
 
 - [MySQL](references/mysql.md): databases, tables, DDL, indexes, limits.
+- [MariaDB](references/mariadb.md): MySQL-compatible SQL, authentication defaults, storage engines.
 - [PostgreSQL](references/postgresql.md): databases, schemas, catalog inspection, DDL boundaries.
+- [CockroachDB](references/cockroachdb.md): PostgreSQL wire compatibility, cluster metadata, ranges.
 - [Oracle](references/oracle.md): service context, owners, metadata, DDL.
 - [SQL Server](references/sqlserver.md): databases, schemas, catalog inspection, DDL boundaries.
-- [MariaDB](references/mariadb.md): MySQL-compatible SQL, authentication defaults, storage engines.
-- [CockroachDB](references/cockroachdb.md): PostgreSQL wire compatibility, cluster metadata, ranges.
 - [ClickHouse](references/clickhouse.md): HTTP protocol, MergeTree DDL, columnar inspection, label limits.
 - [Trino](references/trino.md): three-part names, catalogs and connectors, read-only vs writable sources.
 
