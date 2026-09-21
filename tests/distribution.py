@@ -151,5 +151,41 @@ def check_skill_source():
         assert not trailing,f'trailing whitespace in {name} at {trailing}'
     print(f'skill source: approval contract clauses, {len(databases)} per-database references and formatting passed')
 
+def check_release_contract():
+    """The release manifest gate must accept exactly the components the packagers emit.
+
+    Both packagers keep their component names in module constants that `scripts/manifest.py`
+    imports, so a new component cannot reach a release without the gate knowing about it.
+    """
+    sys.path.insert(0,str(ROOT/'scripts'))
+    import manifest,package
+    package_shared=manifest.package_shared
+    per_platform=set(package.PLATFORM_KINDS)|set(package_shared.PLATFORM_KINDS)
+    once=set(package_shared.SHARED_KINDS)|set(package_shared.VENDOR_KINDS)
+    assert {'clickhouse','trino'}<=once,'the JDBC worker engines must ship a vendor component'
+    with tempfile.TemporaryDirectory(prefix='sqlx-manifest-') as tmp:
+        directory=Path(tmp)
+        shared={f'{kind}:any':{'version':'0.1.10'} for kind in once}
+        (directory/'metadata-shared.json').write_text(json.dumps(shared))
+        for platform in manifest.PLATFORMS:
+            (directory/f'metadata-{platform}.json').write_text(
+                json.dumps({f'{kind}:{platform}':{'version':'0.1.10'} for kind in per_platform}))
+        def run(*extra):
+            sys.argv=['manifest.py',str(directory),*extra]
+            manifest.main()
+        run()
+        produced=json.loads((directory/'manifest.json').read_text())['components']
+        assert set(produced)==manifest.required_components(),'the manifest must carry every required component'
+        assert (directory/'SHA256SUMS').is_file() and (directory/'release-version.txt').read_text()=='0.1.10\n'
+        (directory/'metadata-extra.json').write_text(json.dumps({'duckdb:any':{'version':'0.1.10'}}))
+        try:
+            run()
+        except ValueError as error:
+            assert 'incomplete platform manifest' in str(error),error
+        else:
+            raise AssertionError('an undeclared component must fail the manifest gate')
+    print(f'release contract: {len(per_platform)} per-platform and {len(once)} shared components stay in sync with the packagers')
+
+
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();check_skill_source();exercise(args.cli)
+    parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();check_skill_source();check_release_contract();exercise(args.cli)
