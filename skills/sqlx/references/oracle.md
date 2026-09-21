@@ -6,7 +6,7 @@ Pass each SQL block as one `--sql` argument. These standalone statements omit a 
 
 Replace `OWNER_NAME`, `TABLE_NAME`, and other placeholders. Names created without quotes normally appear in uppercase; preserve the exact stored case of quoted object names instead of uppercasing everything.
 
-Official links target Oracle Database 19c. Open the page for the version of the connected server, and when a link has moved, search that vendor's site rather than a third-party copy.
+Official links target Oracle Database 19c. Match the connected server version when you look them up.
 
 ## 1. Identify the database, service, schema, and session user
 

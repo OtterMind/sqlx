@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `database_name`, `table_name`, `index_name`, and `column_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
-TiDB speaks the MySQL protocol, so `--type tidb` uses the MySQL worker and a `mysql` datasource reaches the same server. TiDB defaults to port 4000 and, in the container fixture, the `root` account has no password. Official links target the current TiDB documentation for the stable release. Open the page for the version of the connected server, and when a link has moved, search that vendor's site rather than a third-party copy.
+TiDB speaks the MySQL protocol, so `--type tidb` uses the MySQL worker and a `mysql` datasource reaches the same server. TiDB defaults to port 4000 and, in the container fixture, the `root` account has no password. Official links target the current TiDB documentation for the stable release. Match the connected server version when you look them up.
 
 ## 1. Identify the current connection
 

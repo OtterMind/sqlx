@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Trino addresses objects with three-part names: `catalog.schema.table`. Replace `catalog`, `schema`, and `table_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters.
 
-`--type trino` connects through the official JDBC driver. A username is required; a password is only sent when TLS is enabled. Set `--database <catalog>[.<schema>]` to choose the default catalog and schema for unqualified names. Official links target the current Trino documentation. Open the page for the version of the connected server, and when a link has moved, search that vendor's site rather than a third-party copy.
+`--type trino` connects through the official JDBC driver. A username is required; a password is only sent when TLS is enabled. Set `--database <catalog>[.<schema>]` to choose the default catalog and schema for unqualified names. Official links target the current Trino documentation. Match the connected server version when you look them up.
 
 ## 1. Identify the current connection
 
