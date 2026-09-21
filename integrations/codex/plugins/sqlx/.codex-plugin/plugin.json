@@ -1,6 +1,6 @@
 {
   "name": "sqlx",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, PostgreSQL, Oracle and SQL Server, and open local result pages. Credentials stay in the SQLX data directory.",
   "author": {
     "name": "OtterMind"

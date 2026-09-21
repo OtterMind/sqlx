@@ -1,7 +1,7 @@
 {
   "name": "sqlx",
-  "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, PostgreSQL, Oracle and SQL Server, and open local result pages. Credentials stay in the SQLX data directory. Requires the sqlx CLI (0.1.9+) on PATH.",
-  "version": "0.1.9",
+  "description": "List saved OtterMind SQLX datasources, test connections, execute SQL against MySQL, PostgreSQL, Oracle and SQL Server, and open local result pages. Credentials stay in the SQLX data directory. Requires the sqlx CLI (0.1.10+) on PATH.",
+  "version": "0.1.10",
   "author": {
     "name": "OtterMind"
   },
