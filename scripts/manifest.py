@@ -2,7 +2,7 @@
 import argparse,hashlib,json
 from pathlib import Path
 def main():
-    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.1.9');a=p.parse_args();components={}
+    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.1.10');a=p.parse_args();components={}
     for path in sorted(a.directory.glob('metadata-*.json')):
         fragment=json.loads(path.read_text())
         if set(components)&set(fragment):raise ValueError('duplicate manifest components')

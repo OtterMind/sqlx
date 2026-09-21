@@ -1,6 +1,6 @@
 # Local credential and result pages
 
-This Skill requires SQLX 0.1.9. Basic local-page commands were introduced in 0.1.1; saved-datasource browsing, data refresh and session renewal were introduced in 0.1.3. Reusable local links and stable restart addresses require 0.1.4. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+This Skill requires SQLX 0.1.10. Basic local-page commands were introduced in 0.1.1; saved-datasource browsing, data refresh and session renewal were introduced in 0.1.3. Reusable local links and stable restart addresses require 0.1.4. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
 
 ## Deliver the page link
 

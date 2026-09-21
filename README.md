@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, PostgreSQL, Oracle, and SQL Server from your terminal or agent. Save encrypted connections, run one or more SQL statements, and receive complete structured results.
+Connect to MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse, and Trino from your terminal or agent. Save encrypted connections, run one or more SQL statements, and receive complete structured results.
 
 Start with the CLI, or install the [Skill](skills/sqlx/SKILL.md) first and let your agent set up the CLI.
 
@@ -226,7 +226,7 @@ For an agent or script, provide credentials through environment variables or a c
 | Stop managing a Skill installation | `sqlx skill remove --path /path/to/skills/sqlx` (files are kept) |
 | Help/version | `sqlx --help`, `sqlx --version` |
 
-`--id` and `--datasource` accept a stable datasource UUID or its unique name. Supported database type names are `mysql`, `mariadb`, `postgresql` (`postgres`/`pgsql`), `cockroachdb` (`cockroach`/`crdb`), `oracle`, `sqlserver` (`mssql`), `clickhouse`, and `trino`. Oracle requires `--service`; Trino requires `--database <catalog>[.<schema>]`; ClickHouse connects to its HTTP port (8123 by default); MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers. See [additional databases](skills/sqlx/references/additional-databases.md). TLS defaults to certificate verification; `--tls disable` is available for explicitly unencrypted connections. The first authentication profile is username/password.
+`--id` and `--datasource` accept a stable datasource UUID or its unique name. Supported database type names are `mysql`, `mariadb`, `postgresql` (`postgres`/`pgsql`), `cockroachdb` (`cockroach`/`crdb`), `oracle`, `sqlserver` (`mssql`), `clickhouse`, and `trino`. Oracle requires `--service`; Trino requires `--database <catalog>[.<schema>]`; ClickHouse connects to its HTTP port (8123 by default); MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers. See the [per-database references](skills/sqlx/references/). TLS defaults to certificate verification; `--tls disable` is available for explicitly unencrypted connections. The first authentication profile is username/password.
 
 Credentials are read from named environment variables, hidden interactive prompts, or a connection JSON object on stdin. Do not put literal passwords in command arguments. For noninteractive creation or complete replacement, `--connection-stdin` accepts:
 
@@ -258,13 +258,13 @@ Rows are streamed without a CLI row limit or silent truncation. The agent's own 
 
 User data lives in `~/.sqlx/`. Use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key. Back up the key together with the encrypted data; losing the key prevents decryption. Device identity is generated locally, and this version does not upload device information.
 
-The main executable contains no database drivers. MySQL and PostgreSQL use separate native Rust workers; Oracle and SQL Server use a separate JDBC worker. The JDBC worker keeps vendor driver logging off, so a failed connection reports only the SQLX error; set `SQLX_JDBC_DEBUG=1` to also see the driver's own diagnostics on stderr. Downloaded resources are selected from the running CLI version's fixed GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
+The main executable contains no database drivers. MySQL, MariaDB, PostgreSQL and CockroachDB use separate native Rust workers; Oracle, SQL Server, ClickHouse and Trino use a separate JDBC worker. The JDBC worker keeps vendor driver logging off, so a failed connection reports only the SQLX error; set `SQLX_JDBC_DEBUG=1` to also see the driver's own diagnostics on stderr. Downloaded resources are selected from the running CLI version's fixed GitHub Release manifest and verified before use. `--manifest <https-url>` selects a particular manifest or local test server.
 
 Downloads happen on first use and are cached afterwards. Each one prints `Downloading …`, a progress line with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and re-running a failed command reuses every component that is already installed. To avoid waiting inside the first query or page, fetch components ahead of time:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds PostgreSQL, Oracle, SQL Server, the JDBC runtime and JRE
+sqlx prefetch all           # adds PostgreSQL, CockroachDB, MariaDB, Oracle, SQL Server, ClickHouse, Trino, the JDBC runtime and JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result, and official documentation link.
@@ -311,7 +311,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.9.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.10.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -320,7 +320,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.9.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.10.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```

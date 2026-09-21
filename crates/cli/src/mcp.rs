@@ -298,7 +298,10 @@ fn tools() -> Vec<Value> {
         json!({
             "name": "sqlx_prefetch",
             "title": "Prefetch SQLX components",
-            "description": "Download the components that would otherwise be fetched during a first query or page: mysql, postgres, oracle, sqlserver, ui, skill or all. Progress and speed are reported through the MCP client's server log.",
+            "description": format!(
+                "Download the components that would otherwise be fetched during a first query or page: {}. Progress and speed are reported through the MCP client's server log.",
+                prefetch::CHOICES.join(", ")
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -306,7 +309,7 @@ fn tools() -> Vec<Value> {
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "enum": ["mysql", "postgres", "oracle", "sqlserver", "ui", "skill", "all"],
+                            "enum": prefetch::CHOICES,
                         },
                         "minItems": 1,
                     }
@@ -357,6 +360,31 @@ mod tests {
                 .contains("authorized"),
             "write tools must state the authorization requirement"
         );
+    }
+    #[test]
+    fn prefetch_tool_lists_every_component() {
+        let tools = tools();
+        let prefetch_tool = tools
+            .iter()
+            .find(|tool| tool["name"] == "sqlx_prefetch")
+            .expect("sqlx_prefetch tool is declared");
+        let enum_values: Vec<&str> = prefetch_tool["inputSchema"]["properties"]["components"]
+            ["items"]["enum"]
+            .as_array()
+            .expect("components enum is an array")
+            .iter()
+            .map(|value| value.as_str().expect("component names are strings"))
+            .collect();
+        assert_eq!(enum_values, prefetch::CHOICES.to_vec());
+        let description = prefetch_tool["description"]
+            .as_str()
+            .expect("description is a string");
+        for component in prefetch::CHOICES {
+            assert!(
+                description.contains(component),
+                "description must mention {component}"
+            );
+        }
     }
     #[test]
     fn native_integrations_expose_every_mcp_tool() {

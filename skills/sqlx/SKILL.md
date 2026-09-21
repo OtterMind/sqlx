@@ -1,8 +1,8 @@
 ---
 name: sqlx
-description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, PostgreSQL, Oracle, and SQL Server connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
+description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, MariaDB, PostgreSQL, CockroachDB, Oracle, SQL Server, ClickHouse, and Trino connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
-  cli-compat: ">=0.1.9, <0.2.0"
+  cli-compat: ">=0.1.10, <0.2.0"
 ---
 
 # SQLX
@@ -21,7 +21,7 @@ Installation puts the executable in `~/.local/bin` on macOS and Linux, or `%LOCA
 - For structured noninteractive input, `--connection-stdin` accepts the connection object documented in the repository README. Do not place credentials in command arguments or logs.
 - TLS defaults to certificate verification. Use `--tls disable` only when that connection is explicitly intended to be unencrypted, such as the isolated test fixtures.
 - Test with `sqlx datasource test --id <id>`. Required workers and Java dependencies download automatically from the compatible release manifest.
-- MariaDB, CockroachDB, ClickHouse and Trino are also supported: MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers, ClickHouse needs its HTTP port, and Trino needs `--database <catalog>[.<schema>]` with a user but no password unless TLS is enabled. See [additional databases](references/additional-databases.md).
+- MariaDB, CockroachDB, ClickHouse and Trino are also supported: MariaDB and CockroachDB reuse the MySQL and PostgreSQL workers, ClickHouse needs its HTTP port, and Trino needs `--database <catalog>[.<schema>]` with a user but no password unless TLS is enabled. Load the matching recipe from [database recipes](#database-recipes).
 
 ## Execute
 
@@ -72,10 +72,13 @@ When the network is slow, prefetch ahead of time with `sqlx prefetch <component>
 Load only the reference for the selected datasource:
 
 - [MySQL](references/mysql.md): databases, tables, DDL, indexes, limits.
+- [MariaDB](references/mariadb.md): MySQL-compatible SQL, authentication defaults, storage engines.
 - [PostgreSQL](references/postgresql.md): databases, schemas, catalog inspection, DDL boundaries.
+- [CockroachDB](references/cockroachdb.md): PostgreSQL wire compatibility, cluster metadata, ranges.
 - [Oracle](references/oracle.md): service context, owners, metadata, DDL.
 - [SQL Server](references/sqlserver.md): databases, schemas, catalog inspection, DDL boundaries.
-- [MariaDB, CockroachDB, ClickHouse and Trino](references/additional-databases.md): connection defaults, protocol compatibility and per-engine limits.
+- [ClickHouse](references/clickhouse.md): HTTP protocol, MergeTree DDL, columnar inspection, label limits.
+- [Trino](references/trino.md): three-part names, catalogs and connectors, read-only vs writable sources.
 
 Each operation includes its purpose, placeholder replacements, expected result, and links to the corresponding official documentation. When syntax, version behavior, permissions, or a returned field needs clarification, use available web tools to open that operation's official link and select the connected server's version. If web access is unavailable, use the bundled recipe and state that the current official page was not checked. Keep vendor client commands such as `GO` and `DELIMITER` separate from SQL accepted by this CLI.
 

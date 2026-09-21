@@ -6,9 +6,13 @@ import { navigate } from "./navigation";
 
 const databaseNames: Record<DatabaseType, string> = {
   mysql: "MySQL",
+  mariadb: "MariaDB",
   postgresql: "PostgreSQL",
+  cockroachdb: "CockroachDB",
   oracle: "Oracle",
   sqlserver: "SQL Server",
+  clickhouse: "ClickHouse",
+  trino: "Trino",
 };
 
 export function datasourceList(

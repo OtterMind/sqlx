@@ -38,12 +38,18 @@ SELECT = {
     "clickhouse": "SELECT id, amount, label FROM sqlx_values",
     "trino": "SELECT id AS DUP, id AS DUP, amount, label FROM memory.default.sqlx_values",
 }
-DROP = {
-    "mariadb": "DROP TABLE sqlx_values",
-    "cockroachdb": "DROP TABLE sqlx_values",
-    "clickhouse": "DROP TABLE sqlx_values",
-    "trino": "DROP TABLE memory.default.sqlx_values",
-}
+
+
+def retry(kind, description, action, attempts=6, delay=5):
+    """Repeat an action that cannot write twice: a loaded fixture may fail a statement once."""
+    for attempt in range(attempts):
+        try:
+            return action()
+        except AssertionError as error:
+            if attempt == attempts - 1:
+                raise
+            print(f"{kind}: retrying {description} after: {str(error)[:160]}", flush=True)
+            time.sleep(delay)
 
 
 def exercise(cli, bin_dir, kind):
@@ -59,6 +65,7 @@ def exercise(cli, bin_dir, kind):
             if ok:
                 assert result.returncode == 0 and value["success"], value
             return result.returncode, value
+
         call("datasource", "add", "--name", "fixture", "--connection-stdin", payload=connection)
         for attempt in range(40):
             code, result = call("datasource", "test", "--id", "fixture", ok=False)
@@ -67,24 +74,39 @@ def exercise(cli, bin_dir, kind):
             if attempt == 39:
                 raise AssertionError(result)
             time.sleep(3)
-        args = ["sql", "execute", "--datasource", "fixture"]
-        for statement in (DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind], SELECT[kind]):
-            args += ["--sql", statement]
-        _, result = call(*args)
-        row = next(e for e in result["events"] if e["event"] == "row" and e["index"] == 3)
+        # A reachable endpoint can still refuse queries while the engine registers its worker.
+        for attempt in range(40):
+            code, result = call("sql", "execute", "--datasource", "fixture", "--sql", "SELECT 1 AS value", ok=False)
+            if code == 0:
+                break
+            if attempt == 39:
+                raise AssertionError(result)
+            time.sleep(3)
+        # Writes are submitted once: replaying this batch could apply them twice.
+        call("sql", "execute", "--datasource", "fixture", "--sql", DROP_IF_EXISTS[kind], "--sql", CREATE[kind],
+             "--sql", INSERT[kind])
+        _, result = retry(kind, "the read-only query", lambda: call(
+            "sql", "execute", "--datasource", "fixture", "--sql", SELECT[kind]))
+        row = next(e for e in result["events"] if e["event"] == "row" and e["index"] == 0)
         if kind == "clickhouse":
             assert row["values"] == ["9007199254740993", "123.4500", "hello"], row
         else:
             assert row["values"][:2] == ["9007199254740993", "9007199254740993"], row
             assert Decimal(row["values"][2]) == Decimal("123.4500"), row
             assert row["values"][3] == "hello", row
-            columns = next(e for e in result["events"] if e["event"] == "columns" and e["index"] == 3)
+            columns = next(e for e in result["events"] if e["event"] == "columns" and e["index"] == 0)
             assert columns["columns"][0]["name"] == columns["columns"][1]["name"], columns
             assert columns["columns"][0]["name"].lower() == "dup", columns
-        code, result = call("sql", "execute", "--datasource", "fixture", "--sql", "SELECT 1 AS value",
-                            "--sql", "SELECT * FROM sqlx_missing_table", "--sql", "SELECT 2 AS value", ok=False)
-        assert code != 0 and any(e["event"] == "skipped" and e["index"] == 2 for e in result["events"]), result
-        call("sql", "execute", "--datasource", "fixture", "--sql", DROP[kind])
+        def first_error_batch():
+            code, result = call("sql", "execute", "--datasource", "fixture", "--sql", "SELECT 1 AS value",
+                                "--sql", "SELECT * FROM sqlx_missing_table", "--sql", "SELECT 2 AS value", ok=False)
+            error = next((e for e in result["events"] if e["event"] == "error"), None)
+            assert error is not None and error["index"] == 1, result
+            assert code != 0 and any(e["event"] == "skipped" and e["index"] == 2 for e in result["events"]), result
+        retry(kind, "the first-error batch", first_error_batch)
+        # The cleanup is idempotent, so an interrupted drop can be repeated safely.
+        retry(kind, "the idempotent cleanup", lambda: call(
+            "sql", "execute", "--datasource", "fixture", "--sql", DROP_IF_EXISTS[kind]))
         print(f"{kind}: connection, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed")
 
 
