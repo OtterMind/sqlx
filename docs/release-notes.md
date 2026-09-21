@@ -9,6 +9,9 @@ SQLX 0.1.10 adds MariaDB, CockroachDB, ClickHouse and Trino.
 ## Improvements
 
 - A JDBC component can ship several jars. The ClickHouse component includes the driver's logging dependency, so it runs without extra setup.
+- The Skill carries one reference file per engine (`mysql`, `mariadb`, `postgresql`, `cockroachdb`, `oracle`, `sqlserver`, `clickhouse`, `trino`) instead of a shared file for the newer engines. Each lists its operations with the purpose, the SQL, the expected result and a link to the vendor's documentation.
+- The local connection page from `sqlx datasource add --ui` and the saved-datasource view list all eight types, so MariaDB, CockroachDB, ClickHouse and Trino connections can be created in the browser like the existing ones.
+- `sqlx mcp` advertises every component `sqlx prefetch` accepts.
 
 ## Upgrading
 
