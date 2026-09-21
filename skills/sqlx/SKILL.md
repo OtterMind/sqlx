@@ -7,7 +7,7 @@ metadata:
 
 # SQLX
 
-Operate databases through the OtterMind SQLX executable. Confirm it with `sqlx --version` and `sqlx --help` before the first call; when it is absent or belongs to another project, read `references/install-cli.md`. Load only the reference the current task needs.
+Operate databases through the OtterMind SQLX executable. Confirm it with `sqlx --version` and `sqlx --help` before the first call; when it is absent or belongs to another project, read `references/cli.md`. Load only the reference the current task needs.
 
 ```sh
 sqlx datasource list
@@ -18,8 +18,7 @@ sqlx sql execute --datasource <id> --sql "SELECT 1" --sql "SELECT 2"
 
 | Situation | Reference |
 |---|---|
-| The CLI is missing, belongs to another project, or needs a PATH repair | `references/install-cli.md` |
-| Checking or installing a CLI update, or inspecting a failed update | `references/updates.md` |
+| Installing or repairing the CLI, PATH, updates, or managing this Skill | `references/cli.md` |
 | Listing, creating, editing or testing a datasource, TLS choices, engine-specific fields | `references/connections.md` |
 | The user types the password in a browser, or pages and UI plugins are involved | `references/local-ui.md` |
 | Before any statement that is not clearly read-only, including `--view`, manual Refresh and automatic refresh | `references/approval.md` |

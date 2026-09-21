@@ -63,7 +63,7 @@ The table below lists the capabilities planned for the first release and the pro
 | Install the Skill into a given directory | Download and install the complete Skill package, keeping the referenced documentation directory | `sqlx skill install --path <target-skill-dir>` |
 | Update the Skill | Update a CLI-managed Skill to a compatible version | `sqlx skill update` |
 | Show Skill status | Show the installed version and the installation target | `sqlx skill status` |
-| The Skill guides a CLI install | The agent checks the CLI and, when it is missing, downloads, verifies, installs and initializes it as the Skill describes | `references/install-cli.md` in the Skill; nothing depends on a `sqlx` command before the install |
+| The Skill guides a CLI install | The agent checks the CLI and, when it is missing, downloads, verifies, installs and initializes it as the Skill describes | `references/cli.md` in the Skill; nothing depends on a `sqlx` command before the install |
 | Help | Show command and argument documentation | `sqlx --help`, `sqlx <subcommand> --help` |
 | Version | Show the main program version so users and the Skill can judge compatibility | `sqlx --version` |
 
@@ -411,13 +411,12 @@ The Skill entry point and all reference documentation are written in English; ea
 
 ### 9.1 Content organization
 
-`SKILL.md` is an index, not a manual. It only states how to confirm the CLI, gives the shortest command example, routes the agent to one reference file per task, and lists the rules that always apply: read the approval contract before a state-changing statement, let the user type credentials in the local page, return the page URL to the user, keep TLS verification on, and explain that a first command can wait for a download. The file is capped at 45 lines; `tests/distribution.py` asserts that cap, asserts that the index links every file under `references/`, and asserts that the approval and download contracts still live in their own files.
+`SKILL.md` is an index, not a manual. It only states how to confirm the CLI, gives the shortest command example, routes the agent to one reference file per task, and lists the rules that always apply: read the approval contract before a state-changing statement, let the user type credentials in the local page, return the page URL to the user, keep TLS verification on, and explain that a first command can wait for a download. The file is capped at 45 lines; `tests/distribution.py` asserts that cap, asserts that the index names every file under `references/`, and asserts that the approval and download contracts still live in their own files.
 
 ```text
 SKILL.md                       # index: routing table plus the always-applied rules
 references/
-├── install-cli.md             # installing or repairing the CLI, PATH, managing this Skill
-├── updates.md                 # checking, installing and troubleshooting CLI updates
+├── cli.md                     # installing or repairing the CLI, PATH, updates, managing this Skill
 ├── connections.md             # init, list/create/edit/test a datasource, TLS, engine-specific fields
 ├── local-ui.md                # browser password entry, result pages, refresh, UI plugins and lifecycle
 ├── approval.md                # the mandatory approval contract before state-changing SQL
@@ -464,7 +463,7 @@ Skill installation and update are resource management entry points; automatic up
 
 A user can obtain the Skill package from GitHub first, through an installation method the agent supports or by placing it in the agent's skill directory manually. Obtaining, discovering and reading the Skill does not require the CLI to exist beforehand.
 
-`references/install-cli.md` provides the complete guided steps, which the agent executes for the current operating system and architecture:
+`references/cli.md` provides the complete guided steps, which the agent executes for the current operating system and architecture:
 
 1. Check whether the `sqlx` command is available, read the version and compare it with the compatibility range the Skill declares; when it is installed and compatible, use it directly.
 2. Identify macOS, Windows or Linux and ARM64/x64, and choose the main program package from the first-release support matrix; identify the system environment that can actually run the program rather than guessing from the hardware CPU name alone.
