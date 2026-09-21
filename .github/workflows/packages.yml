@@ -144,8 +144,14 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           test "$GITHUB_REF_NAME" = v0.1.10
-          test "$(node -p 'require("./package.json").version')" = "${GITHUB_REF_NAME#v}"
-          npm publish --access public
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          test "$version" = "${GITHUB_REF_NAME#v}"
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "${name}@${version} is already published; nothing to do"
+          else
+            npm publish --access public
+          fi
       - name: Publish the harness integrations
         working-directory: integrations
         env:
@@ -153,6 +159,14 @@ jobs:
         run: |
           test "$GITHUB_REF_NAME" = v0.1.10
           for package in dsh pi; do
-            test "$(node -p "require('./${package}/package.json').version")" = "${GITHUB_REF_NAME#v}"
-            npm publish "${package}" --access public
+            name=$(node -p "require('./${package}/package.json').name")
+            version=$(node -p "require('./${package}/package.json').version")
+            test "$version" = "${GITHUB_REF_NAME#v}"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "${name}@${version} is already published; nothing to do"
+            else
+              # The folder needs the explicit ./ prefix: a bare name is a registry package spec,
+              # and npm would try to publish whatever that name resolves to on the registry.
+              npm publish "./${package}" --access public
+            fi
           done
