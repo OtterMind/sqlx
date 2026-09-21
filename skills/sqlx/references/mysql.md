@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `database_name`, `table_name`, `view_name`, and `procedure_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
-Official links target MySQL 8.4. Open the page for the version of the connected server, and when a page has moved, search that vendor's site rather than a third-party copy. With web tools, check the operation's link before relying on it; without them, use this recipe and state that the official page was not checked.
+Official links target MySQL 8.4. Open the page for the version of the connected server, and when a link has moved, search that vendor's site rather than a third-party copy.
 
 ## 1. Identify the current connection
 

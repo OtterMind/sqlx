@@ -28,7 +28,7 @@ sqlx sql execute --datasource <id> --sql "SELECT 1" --sql "SELECT 2"
 
 ## Database recipes
 
-Load the recipe of the connected datasource, and only that one. Each recipe links the vendor's own documentation for its operations; open the page for the connected version, and say so when a link could not be checked.
+Load the recipe of the connected datasource, and only that one. Each recipe links the vendor's own documentation for its operations; open the page for the connected version.
 
 MySQL `references/mysql.md` · MariaDB `references/mariadb.md` · TiDB `references/tidb.md` · PostgreSQL `references/postgresql.md` · CockroachDB `references/cockroachdb.md` · YugabyteDB `references/yugabytedb.md` · Oracle `references/oracle.md` · SQL Server `references/sqlserver.md` · ClickHouse `references/clickhouse.md` · Trino `references/trino.md` · StarRocks `references/starrocks.md` · Apache Doris `references/doris.md`
 

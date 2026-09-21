@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `database_name` and `table_name` with actual identifiers. Quote identifiers with backticks or double quotes.
 
-ClickHouse is reached through its official JDBC driver, `--type clickhouse`, which connects to the HTTP port (8123 by default) rather than the native 9000 port. Official links target the current ClickHouse documentation. Open the page for the version of the connected server, and when a page has moved, search that vendor's site rather than a third-party copy. With web tools, check the operation's link before relying on it; without them, use this recipe and state that the official page was not checked.
+ClickHouse is reached through its official JDBC driver, `--type clickhouse`, which connects to the HTTP port (8123 by default) rather than the native 9000 port. Official links target the current ClickHouse documentation. Open the page for the version of the connected server, and when a link has moved, search that vendor's site rather than a third-party copy.
 
 ## 1. Identify the current connection
 
