@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `database_name`, `schema_name`, `table_name`, and `index_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters; unquoted names are folded to lower case.
 
-YugabyteDB's YSQL API speaks the PostgreSQL protocol, so `--type yugabytedb` uses the PostgreSQL worker and a `postgresql` datasource reaches the same server. YSQL listens on port 5433 by default, and the default superuser is `yugabyte` with the database of the same name. Official links target the YugabyteDB documentation for the current preview release; check the connected server version first with `SELECT version()`.
+YugabyteDB's YSQL API speaks the PostgreSQL protocol, so `--type yugabytedb` uses the PostgreSQL worker and a `postgresql` datasource reaches the same server. YSQL listens on port 5433 by default, and the default superuser is `yugabyte` with the database of the same name. Official links target the YugabyteDB documentation for the current preview release; run `SELECT version()` first. Open the page for the version of the connected server, and when a page has moved, search that vendor's site rather than a third-party copy. With web tools, check the operation's link before relying on it; without them, use this recipe and state that the official page was not checked.
 
 ## 1. Identify the current connection
 

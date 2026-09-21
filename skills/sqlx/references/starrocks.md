@@ -4,7 +4,7 @@ Each SQL block below performs one operation. Submit it through `sqlx sql execute
 
 Replace `catalog_name`, `database_name`, `table_name`, and `label_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
-StarRocks speaks the MySQL protocol, so `--type starrocks` uses the MySQL worker and a `mysql` datasource reaches the same server. StarRocks serves the protocol on port 9030 by default and has no user database until one is created. Official links target the StarRocks 4.0 documentation; check the connected server version with `SELECT current_version()` and select the matching documentation version when needed.
+StarRocks speaks the MySQL protocol, so `--type starrocks` uses the MySQL worker and a `mysql` datasource reaches the same server. StarRocks serves the protocol on port 9030 by default and has no user database until one is created. Official links target the StarRocks 4.0 documentation. Open the page for the version of the connected server, and when a page has moved, search that vendor's site rather than a third-party copy. With web tools, check the operation's link before relying on it; without them, use this recipe and state that the official page was not checked.
 
 ## 1. Identify the current frontend and backend
 
