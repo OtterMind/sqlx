@@ -40,7 +40,7 @@ def get(url):
             if attempt==2:raise
             time.sleep(attempt+1)
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.11');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+    p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.12');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
     records={};base=f'https://github.com/OtterMind/sqlx/releases/download/v{a.version}/'
     def add(name,entries,entrypoint,version=None):
         # Every component must be declared above, so the release manifest gate stays in sync
@@ -51,8 +51,8 @@ def main():
         path=a.output/f'{name}-{component_version}.zip'
         with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED) as z:
             for filename,body in entries.items():z.writestr(filename,body)
-        # The Skill ships with the CLI, so it requires the same release; the default
-        # UI plugin is unchanged in 0.1.11 and keeps its 0.1.4 requirement.
+        # The Skill ships with the CLI, so it requires the same release; the default UI plugin
+        # keeps the CLI range of UI API version 1, which starts at 0.1.4.
         compat={'skill':f'>={a.version}, <0.2.0','ui-default':'>=0.1.4, <0.2.0'}.get(name,'>=0.1.1, <0.2.0')
         records[f'{name}:any']=dict(version=component_version,url=base+path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest(),archive='zip',entrypoint=entrypoint,cli_compat=compat,protocol_version=1)
     add('jdbc',{'sqlx-jdbc.jar':(ROOT/f'java/jdbc/target/sqlx-jdbc-{a.version}.jar').read_bytes(),'LICENSE':(ROOT/'LICENSE').read_bytes(),'NOTICE':(ROOT/'NOTICE').read_bytes()},'sqlx-jdbc.jar')

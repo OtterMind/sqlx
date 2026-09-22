@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis and MongoDB from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis and MongoDB from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more statements or commands, and the results come back complete and structured.
 
 ## Quick start
 
@@ -73,7 +73,7 @@ sqlx update install     # download, verify and replace the executable
 sqlx update status      # read local history without network access
 ```
 
-`sqlx update install --version <version>` installs an exact stable version. Updates do not stop running SQL or the UI service, do not modify saved connections, and do not update Skills or plugins automatically; use `sqlx skill update` for managed Skills, and UI plugins keep the version you selected.
+`sqlx update install --version <version>` installs an exact stable version. Updates do not stop running SQL or the UI service, do not modify saved connections, and do not update Skills or plugins automatically; use `sqlx skill update` for managed Skills, and an installed UI plugin keeps the version you selected (the default interface moves with the CLI release).
 
 Interactive use checks in the background at most once per day and only prints a notice on stderr. Piped and CI commands skip that check, and `SQLX_NO_UPDATE_CHECK=1` disables it. Source builds and package-manager-owned paths keep their own installation method.
 
@@ -263,7 +263,7 @@ sqlx ui plugin use <plugin-id>          # default restores the default interface
 sqlx ui plugin remove <plugin-id> --version <version>
 ```
 
-Installing does not activate a plugin; after selecting it, reload an open page or run `sqlx ui`. CLI updates keep the UI plugin version you selected, and switching versions needs `sqlx ui stop` first. Plugins run locally and can access entered credentials and displayed data, so install interfaces from authors you trust: a checksum proves the downloaded bytes are intact, not that the author is trustworthy.
+Installing does not activate a plugin; after selecting it, reload an open page or run `sqlx ui`. CLI updates keep the version of a plugin you installed and move the default interface to the version of the release, and switching versions needs `sqlx ui stop` first. Plugins run locally and can access entered credentials and displayed data, so install interfaces from authors you trust: a checksum proves the downloaded bytes are intact, not that the author is trustworthy.
 
 To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the [typed browser SDK](ui/sdk/client.ts) and the independent [terminal UI example](examples/terminal-ui/). Users need no Node.js runtime.
 
@@ -335,7 +335,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.11.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.12.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -344,7 +344,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.11.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.12.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```

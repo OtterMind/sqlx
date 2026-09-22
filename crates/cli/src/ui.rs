@@ -101,14 +101,15 @@ impl UiClient {
         crate::storage::restrict(&dir, true)?;
         let lock = open_private(&dir.join("startup.lock"))?;
         lock.lock_exclusive()?;
-        crate::plugins::ensure_default(&Components::new(root.clone(), manifest.clone()))?;
+        let manager = Components::new(root.clone(), manifest.clone());
+        // The interface of a release follows the CLI; a locally built interface is used as installed.
+        crate::plugins::ensure_default(&manager, local.is_none())?;
         if let Some(client) = Self::existing(&root)? {
             return Ok(client);
         }
         let binary = if let Some(ref local) = local {
             local.join(format!("sqlx-ui{}", std::env::consts::EXE_SUFFIX))
         } else {
-            let manager = Components::new(root.clone(), manifest.clone());
             let m = manager.manifest(false)?;
             let p = platform()?;
             manager.ensure(
