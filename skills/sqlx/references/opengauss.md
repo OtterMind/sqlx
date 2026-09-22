@@ -1,6 +1,6 @@
 # openGauss database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `schema_name`, `table_name`, and `column_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters; unquoted names are folded to lower case.
 
@@ -110,4 +110,4 @@ SELECT * FROM "schema_name"."table_name" LIMIT 100;
 
 **Official documentation:** [openGauss SQL reference](https://docs.opengauss.org/en/docs/latest/docs/SQLReference/SQLReference.html)
 
-openGauss keeps the PostgreSQL catalog and information schema, so unquoted identifiers fold to lower case and `SHOW CREATE TABLE` does not exist: read the definition from `pg_indexes`, `information_schema`, and the catalog instead. Each `--sql` argument is one statement, and a statement whose outcome is unknown must not be replayed automatically.
+openGauss keeps the PostgreSQL catalog and information schema, so unquoted identifiers fold to lower case and `SHOW CREATE TABLE` does not exist: read the definition from `pg_indexes`, `information_schema`, and the catalog instead. Each `--command` argument is one statement, and a statement whose outcome is unknown must not be replayed automatically.

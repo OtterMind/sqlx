@@ -1,6 +1,6 @@
 # TDengine database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, and `stable_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -93,4 +93,4 @@ SELECT name, `keep`, `precision` FROM information_schema.ins_databases WHERE nam
 
 **Official documentation:** [SHOW commands](https://docs.tdengine.com/3.4.0/tdengine-reference/sql-manual/show-commands/)
 
-TDengine stores time series rather than rows in a relational sense: the first column is always a `TIMESTAMP`, a table without a supertable accepts one series, writes are appended and never updated in place, and `DELETE` removes whole time ranges. Several words are reserved in TDengine, including `value`, `keep`, `precision` and `server_version`, so alias result columns with another name or quote them with backticks. Each `--sql` argument is one statement, and an asynchronous write whose outcome is unknown must be verified with a query before it is repeated.
+TDengine stores time series rather than rows in a relational sense: the first column is always a `TIMESTAMP`, a table without a supertable accepts one series, writes are appended and never updated in place, and `DELETE` removes whole time ranges. Several words are reserved in TDengine, including `value`, `keep`, `precision` and `server_version`, so alias result columns with another name or quote them with backticks. Each `--command` argument is one statement, and an asynchronous write whose outcome is unknown must be verified with a query before it is repeated.

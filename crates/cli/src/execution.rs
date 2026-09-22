@@ -30,6 +30,8 @@ fn native_worker(kind: Database) -> Option<&'static str> {
         | Database::Starrocks
         | Database::Doris => Some("mysql"),
         Database::Postgresql | Database::Cockroachdb | Database::Yugabytedb => Some("postgres"),
+        Database::Redis => Some("redis"),
+        Database::Mongodb => Some("mongodb"),
         _ => None,
     }
 }

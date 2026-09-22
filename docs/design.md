@@ -53,8 +53,8 @@ The table below lists the capabilities planned for the first release and the pro
 | Update a datasource | Change connection settings or credentials while keeping the datasource ID | `sqlx datasource update --id <id> ...` |
 | Remove a datasource | Delete the specified saved connection of the current user without deleting database contents | `sqlx datasource remove --id <id>` |
 | Test a connection | Open a temporary connection, return a structured check result and then close it | `sqlx datasource test --id <id>` |
-| Execute one SQL statement | Queries, DML, DDL and any other SQL the driver can execute | `sqlx sql execute --datasource <id> --sql "SQL"` |
-| Execute multiple SQL statements | Execute in order on the same connection, autocommit by default and stop on error, returning results statement by statement | `sqlx sql execute --datasource <id> --sql "SQL 1" --sql "SQL 2"` |
+| Execute one SQL statement | Queries, DML, DDL and any other SQL the driver can execute | `sqlx sql execute --datasource <id> --command "SQL"` |
+| Execute multiple SQL statements | Execute in order on the same connection, autocommit by default and stop on error, returning results statement by statement | `sqlx sql execute --datasource <id> --command "SQL 1" --command "SQL 2"` |
 | Inspect database structure | Use the Skill recipes to query database, schema, tables, columns, indexes, constraints and DDL | Always `sqlx sql execute`; no dedicated metadata command is added |
 | Complete structured output | Return all query data, column types, update counts and execution errors without truncating on its own | SQL execution commands output structured JSON by default, with no extra switch |
 | Credential encryption | The username and password are saved encrypted with the user-level datasource settings and hidden on read | Handled automatically by datasource commands; no separate encrypt/decrypt command |
@@ -283,12 +283,12 @@ The above are proposed command designs, not yet implemented. The interactive ent
 
 ### 6.1 Multi-statement input
 
-The proposal is to submit several SQL statements through the repeatable `--sql` argument, where every argument is one complete statement the driver can execute.
+The proposal is to submit several SQL statements through the repeatable `--command` argument, where every argument is one complete statement the driver can execute.
 
 ```bash
 sqlx sql execute --datasource dev \
-  --sql "SELECT 1" \
-  --sql "SELECT 2"
+  --command "SELECT 1" \
+  --command "SELECT 2"
 ```
 
 The internal request uses an array of statements and preserves the input order. The first release accepts no SQL file, batch file or `--file` argument and provides no complete database client script interpreter.

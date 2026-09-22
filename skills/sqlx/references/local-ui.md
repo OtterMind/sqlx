@@ -47,10 +47,10 @@ sqlx datasource update --id <datasource-id> --ui
 **Purpose:** Show the result of SQL already prepared by the agent.
 
 ```sh
-sqlx sql execute --datasource <datasource-id> --sql "SELECT id, name FROM users ORDER BY id" --view
+sqlx sql execute --datasource <datasource-id> --command "SELECT id, name FROM users ORDER BY id" --view
 ```
 
-**Replace:** The datasource ID and query. Repeat `--sql` for multiple complete statements in one connection, following normal CLI execution semantics.
+**Replace:** The datasource ID and query. Repeat `--command` for multiple complete statements in one connection, following normal CLI execution semantics.
 
 **Result:** A local URL and `result_id`. Execution starts in the UI service once; the page automatically shows progress and then results. It includes per-statement/result-set tabs, exact values, pagination, full cell inspection, and errors with skipped statements. Browser reload, pagination and reopening read the cached snapshot.
 

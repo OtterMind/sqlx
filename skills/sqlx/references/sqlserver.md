@@ -1,6 +1,6 @@
 # SQL Server database operations
 
-These operations run in the datasource's selected database. Submit each block as one `--sql` argument. `GO` is a client batch separator and must not be sent to JDBC.
+These operations run in the datasource's selected database. Submit each block as one `--command` argument. `GO` is a client batch separator and must not be sent to JDBC.
 
 `dbo` is an example schema. Replace it and placeholders such as `table_name` and `view_or_procedure`. Brackets delimit identifiers, with embedded `]` doubled. `N'...'` denotes a Unicode SQL string.
 

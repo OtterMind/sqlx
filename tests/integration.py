@@ -30,25 +30,25 @@ def exercise(cli, workers, kind, port, username):
         create = 'CREATE TEMPORARY TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))'
         statements=[create,"INSERT INTO sqlx_values VALUES (9007199254740993,123.4500,'你好 SQLX')",'SELECT id AS duplicate, id AS duplicate, amount, label FROM sqlx_values']
         args=['sql','execute','--datasource','fixture']
-        for sql in statements: args += ['--sql',sql]
+        for sql in statements: args += ['--command',sql]
         result=run(cli,data,workers,*args)
         row=next(e for e in result['events'] if e['event']=='row' and e['index']==2)
         assert row['values']==['9007199254740993','9007199254740993','123.4500','你好 SQLX'],row
         columns=next(e for e in result['events'] if e['event']=='columns' and e['index']==2)
         assert columns['columns'][0]['name']==columns['columns'][1]['name']=='duplicate'
-        result=run(cli,data,workers,'sql','execute','--datasource','fixture','--sql','SELECT 1','--sql','SELECT missing_column FROM missing_table','--sql','SELECT 2',success=False)
+        result=run(cli,data,workers,'sql','execute','--datasource','fixture','--command','SELECT 1','--command','SELECT missing_column FROM missing_table','--command','SELECT 2',success=False)
         assert any(e['event']=='skipped' and e['index']==2 for e in result['events']),result
         # The preceding temporary table must not survive into a new CLI call.
-        run(cli,data,workers,'sql','execute','--datasource','fixture','--sql','SELECT * FROM sqlx_values',success=False)
-        result=run(cli,data,workers,'sql','execute','--datasource','fixture','--sql',"SELECT repeat('x', 1100000)")
+        run(cli,data,workers,'sql','execute','--datasource','fixture','--command','SELECT * FROM sqlx_values',success=False)
+        result=run(cli,data,workers,'sql','execute','--datasource','fixture','--command',"SELECT repeat('x', 1100000)")
         assert len(next(e for e in result['events'] if e['event']=='row')['values'][0])==1100000
         if kind=='postgresql':
-            result=run(cli,data,workers,'sql','execute','--datasource','fixture','--sql','SELECT n FROM generate_series(1,100005) n')
+            result=run(cli,data,workers,'sql','execute','--datasource','fixture','--command','SELECT n FROM generate_series(1,100005) n')
             assert sum(e['event']=='row' for e in result['events'])==100005
         else:
             sqls=['DROP PROCEDURE IF EXISTS sqlx_multi','CREATE PROCEDURE sqlx_multi() BEGIN SELECT 1; SELECT 2; END','CALL sqlx_multi()','DROP PROCEDURE sqlx_multi']
             args=['sql','execute','--datasource','fixture']
-            for sql in sqls:args+=['--sql',sql]
+            for sql in sqls:args+=['--command',sql]
             result=run(cli,data,workers,*args)
             assert len([e for e in result['events'] if e['event']=='row' and e['index']==2])==2
         print(f'{kind}: connection, same-connection batch, precision, duplicate columns, first-error stop, session closure and complete output passed')

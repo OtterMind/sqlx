@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng and KingbaseES from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis and MongoDB from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
 
 ## Quick start
 
@@ -14,7 +14,7 @@ sqlx datasource add --name dev --type postgresql --host db.example.com --port 54
 sqlx datasource test --id dev
 
 # 3. Run SQL
-sqlx sql execute --datasource dev --sql "SELECT current_database()"
+sqlx sql execute --datasource dev --command "SELECT current_database()"
 ```
 
 Using an agent? See [Use with your agent](#use-with-your-agent): install one plugin or extension and the agent calls SQLX directly.
@@ -139,7 +139,7 @@ For another agent, pass its skill directory with `sqlx skill install --path <dir
 ```sh
 sqlx datasource add --name dev --type postgresql --host db.example.com --port 5432 --database app
 sqlx datasource test --id dev
-sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELECT 1"
+sqlx sql execute --datasource dev --command "SELECT current_database()" --command "SELECT 1"
 ```
 
 | Database | `--type` values | Execution | Required values and defaults |
@@ -162,6 +162,8 @@ sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELEC
 | TDengine | `tdengine`, `taos` | JDBC worker | connects through taosAdapter, 6041 by default |
 | Dameng | `dameng`, `dm` | JDBC worker | port 5236 by default; the account is also the default schema |
 | KingbaseES | `kingbase`, `kingbasees` | JDBC worker | port 54321 by default |
+| Redis | `redis` | native worker | port 6379 by default; each `--command` is one Redis command |
+| MongoDB | `mongodb`, `mongo` | native worker | port 27017 by default; each `--command` is one command document |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name.
 
@@ -217,9 +219,9 @@ Datasource responses omit usernames, passwords and vendor properties.
 | Change connection settings | `sqlx datasource update --id dev --host db.example.com` |
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
-| Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `skill` or `all`) |
-| Execute and open a result page | `sqlx sql execute --datasource dev --sql "SELECT 1" --view` |
+| Execute SQL | `sqlx sql execute --datasource dev --command "SELECT 1" --command "SELECT 2"` |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `skill` or `all`) |
+| Execute and open a result page | `sqlx sql execute --datasource dev --command "SELECT 1" --view` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
 | Serve MCP over stdio | `sqlx mcp` |
 | Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
@@ -230,7 +232,9 @@ Datasource responses omit usernames, passwords and vendor properties.
 
 ### Execution behavior
 
-Each invocation owns one database connection. Repeated `--sql` arguments execute in order, initially with autocommit, and stop at the first error; there is no implicit all-or-nothing transaction. Temporary tables and session variables do not survive another invocation. Do not submit client directives such as `GO`, `DELIMITER` or psql backslash commands.
+Each invocation owns one database connection. Repeated `--command` arguments execute in order, initially with autocommit, and stop at the first error; there is no implicit all-or-nothing transaction. Temporary tables and session variables do not survive another invocation. Do not submit client directives such as `GO`, `DELIMITER` or psql backslash commands.
+
+`--command` is the current flag and `--sql` is still accepted as an alias.
 
 SQL output is one JSON object containing `protocol_version`, `datasource_id`, an ordered `events` array and `success`. Events distinguish columns, positional row values, result boundaries, statement completion, errors, skipped statements and overall completion; duplicate labels remain distinct. Numbers are encoded as strings to preserve integer and decimal precision; binary data and PostgreSQL types without a text decoder use Base64 with type metadata, and an explicit SQL cast to text is available when a readable database representation is preferable.
 
@@ -241,7 +245,7 @@ Rows are streamed without a CLI row limit or silent truncation; the agent's own 
 Let the user inspect results in a browser and enter the password there.
 
 ```sh
-sqlx sql execute --datasource dev --sql "SELECT id, name FROM users ORDER BY id" --view
+sqlx sql execute --datasource dev --command "SELECT id, name FROM users ORDER BY id" --view
 ```
 
 SQLX executes once and returns a local URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Reloading, paging or reopening the page reads the cached result; **Refresh** on the page reruns the original SQL batch against the database, so any writes in that batch run again. A successful refresh replaces the displayed snapshot at the same URL; a failure keeps the previous result and does not roll back database changes. Results are retained locally for 24 hours.
@@ -267,13 +271,13 @@ To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the 
 
 User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
 
-The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng and KingbaseES use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
+The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, Redis and MongoDB run in their own native workers, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng and KingbaseES use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
 
 Downloads happen on first use and are cached afterwards. Each one prints `Downloading …` with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and rerunning a failed command reuses every component that is already installed. To avoid waiting inside the first query or page:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, TDengine, Dameng and KingbaseES components, the JDBC runtime and the JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, TDengine, Dameng, KingbaseES, Redis and MongoDB components, the JDBC runtime and the JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.

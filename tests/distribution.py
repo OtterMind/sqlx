@@ -150,7 +150,7 @@ def check_skill_source():
     linked={name for name in re.findall(r'`references/([a-z-]+\.md)`',text)}
     present={path.name for path in (skill/'references').glob('*.md')}
     assert present<=linked,f'SKILL.md does not name every reference: {sorted(present-linked)}'
-    databases=('mysql','mariadb','tidb','greatsql','oceanbase','postgresql','cockroachdb','yugabytedb','opengauss','oracle','sqlserver','clickhouse','trino','starrocks','doris','tdengine','dameng','kingbase')
+    databases=('mysql','mariadb','tidb','greatsql','oceanbase','postgresql','cockroachdb','yugabytedb','opengauss','oracle','sqlserver','clickhouse','trino','starrocks','doris','tdengine','dameng','kingbase','redis','mongodb')
     for database in databases:
         assert (skill/'references'/f'{database}.md').is_file(),f'missing database reference references/{database}.md'
         assert f'`references/{database}.md`' in text,f'SKILL.md does not name references/{database}.md'

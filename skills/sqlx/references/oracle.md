@@ -2,7 +2,7 @@
 
 The datasource's `service` selects the Oracle service. A schema generally corresponds to an object owner. Changing the current schema does not change the service or login account.
 
-Pass each SQL block as one `--sql` argument. These standalone statements omit a trailing semicolon for JDBC. Semicolons required inside and at the end of a PL/SQL block remain part of that block. Do not submit SQL*Plus's `/` directive.
+Pass each SQL block as one `--command` argument. These standalone statements omit a trailing semicolon for JDBC. Semicolons required inside and at the end of a PL/SQL block remain part of that block. Do not submit SQL*Plus's `/` directive.
 
 Replace `OWNER_NAME`, `TABLE_NAME`, and other placeholders. Names created without quotes normally appear in uppercase; preserve the exact stored case of quoted object names instead of uppercasing everything.
 

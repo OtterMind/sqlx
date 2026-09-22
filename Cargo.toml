@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/protocol", "crates/cli", "crates/ui", "drivers/mysql", "drivers/postgres"]
+members = ["crates/protocol", "crates/cli", "crates/ui", "drivers/mysql", "drivers/postgres", "drivers/redis", "drivers/mongodb"]
 
 [workspace.package]
 version = "0.1.11"

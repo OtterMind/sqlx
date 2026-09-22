@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Instant};
 
 /// Components accepted on the command line, in the order `all` downloads them.
-pub(crate) const CHOICES: [&str; 21] = [
+pub(crate) const CHOICES: [&str; 23] = [
     "mysql",
     "mariadb",
     "tidb",
@@ -24,6 +24,8 @@ pub(crate) const CHOICES: [&str; 21] = [
     "tdengine",
     "dameng",
     "kingbase",
+    "redis",
+    "mongodb",
     "ui",
     "skill",
     "all",
@@ -33,7 +35,7 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
     let entries = match name {
         // MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Doris speak the MySQL protocol, and
         // CockroachDB, YugabyteDB and openGauss the PostgreSQL protocol, so they reuse a worker.
-        "mysql" | "postgres" => vec![(name.to_owned(), platform.to_owned())],
+        "mysql" | "postgres" | "redis" | "mongodb" => vec![(name.to_owned(), platform.to_owned())],
         "mariadb" | "tidb" | "greatsql" | "oceanbase" | "starrocks" | "doris" => {
             vec![("mysql".to_owned(), platform.to_owned())]
         }
@@ -73,6 +75,8 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
                 "tdengine",
                 "dameng",
                 "kingbase",
+                "redis",
+                "mongodb",
             ] {
                 all.extend(expand(target, platform)?);
             }

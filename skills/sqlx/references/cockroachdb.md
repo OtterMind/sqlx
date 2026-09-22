@@ -1,6 +1,6 @@
 # CockroachDB database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, and `view_name` with actual identifiers. Quote identifiers with double quotes and double embedded quotes; unquoted identifiers fold to lowercase, as in PostgreSQL.
 

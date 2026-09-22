@@ -43,12 +43,12 @@ enum Commands {
     Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
-        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, ui, skill or all.
+        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, redis, mongodb, ui, skill or all.
         #[arg(
             value_name = "COMPONENT",
             required = true,
             num_args = 1..,
-            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "ui", "skill", "all"]
+            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "redis", "mongodb", "ui", "skill", "all"]
         )]
         components: Vec<String>,
     },
@@ -197,7 +197,8 @@ enum SqlCommand {
     Execute {
         #[arg(long)]
         datasource: String,
-        #[arg(long = "sql", required = true, allow_hyphen_values = true)]
+        /// One complete statement or engine-native command; repeat for a batch.
+        #[arg(long = "command", alias = "sql", required = true, allow_hyphen_values = true)]
         statements: Vec<String>,
         /// Execute once in the local UI service and open a paginated result page.
         #[arg(long)]
@@ -624,6 +625,8 @@ impl ConnectionArgs {
                     Database::Tdengine => 6041,
                     Database::Dameng => 5236,
                     Database::Kingbase => 54321,
+                    Database::Redis => 6379,
+                    Database::Mongodb => 27017,
                 },
                 database: String::new(),
                 service: String::new(),

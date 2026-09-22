@@ -1,6 +1,6 @@
 # Trino database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Trino addresses objects with three-part names: `catalog.schema.table`. Replace `catalog`, `schema`, and `table_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters.
 

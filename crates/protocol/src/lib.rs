@@ -30,6 +30,8 @@ pub enum Database {
     Tdengine,
     Dameng,
     Kingbase,
+    Redis,
+    Mongodb,
 }
 
 impl std::str::FromStr for Database {
@@ -54,8 +56,10 @@ impl std::str::FromStr for Database {
             "tdengine" | "taos" => Ok(Self::Tdengine),
             "dameng" | "dm" => Ok(Self::Dameng),
             "kingbase" | "kingbasees" => Ok(Self::Kingbase),
+            "redis" => Ok(Self::Redis),
+            "mongodb" | "mongo" => Ok(Self::Mongodb),
             _ => Err(
-                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, or kingbase"
+                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, kingbase, redis, or mongodb"
                     .into(),
             ),
         }

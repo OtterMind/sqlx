@@ -1,6 +1,6 @@
 # Dameng database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `SCHEMA_NAME`, `TABLE_NAME`, and `INDEX_NAME` with actual identifiers. Unquoted names are folded to upper case; double-quote an identifier when its stored case matters. Single-quoted SQL strings have separate escaping rules.
 
@@ -103,4 +103,4 @@ SELECT * FROM "SCHEMA_NAME"."TABLE_NAME" LIMIT 100;
 
 **Official documentation:** [Dameng product manual](https://eco.dameng.com/document/dm/en/)
 
-Dameng keeps an Oracle-style catalog, so `all_tables`, `all_tab_columns` and `all_indexes` answer most metadata questions and `DBMS_METADATA` produces DDL. The connection has no separate database name in the URL, so the account decides the default schema. Each `--sql` argument is one statement, identifiers fold to upper case unless quoted, and an uncertain write must not be replayed automatically.
+Dameng keeps an Oracle-style catalog, so `all_tables`, `all_tab_columns` and `all_indexes` answer most metadata questions and `DBMS_METADATA` produces DDL. The connection has no separate database name in the URL, so the account decides the default schema. Each `--command` argument is one statement, identifiers fold to upper case unless quoted, and an uncertain write must not be replayed automatically.

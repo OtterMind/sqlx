@@ -1,6 +1,6 @@
 # YugabyteDB database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `schema_name`, `table_name`, and `index_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters; unquoted names are folded to lower case.
 
@@ -120,4 +120,4 @@ ORDER BY query_start;
 
 **Official documentation:** [SHOW statements](https://docs.yugabyte.com/preview/api/ysql/the-sql-language/statements/cmd_show/)
 
-YugabyteDB runs PostgreSQL-compatible SQL on a distributed, replicated store. Unquoted identifiers are folded to lower case, so alias a column with double quotes when its exact spelling matters. Every `--sql` argument is one statement; `CREATE DATABASE` cannot run inside a transaction block, and a statement whose outcome is unknown must not be replayed automatically.
+YugabyteDB runs PostgreSQL-compatible SQL on a distributed, replicated store. Unquoted identifiers are folded to lower case, so alias a column with double quotes when its exact spelling matters. Every `--command` argument is one statement; `CREATE DATABASE` cannot run inside a transaction block, and a statement whose outcome is unknown must not be replayed automatically.

@@ -122,7 +122,7 @@ export default function (pi: ExtensionAPI) {
 		}),
 		async execute(_toolCallId, params) {
 			const args = ["sql", "execute", "--datasource", params.datasource];
-			for (const statement of params.statements) args.push("--sql", statement);
+			for (const statement of params.statements) args.push("--command", statement);
 			return result(await sqlx(args));
 		},
 	});
@@ -140,7 +140,7 @@ export default function (pi: ExtensionAPI) {
 		}),
 		async execute(_toolCallId, params) {
 			const args = ["sql", "execute", "--datasource", params.datasource, "--view", "--no-open"];
-			for (const statement of params.statements) args.push("--sql", statement);
+			for (const statement of params.statements) args.push("--command", statement);
 			return result(await sqlx(args));
 		},
 	});

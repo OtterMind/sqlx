@@ -1,6 +1,6 @@
 # TiDB database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, `index_name`, and `column_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -131,4 +131,4 @@ SHOW VARIABLES LIKE 'tidb_mem_quota_query';
 
 **Official documentation:** [SHOW VARIABLES](https://docs.pingcap.com/tidb/stable/sql-statement-show-variables/)
 
-TiDB accepts MySQL syntax with documented differences: some MySQL statements, functions, and features are unsupported or behave differently, and the differences are listed per release. `information_schema` is available for catalog queries. Each `--sql` argument is one statement, TiDB defaults to optimistic transactions, and an explicit `BEGIN` combined with an error outcome must not be replayed automatically.
+TiDB accepts MySQL syntax with documented differences: some MySQL statements, functions, and features are unsupported or behave differently, and the differences are listed per release. `information_schema` is available for catalog queries. Each `--command` argument is one statement, TiDB defaults to optimistic transactions, and an explicit `BEGIN` combined with an error outcome must not be replayed automatically.

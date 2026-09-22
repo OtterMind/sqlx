@@ -170,7 +170,7 @@ def exercise(cli, bin_dir, kind):
         # A reachable endpoint can still refuse queries while the engine registers its worker.
         for attempt in range(40):
             code, result = call("sql", "execute", "--datasource", "fixture",
-                                "--sql", f"SELECT 1 AS {alias(kind)}", ok=False)
+                                "--command", f"SELECT 1 AS {alias(kind)}", ok=False)
             if code == 0:
                 break
             if attempt == 39:
@@ -178,18 +178,18 @@ def exercise(cli, bin_dir, kind):
             time.sleep(3)
         # Engines without a scratch database need theirs before the readiness probe below.
         if kind in PREPARE:
-            call("sql", "execute", "--datasource", "fixture", "--sql", PREPARE[kind])
+            call("sql", "execute", "--datasource", "fixture", "--command", PREPARE[kind])
         # An OLAP frontend accepts queries, reports a live backend and even creates the table before
         # that backend can allocate its tablets, so the probe writes a row. It starts by dropping the
         # probe table, which keeps every retry repeatable, and the write batch below still runs once.
         if kind in BACKENDS:
             for attempt in range(60):
                 for statement in BACKENDS[kind]:
-                    code, result = call("sql", "execute", "--datasource", "fixture", "--sql", statement, ok=False)
+                    code, result = call("sql", "execute", "--datasource", "fixture", "--command", statement, ok=False)
                     if code != 0:
                         break
                 if code == 0:
-                    call("sql", "execute", "--datasource", "fixture", "--sql", BACKEND_CLEANUP[kind], ok=False)
+                    call("sql", "execute", "--datasource", "fixture", "--command", BACKEND_CLEANUP[kind], ok=False)
                     break
                 if attempt == 0:
                     print(f"{kind}: waiting for a storage backend that can hold a table", flush=True)
@@ -198,9 +198,9 @@ def exercise(cli, bin_dir, kind):
                 time.sleep(5)
         # Writes are submitted once: replaying this batch could apply them twice.
         writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
-        call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--sql", statement)])
+        call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--command", statement)])
         _, result = retry(kind, "the read-only query", lambda: call(
-            "sql", "execute", "--datasource", "fixture", "--sql", SELECT[kind]))
+            "sql", "execute", "--datasource", "fixture", "--command", SELECT[kind]))
         row = next(e for e in result["events"] if e["event"] == "row" and e["index"] == 0)
         if kind == "clickhouse":
             assert row["values"] == ["9007199254740993", "123.4500", "hello"], row
@@ -213,16 +213,16 @@ def exercise(cli, bin_dir, kind):
             assert columns["columns"][0]["name"].lower() == "dup", columns
         def first_error_batch():
             code, result = call("sql", "execute", "--datasource", "fixture",
-                                "--sql", f"SELECT 1 AS {alias(kind)}",
-                                "--sql", "SELECT * FROM sqlx_missing_table",
-                                "--sql", f"SELECT 2 AS {alias(kind)}", ok=False)
+                                "--command", f"SELECT 1 AS {alias(kind)}",
+                                "--command", "SELECT * FROM sqlx_missing_table",
+                                "--command", f"SELECT 2 AS {alias(kind)}", ok=False)
             error = next((e for e in result["events"] if e["event"] == "error"), None)
             assert error is not None and error["index"] == 1, result
             assert code != 0 and any(e["event"] == "skipped" and e["index"] == 2 for e in result["events"]), result
         retry(kind, "the first-error batch", first_error_batch)
         # The cleanup is idempotent, so an interrupted drop can be repeated safely.
         retry(kind, "the idempotent cleanup", lambda: call(
-            "sql", "execute", "--datasource", "fixture", "--sql", DROP_IF_EXISTS[kind]))
+            "sql", "execute", "--datasource", "fixture", "--command", DROP_IF_EXISTS[kind]))
         print(f"{kind}: connection, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed")
 
 

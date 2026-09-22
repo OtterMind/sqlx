@@ -1,6 +1,6 @@
 # StarRocks database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `catalog_name`, `database_name`, `table_name`, and `label_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -126,4 +126,4 @@ SELECT * FROM `database_name`.`table_name` LIMIT 100;
 
 **Official documentation:** [SELECT](https://docs.starrocks.io/docs/4.0/sql-reference/sql-statements/table_bucket_part_index/SELECT/)
 
-StarRocks is an OLAP database: `CREATE TABLE` requires a key model, a distribution strategy, and enough live backends for the replication number, and the default catalog decides which external systems a query can reach. A CREATE TABLE that reports "Table replication num should be less than or equal to the number of available backends" means no backend is registered yet, not that the statement is wrong. DDL and DML through the MySQL protocol are atomic per statement, and each `--sql` argument is one statement.
+StarRocks is an OLAP database: `CREATE TABLE` requires a key model, a distribution strategy, and enough live backends for the replication number, and the default catalog decides which external systems a query can reach. A CREATE TABLE that reports "Table replication num should be less than or equal to the number of available backends" means no backend is registered yet, not that the statement is wrong. DDL and DML through the MySQL protocol are atomic per statement, and each `--command` argument is one statement.

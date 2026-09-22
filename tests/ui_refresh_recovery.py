@@ -111,7 +111,7 @@ def main():
                                                password='sqlx_test_only_password', tls='disable')))['id']
             cli('ui', 'plugin', 'install', '--path', str(ROOT/'ui/dist'))
             cli('ui', 'plugin', 'use', 'default')
-            result = cli('sql', 'execute', '--datasource', source, '--sql',
+            result = cli('sql', 'execute', '--datasource', source, '--command',
                          "SELECT CAST(9007199254740993 AS UNSIGNED) AS exact_value, 'retained' AS label", '--view')
             url = result['url']
             metadata = directory/'data/results'/result['result_id']/'metadata.json'

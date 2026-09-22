@@ -3,10 +3,12 @@
 ## Execution model
 
 ```text
-sqlx sql execute --datasource <id> --sql "SELECT 1" --sql "SELECT 2"
+sqlx sql execute --datasource <id> --command "SELECT 1" --command "SELECT 2"
 ```
 
-Each `--sql` is a complete driver statement. A call uses one connection and executes statements in order. The initial mode is autocommit, and the first error stops the remaining statements. A batch is not automatically atomic. There is no SQL-file input, client-script interpreter, or cross-call session. Put operations requiring a temporary table or session variable in the same call. Do not submit `GO`, `DELIMITER`, or psql backslash commands as SQL.
+Each `--command` is a complete driver statement. A call uses one connection and executes statements in order. The initial mode is autocommit, and the first error stops the remaining statements. A batch is not automatically atomic. There is no SQL-file input, client-script interpreter, or cross-call session. Put operations requiring a temporary table or session variable in the same call. Do not submit `GO`, `DELIMITER`, or psql backslash commands as SQL.
+
+`--command` is the current flag and `--sql` is still accepted as an alias.
 
 Before running a statement that changes state, read [approval](approval.md).
 

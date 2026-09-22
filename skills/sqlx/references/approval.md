@@ -2,7 +2,7 @@
 
 Read this before running anything that is not clearly read-only. SQLX submits arbitrary SQL accepted by the selected database and account, provides no read-only safety gate, and the first keyword is not a reliable classifier. This is an Agent workflow rule, not a database permission mechanism; a user or program invoking the CLI directly bypasses it.
 
-Before starting a call, inspect every `--sql` statement in order and classify the whole batch as read-only, state-changing, or unknown.
+Before starting a call, inspect every `--command` statement in order and classify the whole batch as read-only, state-changing, or unknown.
 
 - Treat ordinary `SELECT`, `SHOW`, `DESCRIBE`/`DESC`, and `EXPLAIN` as read-only only when the complete statement has no write-capable function, data-changing CTE, `SELECT INTO`, locking clause, or other vendor-specific side effect.
 - Treat `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `REPLACE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `RENAME`, `GRANT`, `REVOKE`, transaction-control statements, session-changing statements, administrative commands, and maintenance commands as state-changing. Include statements that can change schema, permissions, session state, metadata, statistics, or other database state even when they do not change table rows.
