@@ -79,7 +79,10 @@ Interactive use checks in the background at most once per day and only prints a 
 
 ## Use with your agent
 
-All four are ready as soon as they are installed: the plugin or extension installs the `sqlx` CLI itself on first use, so you never install it separately.
+All four are ready as soon as they are installed: the plugin or extension installs the `sqlx` CLI
+itself when it is missing, so you never install it separately. Codex and Claude additionally
+require the CLI to meet the plugin's minimum version and refuse to start an older incompatible MCP
+server silently.
 
 ### Codex
 

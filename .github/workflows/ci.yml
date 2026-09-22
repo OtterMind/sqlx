@@ -33,6 +33,7 @@ jobs:
       - run: cargo build --workspace --locked
       - run: python tests/distribution.py
       - run: python tests/installers.py
+      - run: python tests/integrations.py
       - run: python tests/ui_lifecycle.py
       - run: python tests/ui_distribution.py
       - run: python tests/ui_plugins.py
