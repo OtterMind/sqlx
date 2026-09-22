@@ -19,6 +19,8 @@ sqlx setting set results-retention-hours 0     # 0 keeps them until the size lim
 
 Retention defaults to 24 hours, and the stored results of this command line stay under 1 GiB in total; expired and oldest results are removed before the next command runs. `sqlx results list` shows what is stored, including each result's status and row count.
 
+An agent without file access must not depend on that directory: pass `--full` to `sqlx sql execute` (or set `result-mode` to `full` for the machine, or `"full": true` on the MCP tool) and every row comes back in the response, with nothing stored. Only do that when the caller really cannot read the file, because the answer then has no size limit of its own.
+
 ## Reading more rows
 
 ```sh
@@ -37,6 +39,7 @@ sqlx setting get preview-rows
 sqlx setting set preview-rows 20               # rows printed before a result is stored
 sqlx setting set results-dir ~/sqlx-results    # absolute path; `~` is expanded
 sqlx setting set results-retention-hours 0     # 0 keeps results until the size limit removes them
+sqlx setting set result-mode full              # print every row, for a caller without file access
 sqlx setting unset preview-rows                # back to the default
 ```
 
@@ -45,5 +48,6 @@ sqlx setting unset preview-rows                # back to the default
 | `preview-rows` | `10` | Rows printed per result set; more rows are stored and pointed at by `file` |
 | `results-dir` | a private directory in the system temporary directory | Where stored results live |
 | `results-retention-hours` | `24` | Age after which the next command removes a stored result; `0` disables the age limit |
+| `result-mode` | `preview` | `preview` prints a bounded preview and stores the rest; `full` prints every row and stores nothing |
 
-A command line flag (`--preview`) and the environment (`SQLX_PREVIEW_ROWS`, `SQLX_RESULTS_DIR`, `SQLX_RESULTS_RETENTION_HOURS`) override the file, in that order. Settings live in `<data-dir>/settings.json`, the source column of `sqlx setting list` names what is in effect (`default`, `file`, `env` or `flag`), and an unwritable or relative `results-dir` is rejected instead of failing during a later query.
+A command line flag (`--preview`, `--full`) and the environment (`SQLX_PREVIEW_ROWS`, `SQLX_RESULTS_DIR`, `SQLX_RESULTS_RETENTION_HOURS`, `SQLX_RESULT_MODE`) override the file, in that order. Settings live in `<data-dir>/settings.json`, the source column of `sqlx setting list` names what is in effect (`default`, `file`, `env` or `flag`), and an unwritable or relative `results-dir` is rejected instead of failing during a later query.

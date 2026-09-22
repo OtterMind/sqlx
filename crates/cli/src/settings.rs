@@ -21,14 +21,43 @@ pub const DEFAULT_RETENTION_HOURS: u64 = 24;
 const MAX_PREVIEW_ROWS: u64 = 10_000;
 const MAX_RETENTION_HOURS: u64 = 8_760;
 
+/// How much of a result set reaches standard output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResultMode {
+    /// Print a bounded preview and store the whole result set next to it.
+    Preview,
+    /// Print every row and store nothing, for a caller that cannot read the stored file.
+    Full,
+}
+impl ResultMode {
+    pub fn parse(value: &str) -> Result<ResultMode> {
+        match value.trim() {
+            "preview" => Ok(ResultMode::Preview),
+            "full" => Ok(ResultMode::Full),
+            other => bail!("result-mode expects preview or full, not {other}"),
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            ResultMode::Preview => "preview",
+            ResultMode::Full => "full",
+        }
+    }
+}
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Key {
     PreviewRows,
     ResultsDir,
     RetentionHours,
+    ResultMode,
 }
 impl Key {
-    pub const ALL: [Key; 3] = [Key::PreviewRows, Key::ResultsDir, Key::RetentionHours];
+    pub const ALL: [Key; 4] = [
+        Key::PreviewRows,
+        Key::ResultsDir,
+        Key::RetentionHours,
+        Key::ResultMode,
+    ];
     pub fn parse(name: &str) -> Result<Key> {
         Self::ALL
             .into_iter()
@@ -45,6 +74,7 @@ impl Key {
             Key::PreviewRows => "preview-rows",
             Key::ResultsDir => "results-dir",
             Key::RetentionHours => "results-retention-hours",
+            Key::ResultMode => "result-mode",
         }
     }
 }
@@ -87,6 +117,12 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub retention_hours: Option<u64>,
+    #[serde(
+        default,
+        rename = "result-mode",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub result_mode: Option<String>,
 }
 pub fn path(root: &Path) -> PathBuf {
     root.join("settings.json")
@@ -113,6 +149,7 @@ impl Settings {
             Key::PreviewRows => self.preview_rows.map(|value| value.to_string()),
             Key::ResultsDir => self.results_dir.clone(),
             Key::RetentionHours => self.retention_hours.map(|value| value.to_string()),
+            Key::ResultMode => self.result_mode.clone(),
         }
     }
     pub fn set(&mut self, key: Key, value: &str) -> Result<()> {
@@ -122,6 +159,7 @@ impl Settings {
                 self.retention_hours = Some(number(value, MAX_RETENTION_HOURS, key)?)
             }
             Key::ResultsDir => self.results_dir = Some(directory(value)?),
+            Key::ResultMode => self.result_mode = Some(ResultMode::parse(value)?.name().to_owned()),
         }
         Ok(())
     }
@@ -130,6 +168,7 @@ impl Settings {
             Key::PreviewRows => self.preview_rows = None,
             Key::ResultsDir => self.results_dir = None,
             Key::RetentionHours => self.retention_hours = None,
+            Key::ResultMode => self.result_mode = None,
         }
     }
 }
@@ -217,6 +256,8 @@ pub fn ensure_results_dir(path: &Path, owned: bool, owner_source: &Path) -> Resu
 }
 /// The settings in effect for one command.
 pub struct Effective {
+    pub result_mode: ResultMode,
+    pub result_mode_source: Source,
     pub preview_rows: u64,
     pub preview_source: Source,
     pub results_dir: PathBuf,
@@ -225,7 +266,12 @@ pub struct Effective {
     pub retention: Option<u64>,
     pub retention_source: Source,
 }
-pub fn resolve(root: &Path, settings: &Settings, preview_flag: Option<u64>) -> Result<Effective> {
+pub fn resolve(
+    root: &Path,
+    settings: &Settings,
+    preview_flag: Option<u64>,
+    mode_flag: Option<ResultMode>,
+) -> Result<Effective> {
     let (preview_rows, preview_source) = match (
         preview_flag,
         environment_number("SQLX_PREVIEW_ROWS")?,
@@ -256,7 +302,19 @@ pub fn resolve(root: &Path, settings: &Settings, preview_flag: Option<u64>) -> R
     if retention_hours > MAX_RETENTION_HOURS {
         bail!("results-retention-hours must be at most {MAX_RETENTION_HOURS}");
     }
+    let (result_mode, result_mode_source) = match (
+        mode_flag,
+        environment("SQLX_RESULT_MODE")?,
+        &settings.result_mode,
+    ) {
+        (Some(value), _, _) => (value, Source::Flag),
+        (None, Some(value), _) => (ResultMode::parse(&value)?, Source::Environment),
+        (None, None, Some(value)) => (ResultMode::parse(value)?, Source::File),
+        (None, None, None) => (ResultMode::Preview, Source::Default),
+    };
     Ok(Effective {
+        result_mode,
+        result_mode_source,
         preview_rows,
         preview_source,
         results_dir,
@@ -317,6 +375,26 @@ mod tests {
         assert!(Settings::load(root.path()).is_err());
     }
     #[test]
+    fn result_mode_resolves_and_validates() {
+        let root = root();
+        let mut settings = Settings::default();
+        assert_eq!(
+            resolve(root.path(), &settings, None, None)
+                .unwrap()
+                .result_mode,
+            ResultMode::Preview
+        );
+        settings.set(Key::ResultMode, "full").unwrap();
+        let file = resolve(root.path(), &settings, None, None).unwrap();
+        assert_eq!(file.result_mode, ResultMode::Full);
+        assert_eq!(file.result_mode_source.name(), "file");
+        let flag = resolve(root.path(), &settings, None, Some(ResultMode::Preview)).unwrap();
+        assert_eq!(flag.result_mode, ResultMode::Preview);
+        assert_eq!(flag.result_mode_source.name(), "flag");
+        assert!(settings.set(Key::ResultMode, "everything").is_err());
+        assert!(Settings::load(root.path()).is_ok());
+    }
+    #[test]
     fn values_are_validated() {
         let mut settings = Settings::default();
         assert!(settings.set(Key::PreviewRows, "-1").is_err());
@@ -334,17 +412,17 @@ mod tests {
         let mut settings = Settings::default();
         settings.set(Key::PreviewRows, "3").unwrap();
         settings.set(Key::RetentionHours, "1").unwrap();
-        let file = resolve(root.path(), &settings, None).unwrap();
+        let file = resolve(root.path(), &settings, None, None).unwrap();
         assert_eq!(file.preview_rows, 3);
         assert_eq!(file.retention, Some(3_600));
         assert_eq!(file.results_dir_source.name(), "default");
-        let flag = resolve(root.path(), &settings, Some(7)).unwrap();
+        let flag = resolve(root.path(), &settings, Some(7), None).unwrap();
         assert_eq!(flag.preview_rows, 7);
         assert_eq!(flag.preview_source.name(), "flag");
         let environment_dir = std::env::temp_dir().join("sqlx-env-results");
         std::env::set_var("SQLX_PREVIEW_ROWS", "9");
         std::env::set_var("SQLX_RESULTS_DIR", &environment_dir);
-        let environment = resolve(root.path(), &settings, None).unwrap();
+        let environment = resolve(root.path(), &settings, None, None).unwrap();
         std::env::remove_var("SQLX_PREVIEW_ROWS");
         std::env::remove_var("SQLX_RESULTS_DIR");
         assert_eq!(environment.preview_rows, 9);

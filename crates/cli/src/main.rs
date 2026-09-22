@@ -224,6 +224,9 @@ enum SqlCommand {
         /// Rows printed per result set; more rows are stored and pointed at by `file`.
         #[arg(long, value_name = "ROWS")]
         preview: Option<u64>,
+        /// Print every row and store nothing, for a caller that cannot read the stored file.
+        #[arg(long)]
+        full: bool,
         /// Print the raw worker event stream instead of the table-shaped result.
         #[arg(long)]
         events: bool,
@@ -477,7 +480,7 @@ fn run(cli: Cli) -> Result<bool> {
                     let store = Store::open(root.clone())?;
                     store.find(&id)?
                 };
-                let (out, effective) = execution::output_settings(&root, mode(events), None)?;
+                let (out, effective) = execution::output_settings(&root, mode(events), None, None)?;
                 let outcome = execution::run(
                     root,
                     cli.manifest,
@@ -504,6 +507,7 @@ fn run(cli: Cli) -> Result<bool> {
                     statements,
                     view,
                     preview,
+                    full,
                     events,
                 },
         } => {
@@ -536,7 +540,12 @@ fn run(cli: Cli) -> Result<bool> {
                 print(result);
                 return Ok(true);
             }
-            let (out, effective) = execution::output_settings(&root, mode(events), preview)?;
+            let (out, effective) = execution::output_settings(
+                &root,
+                mode(events),
+                preview,
+                full.then_some(sqlx_core::settings::ResultMode::Full),
+            )?;
             let outcome = execution::run(
                 root,
                 cli.manifest,
@@ -645,7 +654,7 @@ fn mode(events: bool) -> sqlx_core::output::Mode {
 /// Stored results, all of them written by this CLI into the configured result directory.
 fn results_command(root: &Path, command: ResultsCommand) -> Result<bool> {
     let settings = sqlx_core::settings::Settings::load(root)?;
-    let effective = sqlx_core::settings::resolve(root, &settings, None)?;
+    let effective = sqlx_core::settings::resolve(root, &settings, None, None)?;
     sqlx_core::results::prune(
         &effective.results_dir,
         sqlx_core::results::CLI_ORIGIN,
@@ -716,7 +725,7 @@ fn results_command(root: &Path, command: ResultsCommand) -> Result<bool> {
 fn setting_command(root: &Path, command: SettingCommand) -> Result<bool> {
     use sqlx_core::settings::{self, Key, Settings};
     let mut stored = Settings::load(root)?;
-    let effective = settings::resolve(root, &stored, None)?;
+    let effective = settings::resolve(root, &stored, None, None)?;
     let describe = |effective: &settings::Effective, key: Key| -> Value {
         let (value, source) = match key {
             Key::PreviewRows => (effective.preview_rows.to_string(), effective.preview_source),
@@ -730,6 +739,10 @@ fn setting_command(root: &Path, command: SettingCommand) -> Result<bool> {
                     .map_or(0, |seconds| seconds / 3_600)
                     .to_string(),
                 effective.retention_source,
+            ),
+            Key::ResultMode => (
+                effective.result_mode.name().to_owned(),
+                effective.result_mode_source,
             ),
         };
         json!({"key": key.name(), "value": value, "source": source.name()})
@@ -758,14 +771,14 @@ fn setting_command(root: &Path, command: SettingCommand) -> Result<bool> {
                 settings::ensure_results_dir(&directory, false, root)?;
             }
             stored.save(root)?;
-            let effective = settings::resolve(root, &stored, None)?;
+            let effective = settings::resolve(root, &stored, None, None)?;
             print(describe(&effective, key));
         }
         SettingCommand::Unset { key } => {
             let key = Key::parse(&key)?;
             stored.unset(key);
             stored.save(root)?;
-            let effective = settings::resolve(root, &stored, None)?;
+            let effective = settings::resolve(root, &stored, None, None)?;
             print(describe(&effective, key));
         }
     }

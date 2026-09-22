@@ -46,7 +46,7 @@ sqlx results rows --id <id> --statement 0 --set 0 --offset 500 --limit 100
 
 `sqlx results rows` returns `cols`, `rows`, `offset`, `next_offset`, `total` and `complete`, and never contacts the database again. A result that fits the preview is printed completely and not stored at all. See [results](results.md) for the layout, the settings and the limits.
 
-Never re-run a query only to see more rows: use the stored file or `sqlx results rows`. `--preview <rows>` changes the preview size for one call, `--preview 0` prints no rows, and `--events` prints the raw worker event stream (`protocol_version`, `datasource_id`, `events`, `success`) instead of the table shape and stores nothing.
+Never re-run a query only to see more rows: use the stored file or `sqlx results rows`. `--preview <rows>` changes the preview size for one call, `--preview 0` prints no rows, and `--events` prints the raw worker event stream (`protocol_version`, `datasource_id`, `events`, `success`) instead of the table shape and stores nothing. Use `--full` only when the caller cannot read the stored file: it prints every row in the table shape and stores nothing, so the answer has no size limit of its own.
 
 ## Report the outcome
 

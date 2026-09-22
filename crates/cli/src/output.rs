@@ -26,6 +26,8 @@ pub enum Mode {
 }
 pub struct Options {
     pub mode: Mode,
+    /// Print every row and store nothing, for a caller that cannot read the stored file.
+    pub full: bool,
     pub preview_rows: u64,
     pub datasource_id: String,
     pub datasource_name: String,
@@ -361,9 +363,10 @@ impl<W: Write> Writer<W> {
             item.statement,
             item.result,
             item.stored,
-            !item.preview_closed
-                && item.printed_rows < self.options.preview_rows
-                && item.printed_bytes + encoded.len() <= PREVIEW_BYTES,
+            self.options.full
+                || (!item.preview_closed
+                    && item.printed_rows < self.options.preview_rows
+                    && item.printed_bytes + encoded.len() <= PREVIEW_BYTES),
         );
         if print {
             if item.printed_rows > 0 {
@@ -378,6 +381,9 @@ impl<W: Write> Writer<W> {
                 .as_mut()
                 .context("no result set to print into")?
                 .preview_closed = true;
+        }
+        if self.options.full {
+            return Ok(());
         }
         if stored {
             return self.record_to_store(Event::Row {
@@ -398,6 +404,10 @@ impl<W: Write> Writer<W> {
     }
     /// Store the current result set, including the rows that were already printed.
     fn spill(&mut self) -> Result<()> {
+        if self.options.full {
+            // Nothing is stored in full mode, so there is no file to point at.
+            return Ok(());
+        }
         let (statement, result, columns, pending) = match self.item.as_mut() {
             Some(item) => (
                 item.statement,
@@ -604,6 +614,7 @@ pub fn short_type(database_type: &str) -> String {
 #[allow(clippy::too_many_arguments)]
 pub fn writer_options(
     mode: Mode,
+    full: bool,
     preview_rows: u64,
     datasource_id: &str,
     datasource_name: &str,
@@ -614,6 +625,7 @@ pub fn writer_options(
 ) -> Options {
     Options {
         mode,
+        full,
         preview_rows,
         datasource_id: datasource_id.to_owned(),
         datasource_name: datasource_name.to_owned(),
@@ -631,6 +643,7 @@ mod tests {
     fn options(mode: Mode, preview_rows: u64, dir: &Path) -> Options {
         super::writer_options(
             mode,
+            false,
             preview_rows,
             "datasource",
             "dev",
@@ -729,6 +742,33 @@ mod tests {
                 .unwrap();
         assert!(metadata.contains("\"origin\":\"cli\""), "{metadata}");
         assert!(metadata.contains("\"rows\":25"), "{metadata}");
+    }
+    #[test]
+    fn full_mode_prints_every_row_and_stores_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let rows: Vec<String> = (0..25).map(|value| value.to_string()).collect();
+        let borrowed: Vec<&str> = rows.iter().map(String::as_str).collect();
+        let mut full = options(Mode::Compact, 10, root.path());
+        full.full = true;
+        let (printed, _) = run(select(0, &borrowed), full, true);
+        assert!(printed.contains("\"count\":\"25\""), "{printed}");
+        assert!(!printed.contains("\"file\""), "{printed}");
+        assert!(!printed.contains("\"id\""), "{printed}");
+        assert_eq!(printed.matches(r#""],["#).count(), 24, "{printed}");
+        assert!(!root.path().join("results").exists());
+    }
+    #[test]
+    fn full_mode_prints_a_value_past_the_byte_budget() {
+        let root = tempfile::tempdir().unwrap();
+        let big = "x".repeat(PREVIEW_BYTES + 1);
+        let mut full = options(Mode::Compact, 10, root.path());
+        full.full = true;
+        let (printed, _) = run(select(0, &[big.as_str()]), full, true);
+        assert!(
+            printed.contains(&big),
+            "the value is missing from the printed result"
+        );
+        assert!(!printed.contains("\"file\""), "{printed}");
     }
     #[test]
     fn a_preview_of_zero_stores_every_row() {

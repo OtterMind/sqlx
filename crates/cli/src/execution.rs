@@ -187,11 +187,13 @@ pub fn output_settings(
     root: &Path,
     mode: output::Mode,
     preview: Option<u64>,
+    result_mode: Option<settings::ResultMode>,
 ) -> Result<(Output, settings::Effective)> {
     let settings = settings::Settings::load(root)?;
-    let effective = settings::resolve(root, &settings, preview)?;
+    let effective = settings::resolve(root, &settings, preview, result_mode)?;
     let out = Output {
         mode,
+        full: effective.result_mode == settings::ResultMode::Full,
         preview_rows: effective.preview_rows,
         results_dir: effective.results_dir.clone(),
         results_owned: matches!(effective.results_dir_source, settings::Source::Default),
@@ -211,6 +213,8 @@ pub fn prune_results(effective: &settings::Effective) -> Result<()> {
 /// How one execution prints its result.
 pub struct Output {
     pub mode: output::Mode,
+    /// Print every row instead of a preview, and store nothing.
+    pub full: bool,
     pub preview_rows: u64,
     pub results_dir: PathBuf,
     /// Whether the result directory is the private default rather than a configured one.
@@ -255,6 +259,7 @@ pub fn run_to<W: Write>(
     let connection = source.connection.clone();
     let writer_options = output::writer_options(
         out.mode,
+        out.full,
         out.preview_rows,
         &source.id,
         &source.name,

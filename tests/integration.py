@@ -55,13 +55,21 @@ def exercise(cli, workers, kind, port, username):
         stored=contract.stored_file(result)
         assert stored and contract.stored_rows(stored)==[['y'*10]],result
         assert contract.run(cli,data,'results','rows','--id',result['id'])['data']['rows']==[['y'*10]]
+        # A caller without file access takes the whole result inline instead.
+        result=run(cli,data,workers,'sql','execute','--datasource','fixture','--command','SELECT 1 AS n UNION SELECT 2 UNION SELECT 3','--full')
+        assert contract.rows(result)==[['1'],['2'],['3']] and contract.stored_file(result) is None,result
+        assert 'id' not in result,result
+        contract.run(cli,data,'setting','set','result-mode','full')
+        result=run(cli,data,workers,'sql','execute','--datasource','fixture','--command','SELECT 1 AS n UNION SELECT 2')
+        assert len(contract.rows(result))==2 and contract.stored_file(result) is None,result
+        assert contract.run(cli,data,'setting','unset','result-mode')['data']['source']=='default'
         # Settings decide where results are stored and how many rows are previewed.
         custom = Path(temp)/'custom-results'
         settings = contract.run(cli,data,'setting','set','results-dir',str(custom))['data']
         assert settings=={'key':'results-dir','value':str(custom),'source':'file'},settings
         contract.run(cli,data,'setting','set','preview-rows','2')
         listed = contract.run(cli,data,'setting','list')['data']
-        assert {entry['key']:entry['source'] for entry in listed['settings']}=={'preview-rows':'file','results-dir':'file','results-retention-hours':'default'},listed
+        assert {entry['key']:entry['source'] for entry in listed['settings']}=={'preview-rows':'file','results-dir':'file','results-retention-hours':'default','result-mode':'default'},listed
         result=run(cli,data,workers,'sql','execute','--datasource','fixture','--command','SELECT 1 AS n UNION SELECT 2 UNION SELECT 3')
         assert len(contract.rows(result))==2 and contract.count(result)=='3',result
         assert contract.stored_file(result).startswith(str(custom)+'/'),result
