@@ -296,10 +296,11 @@ mod tests {
     #[test]
     fn settings_round_trip_and_reject_unknown_keys() {
         let root = root();
+        let results = std::env::temp_dir().join("sqlx-test-results");
         let mut settings = Settings::load(root.path()).unwrap();
         settings.set(Key::PreviewRows, "5").unwrap();
         settings
-            .set(Key::ResultsDir, "/tmp/sqlx-test-results")
+            .set(Key::ResultsDir, &results.to_string_lossy())
             .unwrap();
         settings.set(Key::RetentionHours, "0").unwrap();
         settings.save(root.path()).unwrap();
@@ -310,7 +311,7 @@ mod tests {
         assert_eq!(loaded.preview_rows, Some(5));
         assert_eq!(
             loaded.results_dir.as_deref(),
-            Some("/tmp/sqlx-test-results")
+            Some(results.to_string_lossy().as_ref())
         );
         fs::write(path(root.path()), "{\"preview-row\": 5}").unwrap();
         assert!(Settings::load(root.path()).is_err());
@@ -324,7 +325,8 @@ mod tests {
         assert!(settings.set(Key::ResultsDir, "relative/path").is_err());
         assert!(settings.set(Key::ResultsDir, "").is_err());
         settings.set(Key::ResultsDir, "~/sqlx-results").unwrap();
-        assert!(settings.results_dir.as_deref().unwrap().starts_with('/'));
+        let expanded = settings.results_dir.clone().unwrap();
+        assert!(Path::new(&expanded).is_absolute(), "{expanded}");
     }
     #[test]
     fn resolution_prefers_flag_then_environment_then_file() {
