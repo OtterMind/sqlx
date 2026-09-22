@@ -72,16 +72,17 @@ def write_manifests(target: Path) -> None:
                 "description": (
                     "OtterMind plugins for Claude Code. Currently ships SQLX for MySQL, "
                     "MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, "
-                    "openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris "
-                    "and TDengine."
+                    "openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, "
+                    "TDengine, Dameng, KingbaseES, Redis and MongoDB."
                 ),
                 "plugins": [
                     {
                         "name": "sqlx",
                         "source": "./plugins/sqlx-claude",
                         "description": (
-                            "List saved OtterMind SQLX datasources, test connections, "
-                            "execute SQL and open local result pages."
+                            "List saved OtterMind SQLX datasources, test connections, run SQL, "
+                            "Redis commands and MongoDB command documents, and open local result "
+                            "pages."
                         ),
                     }
                 ],
