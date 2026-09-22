@@ -18,6 +18,9 @@ VENDORS={
                       entry='clickhouse-jdbc.jar',license_url='https://raw.githubusercontent.com/ClickHouse/clickhouse-java/main/LICENSE',
                       extra_licenses={'LICENSE-slf4j.txt':('slf4j-api.jar','META-INF/LICENSE.txt')}),
     'trino':dict(files=[('https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar','trino-jdbc.jar')],entry='trino-jdbc.jar',license_url='https://raw.githubusercontent.com/trinodb/trino/master/LICENSE'),
+    # Dameng and KingbaseES publish their JDBC drivers on Maven Central under the Apache license.
+    'dameng':dict(files=[('https://repo.maven.apache.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.jar','dm-jdbc.jar')],entry='dm-jdbc.jar',license_url='https://repo1.maven.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.pom'),
+    'kingbase':dict(files=[('https://repo.maven.apache.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.jar','kingbase8-jdbc.jar')],entry='kingbase8-jdbc.jar',license_url='https://repo1.maven.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.pom'),
     'opengauss':dict(files=[('https://repo.maven.apache.org/maven2/org/opengauss/opengauss-jdbc/6.0.0-b041-og/opengauss-jdbc-6.0.0-b041-og.jar','opengauss-jdbc.jar')],entry='opengauss-jdbc.jar',license_url='https://raw.githubusercontent.com/opengauss-mirror/openGauss-connector-jdbc/master/LICENSE'),
     # The TDengine RESTful driver ships as one bundled jar (its own dependencies included) and
     # needs an slf4j binding, because the bundle carries the slf4j API without a provider.

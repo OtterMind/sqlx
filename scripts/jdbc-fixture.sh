@@ -23,6 +23,12 @@ case "$kind" in
   trino)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar' -o target/debug/trino-jdbc.jar
     ;;
+  dameng)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.jar' -o target/debug/dm-jdbc.jar
+    ;;
+  kingbase)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.jar' -o target/debug/kingbase8-jdbc.jar
+    ;;
   opengauss)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/opengauss/opengauss-jdbc/6.0.0-b041-og/opengauss-jdbc-6.0.0-b041-og.jar' -o target/debug/opengauss-jdbc.jar
     ;;

@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris and TDengine from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng and KingbaseES from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more SQL statements, and the results come back complete and structured.
 
 ## Quick start
 
@@ -160,6 +160,8 @@ sqlx sql execute --datasource dev --sql "SELECT current_database()" --sql "SELEC
 | ClickHouse | `clickhouse` | JDBC worker | connects to the HTTP port, 8123 by default |
 | Trino | `trino` | JDBC worker | `--database <catalog>[.<schema>]` is required |
 | TDengine | `tdengine`, `taos` | JDBC worker | connects through taosAdapter, 6041 by default |
+| Dameng | `dameng`, `dm` | JDBC worker | port 5236 by default; the account is also the default schema |
+| KingbaseES | `kingbase`, `kingbasees` | JDBC worker | port 54321 by default |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name.
 
@@ -216,7 +218,7 @@ Datasource responses omit usernames, passwords and vendor properties.
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --sql "SELECT 1" --sql "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `skill` or `all`) |
 | Execute and open a result page | `sqlx sql execute --datasource dev --sql "SELECT 1" --view` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
 | Serve MCP over stdio | `sqlx mcp` |
@@ -265,13 +267,13 @@ To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the 
 
 User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
 
-The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine and openGauss use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
+The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng and KingbaseES use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
 
 Downloads happen on first use and are cached afterwards. Each one prints `Downloading …` with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and rerunning a failed command reuses every component that is already installed. To avoid waiting inside the first query or page:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino and TDengine components, the JDBC runtime and the JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, TDengine, Dameng and KingbaseES components, the JDBC runtime and the JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.
@@ -376,6 +378,9 @@ docker compose -f tests/compose.yaml down -v
 docker compose -f tests/compose.yaml up -d --wait greatsql tdengine
 python3 tests/databases.py greatsql tdengine
 docker compose -f tests/compose.yaml down -v
+# Dameng and KingbaseES have no public image; point the fixtures at a local instance
+# and export SQLX_TEST_DAMENG_PASSWORD or SQLX_TEST_KINGBASE_PASSWORD when they differ
+python3 tests/databases.py dameng kingbase
 ```
 
 For local native workers, set `SQLX_WORKER_DIR` to the absolute `target/debug` directory. For JDBC development, that directory also contains `sqlx-jdbc.jar` and `ojdbc.jar` or `mssql-jdbc.jar`; `SQLX_JAVA_BIN` can select Java 17 explicitly. These overrides are for development, not prerequisites for release users. The fixture scripts use dedicated test containers and test-only credentials.

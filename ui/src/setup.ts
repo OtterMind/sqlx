@@ -57,6 +57,8 @@ export async function setupPage(
       ["starrocks", "StarRocks"],
       ["doris", "Apache Doris"],
       ["tdengine", "TDEngine"],
+      ["dameng", "Dameng"],
+      ["kingbase", "KingbaseES"],
     ],
     setup.connection.database_type,
   );

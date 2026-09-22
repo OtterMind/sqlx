@@ -16,7 +16,9 @@ export type DatabaseType =
   | "trino"
   | "starrocks"
   | "doris"
-  | "tdengine";
+  | "tdengine"
+  | "dameng"
+  | "kingbase";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;
