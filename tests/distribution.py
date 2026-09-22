@@ -175,6 +175,19 @@ def check_release_contract():
     import manifest,package
     package_shared=manifest.package_shared
     per_platform=set(package.PLATFORM_KINDS)|set(package_shared.PLATFORM_KINDS)
+    # macOS notarization rejects an archive holding an unsigned executable, so the signing script
+    # must sign exactly the executables that every platform archive carries. It only runs on macOS
+    # release runners, so run it where it is meaningful.
+    if sys.platform=='darwin':
+        with tempfile.TemporaryDirectory(prefix='sqlx-signing-') as tmp:
+            signed=Path(tmp)/'signed.txt'
+            codesign=Path(tmp)/'codesign'
+            codesign.write_text('#!/usr/bin/env bash\nfor last; do :; done\nprintf "%s\\n" "${last}" >> "'+str(signed)+'"\n')
+            codesign.chmod(0o755)
+            environment=dict(os.environ,PATH=tmp+os.pathsep+os.environ['PATH'],CHAT2DB_SIGNING_KEYCHAIN='test-keychain',APPLE_SIGNING_IDENTITY='test-identity')
+            subprocess.run(['bash','scripts/sign-macos.sh'],cwd=ROOT,env=environment,check=True,capture_output=True)
+            names={Path(line).name for line in signed.read_text().split()}
+            assert names==set(package.BINARIES.values()),f'scripts/sign-macos.sh signs {sorted(names)}'
     once=set(package_shared.SHARED_KINDS)|set(package_shared.VENDOR_KINDS)
     assert {'clickhouse','trino'}<=once,'the JDBC worker engines must ship a vendor component'
     with tempfile.TemporaryDirectory(prefix='sqlx-manifest-') as tmp:

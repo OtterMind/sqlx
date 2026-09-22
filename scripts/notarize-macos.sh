@@ -8,7 +8,11 @@ for archive in dist/*.zip; do
   python3 - "${report}" <<'PY'
 import json,sys
 report=json.load(open(sys.argv[1]))
-if report.get('status')!='Accepted':raise SystemExit('Apple notarization was not accepted')
+if report.get('status')!='Accepted':
+    # The report names the rejected archive and its issues, which is the only place Apple explains
+    # why a submission failed.
+    print(json.dumps(report,indent=2),file=sys.stderr)
+    raise SystemExit('Apple notarization was not accepted')
 print('Notarization accepted:',report['id'])
 PY
 done
