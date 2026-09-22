@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Exercise the non-SQL workers (Redis today, MongoDB next) through the CLI against compose fixtures."""
-import argparse, json, os, subprocess, tempfile, time
+import argparse, json, os, subprocess, sys, tempfile, time
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import contract
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "sqlx_test_only_password"
@@ -25,43 +27,36 @@ def exercise_redis(cli, bin_dir, tmp, call):
     _, result = call("sql", "execute", "--datasource", "fixture",
                      "--command", 'SET greeting "hello world"', "--command", "GET greeting",
                      "--command", "DEL greeting")
-    values = [event["values"] for event in result["events"] if event["event"] == "row"]
-    assert values == [["OK"], ["hello world"], ["1"]], values
-    integers = [event for event in result["events"] if event["event"] == "columns" and event["columns"]]
-    assert integers[2]["columns"][0]["database_type"] == "integer", integers[2]
+    values = [contract.rows(result, index) for index in range(3)]
+    assert values == [[["OK"]], [["hello world"]], [["1"]]], values
+    assert contract.columns(result, 2)[0][1] == "integer", contract.columns(result, 2)
 
     _, result = call("sql", "execute", "--datasource", "fixture",
                      "--command", "HSET user:1 name ada role engineer", "--command", "HGETALL user:1")
-    columns = [event["columns"] for event in result["events"] if event["event"] == "columns" and event["columns"]]
-    assert [column["name"] for column in columns[1]] == ["field", "value"], columns[1]
-    pairs = [event["values"] for event in result["events"] if event["event"] == "row"]
-    assert pairs[1:] == [["name", "ada"], ["role", "engineer"]], pairs
+    assert [column[0] for column in contract.columns(result, 1)] == ["field", "value"], result
+    assert contract.rows(result, 1) == [["name", "ada"], ["role", "engineer"]], result
 
     _, result = call("sql", "execute", "--datasource", "fixture",
                      "--command", "RPUSH queue a b c", "--command", "LRANGE queue 0 -1")
-    rows = [event["values"] for event in result["events"] if event["event"] == "row"]
-    assert rows[1:] == [["a"], ["b"], ["c"]], rows
+    assert contract.rows(result, 1) == [["a"], ["b"], ["c"]], result
 
     _, result = call("sql", "execute", "--datasource", "fixture", "--command", "SCAN 0 COUNT 10")
-    scan = [event["values"] for event in result["events"] if event["event"] == "row"]
+    scan = contract.rows(result)
     assert len(scan) == 1 and scan[0][0].isdigit() and scan[0][1].startswith("["), scan
-    columns = [event["columns"] for event in result["events"] if event["event"] == "columns" and event["columns"]]
-    assert [column["name"] for column in columns[0]] == ["c1", "c2"], columns[0]
+    assert [column[0] for column in contract.columns(result)] == ["c1", "c2"], result
 
     code, result = call("sql", "execute", "--datasource", "fixture",
                         "--command", "SET plain value", "--command", "HGETALL plain",
                         "--command", "GET plain", ok=False)
-    error = next(event for event in result["events"] if event["event"] == "error")
+    error = contract.error(result, 1)
     assert code != 0 and error["code"] == "redis.WRONGTYPE" and error["outcome"] == "failed", error
-    assert any(event["event"] == "skipped" and event["index"] == 2 for event in result["events"]), result
+    assert contract.skipped(result) == [2], result
 
     binary_seeded = seed_binary_key()
     if binary_seeded:
         _, result = call("sql", "execute", "--datasource", "fixture", "--command", "GET binary:key")
-        columns = [event["columns"] for event in result["events"] if event["event"] == "columns" and event["columns"]]
-        row = next(event["values"] for event in result["events"] if event["event"] == "row")
-        assert columns[0][0]["encoding"] == "base64", columns[0]
-        assert row == ["/wD+"], row
+        assert contract.columns(result)[0] == ["value", "string", "base64"], contract.columns(result)
+        assert contract.rows(result) == [["/wD+"]], result
     else:
         print("redis: binary reply check skipped, no docker access to seed the key")
     call("sql", "execute", "--datasource", "fixture", "--command", "FLUSHDB")
@@ -80,39 +75,35 @@ def exercise_mongodb(cli, bin_dir, tmp, call, fixture):
                                                         "label": "hello", "nested": {"a": [1, 2]}}}),
                      "--command", command({"find": collection, "filter": {}}),
                      "--command", command({"count": collection, "query": {}}))
-    endings = [event for event in result["events"] if event["event"] == "result_end"]
-    assert endings[0]["affected_rows"] == "1", endings[0]
-    # The insert emits an empty column list, so the find's columns are the first non-empty ones.
-    columns = [event["columns"] for event in result["events"] if event["event"] == "columns" and event["columns"]]
-    assert columns[0][0]["name"] == "_id", columns[0]
-    rows = [event["values"] for event in result["events"] if event["event"] == "row"]
+    assert contract.affected(result, 0) == "1", result
+    columns = [column[0] for column in contract.columns(result, 1)]
+    assert columns[0] == "_id", columns
+    rows = contract.rows(result, 1)
     def column(name, values):
-        return values[columns[0].index(next(c for c in columns[0] if c["name"] == name))]
+        return values[columns.index(name)]
     row = rows[0]
     assert column("big", row) == "9007199254740993", row
     # Nested values use canonical extended JSON, so exact numbers survive inside them.
     assert json.loads(column("nested", row)) == {"a": [{"$numberLong": "1"}, {"$numberLong": "2"}]}, row
-    count_columns = [event["columns"] for event in result["events"]
-                     if event["event"] == "columns" and [c["name"] for c in event["columns"]] == ["n"]]
-    assert count_columns and rows[1] == ["1"], (count_columns, rows)
+    assert [column[0] for column in contract.columns(result, 2)] == ["n"], result
+    assert contract.rows(result, 2) == [["1"]], result
 
     _, result = call("sql", "execute", "--datasource", "fixture",
                      "--command", command({"insertMany": collection, "documents": [{"_id": 2}, {"_id": 3}]}),
                      "--command", command({"updateMany": collection, "filter": {"_id": {"$gte": 2}},
                                            "update": {"$set": {"label": "updated"}}}),
                      "--command", command({"deleteMany": collection, "filter": {"_id": 3}}))
-    endings = [event for event in result["events"] if event["event"] == "result_end"]
-    assert [event["affected_rows"] for event in endings] == ["2", "2", "1"], endings
+    assert [contract.affected(result, index) for index in range(3)] == ["2", "2", "1"], result
 
     code, result = call("sql", "execute", "--datasource", "fixture",
                         "--command", command({"insertOne": collection, "document": {"_id": 1}}),
                         "--command", command({"count": collection, "query": {}}), ok=False)
-    error = next(event for event in result["events"] if event["event"] == "error")
+    error = contract.error(result, 0)
     assert code != 0 and error["code"].startswith("mongodb."), error
-    assert any(event["event"] == "skipped" and event["index"] == 1 for event in result["events"]), result
+    assert contract.skipped(result) == [1], result
 
     code, result = call("sql", "execute", "--datasource", "fixture", "--command", "not json", ok=False)
-    error = next(event for event in result["events"] if event["event"] == "error")
+    error = contract.error(result, 0)
     assert code != 0 and error["code"] == "mongodb.invalid_command", error
     call("sql", "execute", "--datasource", "fixture", "--command", command({"drop": collection}))
     print("mongodb: connection, cursor rows, exact integers, nested documents, write counts, "

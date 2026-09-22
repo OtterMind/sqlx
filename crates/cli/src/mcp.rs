@@ -4,7 +4,9 @@
 //! protocol output on stdout, so execution results are rendered into the tool response instead of
 //! being streamed as CLI JSON. Downloads and worker diagnostics still go to stderr.
 use crate::{
-    execution, prefetch,
+    execution,
+    output::{self, Mode},
+    prefetch, results,
     storage::{Datasource, Store},
     ui,
 };
@@ -145,6 +147,7 @@ fn call(params: Value, root: &Path, manifest: &str, local: &Option<PathBuf>) -> 
                 .into();
             result
         }
+        "sqlx_results_rows" => stored_rows(root, &arguments)?,
         "sqlx_prefetch" => {
             let components = arguments
                 .get("components")
@@ -176,8 +179,9 @@ fn run_action(
     action: Action,
     statements: Vec<String>,
 ) -> Result<Value> {
+    let (out, effective) = execution::output_settings(root, Mode::Compact, None)?;
     let mut buffer = Vec::new();
-    let success = execution::run_to(
+    let outcome = execution::run_to(
         &mut buffer,
         root.to_path_buf(),
         manifest.to_owned(),
@@ -185,10 +189,64 @@ fn run_action(
         source,
         action,
         statements,
-    )?;
-    let events: Value =
+        out,
+    );
+    let pruned = execution::prune_results(&effective);
+    let success = outcome?;
+    pruned?;
+    let value: Value =
         serde_json::from_slice(&buffer).context("execution returned invalid JSON")?;
-    Ok(json!({"success": success, "execution": events}))
+    if value.get("success").and_then(Value::as_bool) != Some(success) {
+        bail!("execution returned an unexpected result object");
+    }
+    Ok(value)
+}
+/// Read one page of a stored result back for harnesses without file access.
+fn stored_rows(root: &Path, arguments: &Value) -> Result<Value> {
+    let id = string_arg(arguments, "id")?;
+    uuid::Uuid::parse_str(&id).context("id must be a result UUID")?;
+    let (_, effective) = execution::output_settings(root, Mode::Compact, None)?;
+    let path = effective.results_dir.join(&id);
+    let store = results::ResultStore::recover(&path).with_context(|| {
+        format!(
+            "result {id} is not stored in {}",
+            effective.results_dir.display()
+        )
+    })?;
+    let statement = number_arg(arguments, "statement")?.unwrap_or(0) as usize;
+    let set = number_arg(arguments, "set")?.unwrap_or(0) as usize;
+    let offset = number_arg(arguments, "offset")?.unwrap_or(0);
+    let limit = number_arg(arguments, "limit")?.unwrap_or(50).clamp(1, 200) as usize;
+    let page = store.page(statement, set, offset, limit)?;
+    let columns = store
+        .metadata
+        .tables
+        .iter()
+        .find(|table| table.statement == statement && table.result == set)
+        .map(|table| {
+            table
+                .columns
+                .iter()
+                .map(output::column_json)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(json!({
+        "cols": columns,
+        "rows": page.rows,
+        "offset": page.offset.to_string(),
+        "next_offset": page.next_offset.to_string(),
+        "complete": page.complete,
+    }))
+}
+fn number_arg(arguments: &Value, name: &str) -> Result<Option<u64>> {
+    match arguments.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .with_context(|| format!("{name} must be a whole number"))
+            .map(Some),
+    }
 }
 fn string_arg(arguments: &Value, name: &str) -> Result<String> {
     arguments
@@ -258,7 +316,7 @@ fn tools() -> Vec<Value> {
         json!({
             "name": "sqlx_sql_execute",
             "title": "Execute SQL with SQLX",
-            "description": "Execute one or more complete SQL statements through SQLX and return the full structured result. Each statement is a separate driver statement and the batch stops at the first error. Statements may modify data: only call this after the user authorized that exact operation and scope. Results are never replayed automatically.",
+            "description": "Execute one or more complete SQL statements through SQLX and return the table-shaped result: `results[].cols`, `rows` and `count` per statement. A result set larger than the preview is stored under `results[].file` and read with sqlx_results_rows. Each statement is a separate driver statement and the batch stops at the first error. Statements may modify data: only call this after the user authorized that exact operation and scope. Results are never replayed automatically.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -294,6 +352,24 @@ fn tools() -> Vec<Value> {
                 "additionalProperties": false,
             },
             "annotations": {"readOnlyHint": false, "destructiveHint": true, "openWorldHint": true},
+        }),
+        json!({
+            "name": "sqlx_results_rows",
+            "title": "Read rows of a stored result",
+            "description": "Read one page of a result that sqlx_sql_execute stored because it did not fit the printed preview. Pass the result `id` from that response; `statement` and `set` select the result set, which defaults to the first one. Read-only: it never contacts the database again.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "Result UUID from the execute response"},
+                    "statement": {"type": "integer", "minimum": 0, "description": "Statement index inside the result, counted from zero"},
+                    "set": {"type": "integer", "minimum": 0, "description": "Result set index of that statement, counted from zero"},
+                    "offset": {"type": "integer", "minimum": 0, "description": "First row to return"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Rows to return, 50 by default"},
+                },
+                "required": ["id"],
+                "additionalProperties": false,
+            },
+            "annotations": {"readOnlyHint": true, "destructiveHint": false, "openWorldHint": false},
         }),
         json!({
             "name": "sqlx_prefetch",
@@ -342,6 +418,7 @@ mod tests {
                 "sqlx_datasource_test",
                 "sqlx_sql_execute",
                 "sqlx_sql_view",
+                "sqlx_results_rows",
                 "sqlx_prefetch",
             ]
         );
@@ -396,7 +473,7 @@ mod tests {
             .map(str::to_owned)
             .collect();
         server.sort();
-        assert_eq!(server.len(), 6);
+        assert_eq!(server.len(), 7);
         for (label, source) in [
             (
                 "dsh tools",

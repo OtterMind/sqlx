@@ -1,4 +1,3 @@
-use crate::results::{now, Metadata, ResultStore};
 use anyhow::Result;
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, Request, State},
@@ -12,6 +11,7 @@ use rand::RngCore;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use sqlx_core::results::{now, Metadata, Page, ResultStore};
 use sqlx_core::{
     execution,
     plugins::{self, Plugin},
@@ -143,7 +143,9 @@ impl App {
             if let Ok(store) = ResultStore::recover(&entry.path()) {
                 if store.expired() {
                     store.remove()?;
-                } else {
+                } else if store.metadata.origin != sqlx_core::results::CLI_ORIGIN {
+                    // Command line results are read back with `sqlx results`; the page shows its
+                    // own results, which always hold every statement.
                     results.insert(
                         store.metadata.result_id.clone(),
                         Arc::new(Mutex::new(store)),
@@ -763,11 +765,12 @@ async fn create_result(State(app): State<Local>, Json(request): Json<ViewRequest
         }
         let result = Arc::new(Mutex::new(
             ResultStore::create(
-                &app.root,
+                &app.root.join("results"),
                 &id,
                 source.id.clone(),
                 source.name.clone(),
                 request.statements.clone(),
+                sqlx_core::results::PAGE_ORIGIN,
             )
             .map_err(internal)?,
         ));
@@ -947,7 +950,7 @@ async fn result_page(
     State(app): State<Local>,
     Path(id): Path<String>,
     Query(query): Query<PageQuery>,
-) -> std::result::Result<Json<crate::results::Page>, ApiError> {
+) -> std::result::Result<Json<Page>, ApiError> {
     let result = app.result(&id)?;
     let page = tokio::task::spawn_blocking(move || {
         let result = result.lock().unwrap();

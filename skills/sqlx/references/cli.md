@@ -2,6 +2,8 @@
 
 The repository is https://github.com/OtterMind/sqlx. The supported CLI range for this Skill is `>=0.1.12, <0.2.0`; check `sqlx --version` before relying on a command from this file.
 
+`sqlx setting list` shows the settings in effect, and `sqlx setting set <key> <value>` changes the preview size, the result directory or the result retention; see [results](results.md).
+
 ## Install
 
 ```sh

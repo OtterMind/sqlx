@@ -31,7 +31,8 @@ Add `-l` to install into the project (`./.pi/settings.json`) instead of the user
 | `sqlx_datasource_list` | List saved datasources (no secrets) | no |
 | `sqlx_datasource_show` | Show one datasource by UUID or unique name | no |
 | `sqlx_datasource_test` | Test connectivity; executes no SQL | no |
-| `sqlx_sql_execute` | Execute statements, return the full structured result | yes |
+| `sqlx_sql_execute` | Execute statements, return the table-shaped result with a preview | yes |
+| `sqlx_results_rows` | Read one page of a stored result; read-only | no |
 | `sqlx_sql_view` | Execute once, return a local result-page URL | yes |
 | `sqlx_prefetch` | Download `mysql`, `postgres`, `oracle`, `sqlserver`, `ui`, `skill` or `all` | downloads only |
 

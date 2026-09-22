@@ -27,7 +27,8 @@ GUI, where `~/.local/bin` is normally missing from `PATH`.
 | `sqlx_datasource_list` | List saved datasources (no secrets) | read-only |
 | `sqlx_datasource_show` | Show one datasource | read-only |
 | `sqlx_datasource_test` | Test connectivity | read-only |
-| `sqlx_sql_execute` | Execute statements, return the full result | may modify data; ask the user first |
+| `sqlx_sql_execute` | Execute statements, return the table-shaped result with a preview | may modify data; ask the user first |
+| `sqlx_results_rows` | Read one page of a stored result | no |
 | `sqlx_sql_view` | Execute once and return a local result-page URL | may modify data; ask the user first |
 | `sqlx_prefetch` | Download workers/JDBC/UI components | downloads only |
 

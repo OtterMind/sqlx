@@ -1,7 +1,7 @@
+use crate::storage::{atomic_write, open_private, restrict};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx_core::storage::{atomic_write, open_private, restrict};
 use sqlx_protocol::{Column, Event};
 use std::{
     fs::{self, File},
@@ -10,6 +10,14 @@ use std::{
 };
 
 pub const RETENTION_SECONDS: u64 = 24 * 60 * 60;
+/// Upper bound for the stored CLI results; the oldest ones are removed first.
+pub const MAX_STORED_BYTES: u64 = 1 << 30;
+/// Owner recorded in the metadata of a result the CLI or the page created.
+pub const CLI_ORIGIN: &str = "cli";
+pub const PAGE_ORIGIN: &str = "ui";
+fn page_origin() -> String {
+    PAGE_ORIGIN.into()
+}
 pub fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -37,6 +45,9 @@ pub struct Metadata {
     pub duration_ms: u64,
     pub tables: Vec<Table>,
     pub events: Vec<Value>,
+    /// `cli` for results the command line stored, `ui` for page results.
+    #[serde(default = "page_origin")]
+    pub origin: String,
     #[serde(default)]
     pub snapshot: Option<String>,
     #[serde(default)]
@@ -70,15 +81,17 @@ pub struct Page {
 }
 
 impl ResultStore {
+    /// Create one result directory inside `parent`, which holds the results themselves.
     pub fn create(
-        root: &Path,
+        parent: &Path,
         id: &str,
         source_id: String,
         source_name: String,
         statements: Vec<String>,
+        origin: &str,
     ) -> Result<Self> {
         uuid::Uuid::parse_str(id)?;
-        let dir = root.join("results").join(id);
+        let dir = parent.join(id);
         fs::create_dir_all(&dir)?;
         restrict(&dir, true)?;
         let store = Self {
@@ -92,6 +105,7 @@ impl ResultStore {
                 duration_ms: 0,
                 tables: vec![],
                 events: vec![],
+                origin: origin.into(),
                 snapshot: None,
                 refresh: None,
             },
@@ -398,11 +412,26 @@ impl ResultStore {
         Ok(page)
     }
     pub fn expired(&self) -> bool {
+        self.expired_after(RETENTION_SECONDS)
+    }
+    pub fn expired_after(&self, retention: u64) -> bool {
         self.metadata
             .refresh
             .as_ref()
             .is_none_or(|r| r.status != "running")
-            && now().saturating_sub(self.metadata.created_at) > RETENTION_SECONDS
+            && now().saturating_sub(self.metadata.created_at) > retention
+    }
+    /// Bytes this result occupies, used to bound the stored results.
+    pub fn size(&self) -> u64 {
+        fs::read_dir(&self.dir)
+            .map(|entries| {
+                entries
+                    .filter_map(|entry| entry.ok())
+                    .filter_map(|entry| entry.metadata().ok())
+                    .map(|meta| meta.len())
+                    .sum()
+            })
+            .unwrap_or(0)
     }
     pub fn remove(&self) -> Result<()> {
         fs::remove_dir_all(
@@ -415,6 +444,70 @@ impl ResultStore {
     fn persist(&self) -> Result<()> {
         atomic_write(&self.metadata_path, &serde_json::to_vec(&self.metadata)?)
     }
+}
+/// Read every result in a results directory, newest first. Unreadable entries are skipped.
+pub fn stored(parent: &Path) -> Result<Vec<ResultStore>> {
+    let mut found = Vec::new();
+    if !parent.exists() {
+        return Ok(found);
+    }
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        if uuid::Uuid::parse_str(&entry.file_name().to_string_lossy()).is_err() {
+            continue;
+        }
+        // Another process may remove a result while it is being read.
+        if let Ok(store) = ResultStore::recover(&entry.path()) {
+            found.push(store);
+        }
+    }
+    found.sort_by_key(|store| std::cmp::Reverse(store.metadata.created_at));
+    Ok(found)
+}
+/// Remove expired results of one origin and keep that origin under `max_bytes`, oldest first.
+///
+/// Results the page is still refreshing are never removed. Returns the removed ids.
+pub fn prune(
+    parent: &Path,
+    origin: &str,
+    retention: Option<u64>,
+    max_bytes: u64,
+) -> Result<Vec<String>> {
+    let mut removed = Vec::new();
+    let mut kept = Vec::new();
+    for store in stored(parent)? {
+        if store.metadata.origin == origin && retention.is_some_and(|s| store.expired_after(s)) {
+            let id = store.metadata.result_id.clone();
+            if store.remove().is_ok() {
+                removed.push(id);
+            }
+            continue;
+        }
+        kept.push(store);
+    }
+    let mut total: u64 = kept
+        .iter()
+        .filter(|store| store.metadata.origin == origin)
+        .map(ResultStore::size)
+        .sum();
+    // `stored` orders newest first, so iterate backwards to drop the oldest results first.
+    for store in kept.iter().rev() {
+        if total <= max_bytes {
+            break;
+        }
+        if store.metadata.origin != origin {
+            continue;
+        }
+        let size = store.size();
+        if store.remove().is_ok() {
+            total = total.saturating_sub(size);
+            removed.push(store.metadata.result_id.clone());
+        }
+    }
+    Ok(removed)
 }
 
 #[cfg(test)]
@@ -454,11 +547,12 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let id = uuid::Uuid::new_v4().to_string();
         let mut store = ResultStore::create(
-            root.path(),
+            &root.path().join("results"),
             &id,
             "source".into(),
             "test".into(),
             vec!["SELECT 1".into()],
+            PAGE_ORIGIN,
         )
         .unwrap();
         row(&mut store, "1");
@@ -487,11 +581,12 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let id = uuid::Uuid::new_v4().to_string();
         let mut store = ResultStore::create(
-            root.path(),
+            &root.path().join("results"),
             &id,
             "source".into(),
             "test".into(),
             vec!["SELECT 1".into()],
+            PAGE_ORIGIN,
         )
         .unwrap();
         row(&mut store, "1");
@@ -547,11 +642,12 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let id = uuid::Uuid::new_v4().to_string();
         let mut store = ResultStore::create(
-            root.path(),
+            &root.path().join("results"),
             &id,
             "source".into(),
             "test".into(),
             vec!["select".into()],
+            PAGE_ORIGIN,
         )
         .unwrap();
         store.record(Event::StatementStart { index: 0 }).unwrap();
@@ -582,5 +678,59 @@ mod tests {
         let recovered = ResultStore::recover(&root.path().join("results").join(id)).unwrap();
         assert_eq!(recovered.metadata.status, "interrupted");
         assert_eq!(recovered.page(0, 0, 250, 100).unwrap().rows.len(), 1);
+    }
+    fn stored_result(parent: &Path, origin: &str, age: u64) -> String {
+        let id = uuid::Uuid::new_v4().to_string();
+        let mut store = ResultStore::create(
+            parent,
+            &id,
+            "source".into(),
+            "test".into(),
+            vec!["SELECT 1".into()],
+            origin,
+        )
+        .unwrap();
+        row(&mut store, "1");
+        store.metadata.created_at = now().saturating_sub(age);
+        store.persist().unwrap();
+        id
+    }
+    #[test]
+    fn prune_removes_expired_cli_results_and_keeps_page_results() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("results");
+        let expired = stored_result(&parent, CLI_ORIGIN, RETENTION_SECONDS + 60);
+        let fresh = stored_result(&parent, CLI_ORIGIN, 10);
+        let page = stored_result(&parent, PAGE_ORIGIN, RETENTION_SECONDS + 60);
+        let removed = prune(
+            &parent,
+            CLI_ORIGIN,
+            Some(RETENTION_SECONDS),
+            MAX_STORED_BYTES,
+        )
+        .unwrap();
+        assert_eq!(removed, vec![expired.clone()]);
+        let left: Vec<String> = stored(&parent)
+            .unwrap()
+            .iter()
+            .map(|store| store.metadata.result_id.clone())
+            .collect();
+        assert!(left.contains(&fresh) && left.contains(&page), "{left:?}");
+    }
+    #[test]
+    fn prune_keeps_the_page_results_when_only_cli_results_exceed_the_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("results");
+        let old = stored_result(&parent, CLI_ORIGIN, 600);
+        let page = stored_result(&parent, PAGE_ORIGIN, 900);
+        // A limit below a single result drops the oldest CLI result and no page result.
+        let removed = prune(&parent, CLI_ORIGIN, None, 1).unwrap();
+        assert_eq!(removed, vec![old.clone()]);
+        let left: Vec<String> = stored(&parent)
+            .unwrap()
+            .iter()
+            .map(|store| store.metadata.result_id.clone())
+            .collect();
+        assert_eq!(left, vec![page], "{left:?}");
     }
 }

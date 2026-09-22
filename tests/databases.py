@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Exercise every additional database through the CLI against the compose fixtures."""
-import argparse, json, os, subprocess, tempfile, time
+import argparse, json, os, subprocess, sys, tempfile, time
 from decimal import Decimal
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import contract
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "sqlx_test_only_password"
@@ -201,24 +203,26 @@ def exercise(cli, bin_dir, kind):
         call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--command", statement)])
         _, result = retry(kind, "the read-only query", lambda: call(
             "sql", "execute", "--datasource", "fixture", "--command", SELECT[kind]))
-        row = next(e for e in result["events"] if e["event"] == "row" and e["index"] == 0)
+        rows = contract.rows(result)
+        assert len(rows) == 1, result
+        row = rows[0]
         if kind == "clickhouse":
-            assert row["values"] == ["9007199254740993", "123.4500", "hello"], row
+            assert row == ["9007199254740993", "123.4500", "hello"], row
         else:
-            assert row["values"][:2] == ["9007199254740993", "9007199254740993"], row
-            assert Decimal(row["values"][2]) == Decimal("123.4500"), row
-            assert row["values"][3] == "hello", row
-            columns = next(e for e in result["events"] if e["event"] == "columns" and e["index"] == 0)
-            assert columns["columns"][0]["name"] == columns["columns"][1]["name"], columns
-            assert columns["columns"][0]["name"].lower() == "dup", columns
+            assert row[:2] == ["9007199254740993", "9007199254740993"], row
+            assert Decimal(row[2]) == Decimal("123.4500"), row
+            assert row[3] == "hello", row
+            columns = contract.columns(result)
+            assert columns[0][0] == columns[1][0], columns
+            assert columns[0][0].lower() == "dup", columns
         def first_error_batch():
             code, result = call("sql", "execute", "--datasource", "fixture",
                                 "--command", f"SELECT 1 AS {alias(kind)}",
                                 "--command", "SELECT * FROM sqlx_missing_table",
                                 "--command", f"SELECT 2 AS {alias(kind)}", ok=False)
-            error = next((e for e in result["events"] if e["event"] == "error"), None)
-            assert error is not None and error["index"] == 1, result
-            assert code != 0 and any(e["event"] == "skipped" and e["index"] == 2 for e in result["events"]), result
+            error = contract.error(result, 1)
+            assert error is not None and contract.rows(result, 0), result
+            assert code != 0 and contract.skipped(result) == [2], result
         retry(kind, "the first-error batch", first_error_batch)
         # The cleanup is idempotent, so an interrupted drop can be repeated safely.
         retry(kind, "the idempotent cleanup", lambda: call(
