@@ -81,7 +81,12 @@ public final class JdbcWorker {
                 Driver driver = (Driver) type.getDeclaredConstructor().newInstance();
                 Properties properties = new Properties();
                 config.path("properties").fields().forEachRemaining(e -> properties.setProperty(e.getKey(), e.getValue().asText()));
-                properties.setProperty("user", config.path("username").asText());
+                String user = config.path("username").asText();
+                if (user.isEmpty() && config.path("database_type").asText().equals("h2")) {
+                    // H2 always has a user; an embedded database is created for `sa` when none is given.
+                    user = "sa";
+                }
+                properties.setProperty("user", user);
                 properties.setProperty("password", config.path("password").asText());
                 if (config.path("database_type").asText().equals("sqlserver")) {
                     properties.setProperty("databaseName", config.path("database").asText());
@@ -101,6 +106,7 @@ public final class JdbcWorker {
                             current = i;
                             String statement = sql.get(i).asText();
                             if (statement.isBlank()) throw new IllegalArgumentException("empty SQL statement");
+                            if (config.path("database_type").asText().equals("h2")) singleStatement(statement);
                             emit("statement_start", "index", i);
                             try (Statement st = connection.createStatement()) {
                                 dispatched = true;
@@ -151,6 +157,44 @@ public final class JdbcWorker {
             return false;
         }
     }
+    /**
+     * H2 runs every statement in one string but reports only the first result, so a command that
+     * carries more than one statement is rejected before anything runs.
+     */
+    static void singleStatement(String sql) {
+        int terminated = 0;
+        boolean text = false;
+        char quote = 0;
+        for (int i = 0; i < sql.length(); i++) {
+            char c = sql.charAt(i);
+            if (quote != 0) {
+                if (c == quote) {
+                    if (i + 1 < sql.length() && sql.charAt(i + 1) == quote) i++;
+                    else quote = 0;
+                }
+                continue;
+            }
+            if (c == '\'' || c == '"' || c == '`') {
+                quote = c;
+                text = true;
+            } else if (c == '$' && i + 1 < sql.length() && sql.charAt(i + 1) == '$') {
+                int end = sql.indexOf("$$", i + 2);
+                i = end < 0 ? sql.length() : end + 1;
+                text = true;
+            } else if (c == '-' && i + 1 < sql.length() && sql.charAt(i + 1) == '-') {
+                int end = sql.indexOf('\n', i);
+                i = end < 0 ? sql.length() : end;
+            } else if (c == '/' && i + 1 < sql.length() && sql.charAt(i + 1) == '*') {
+                int end = sql.indexOf("*/", i + 2);
+                i = end < 0 ? sql.length() : end + 1;
+            } else if (c == ';') {
+                if (text) { terminated++; text = false; }
+            } else if (!Character.isWhitespace(c)) {
+                text = true;
+            }
+        }
+        if (terminated > 0 && text) throw new IllegalArgumentException("one statement per --command; H2 would run the rest without reporting it");
+    }
     static String url(JsonNode c) throws URISyntaxException {
         String host=c.path("host").asText(); int port=c.path("port").asInt();
         String authority=host.contains(":") ? "["+host+"]:"+port : host+":"+port;
@@ -170,12 +214,22 @@ public final class JdbcWorker {
                 String database = c.path("database").asText();
                 yield "jdbc:TAOS-WS://" + authority + "/" + database;
             }
+            case "h2" -> {
+                // An H2 URL either opens a local file or reaches a TCP server; the same driver does
+                // both. A server refuses an implicitly relative path, so a bare name becomes ./name.
+                String database = c.path("database").asText();
+                if (host.isEmpty()) yield "jdbc:h2:file:" + database;
+                String remote = database.startsWith("/") || database.startsWith("~") || database.startsWith("./")
+                    ? database
+                    : "./" + database;
+                yield "jdbc:h2:tcp://" + authority + "/" + remote;
+            }
             case "trino" -> {
                 // Trino addresses a catalog and an optional schema; --database carries catalog[.schema].
                 yield "jdbc:trino://" + authority + "/" + c.path("database").asText().replace('.', '/')
                     + (c.path("tls").asText().equals("disable") ? "" : "?SSL=true");
             }
-            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine, opengauss, dameng and kingbase");
+            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine, opengauss, dameng, kingbase and h2");
         };
     }
     /** Some drivers, such as the TDengine RESTful driver, only implement the JDBC 1 update count. */

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/protocol", "crates/cli", "crates/ui", "drivers/mysql", "drivers/postgres", "drivers/redis", "drivers/mongodb"]
+members = ["crates/protocol", "crates/cli", "crates/ui", "drivers/mysql", "drivers/postgres", "drivers/redis", "drivers/mongodb", "drivers/sqlite", "drivers/duckdb"]
 
 [workspace.package]
 version = "0.1.14"
@@ -19,6 +19,9 @@ base64 = "0.22"
 hex = "0.4"
 sha2 = "0.10"
 sqlx-protocol = { path = "crates/protocol" }
+# Local engines link their database library into the worker instead of a system service.
+rusqlite = { version = "0.37", features = ["bundled", "column_decltype"] }
+duckdb = { version = "1.4", features = ["bundled"] }
 
 [profile.release]
 lto = "thin"

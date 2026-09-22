@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { isFileEngine } from "./datasource";
 import { pollLater } from "./navigation";
 import {
   button,
@@ -61,6 +62,9 @@ export async function setupPage(
       ["kingbase", "KingbaseES"],
       ["redis", "Redis"],
       ["mongodb", "MongoDB"],
+      ["sqlite", "SQLite"],
+      ["duckdb", "DuckDB"],
+      ["h2", "H2"],
     ],
     setup.connection.database_type,
   );
@@ -69,6 +73,8 @@ export async function setupPage(
   port.input.min = "1";
   port.input.max = "65535";
   const database = field("Database", "database", setup.connection.database);
+  const databaseLabel = database.wrapper.querySelector("label");
+  const hostLabel = host.wrapper.querySelector("label");
   const service = field("Service name", "service", setup.connection.service);
   const tls = selectField(
     "Connection security",
@@ -127,10 +133,30 @@ export async function setupPage(
   const details = element("details", "connection-details");
   details.append(element("summary", "", "Connection settings"), grid);
   const adjust = () => {
-    context.textContent = `${kind.input.selectedOptions[0].text} · ${host.input.value}:${port.input.value} · ${kind.input.value === "oracle" ? service.input.value : database.input.value}`;
-    service.wrapper.hidden = kind.input.value !== "oracle";
-    service.input.required = kind.input.value === "oracle";
-    database.wrapper.hidden = kind.input.value === "oracle";
+    const engine = kind.input.value;
+    // SQLite and DuckDB open a file; H2 does too until a host is given.
+    const file = isFileEngine(engine);
+    const embedded = file || (engine === "h2" && !host.input.value.trim());
+    host.wrapper.hidden = file;
+    port.wrapper.hidden = file;
+    tls.wrapper.hidden = embedded;
+    credentials.hidden = embedded;
+    host.input.required = !file && engine !== "h2";
+    port.input.required = !file;
+    username.input.required = !embedded;
+    if (databaseLabel)
+      databaseLabel.textContent = file
+        ? "Database file"
+        : engine === "h2"
+          ? "Database or file"
+          : "Database";
+    if (hostLabel && engine === "h2") hostLabel.textContent = "Host (empty for a local file)";
+    context.textContent = file
+      ? `${kind.input.selectedOptions[0].text} · ${database.input.value}`
+      : `${kind.input.selectedOptions[0].text} · ${host.input.value}:${port.input.value} · ${engine === "oracle" ? service.input.value : database.input.value}`;
+    service.wrapper.hidden = engine !== "oracle";
+    service.input.required = engine === "oracle";
+    database.wrapper.hidden = engine === "oracle";
     password.wrapper.hidden = passwordAction.input.value !== "replace";
     password.input.required = passwordAction.input.value === "replace";
   };

@@ -18,6 +18,9 @@ VENDORS={
                       entry='clickhouse-jdbc.jar',license_url='https://raw.githubusercontent.com/ClickHouse/clickhouse-java/main/LICENSE',
                       extra_licenses={'LICENSE-slf4j.txt':('slf4j-api.jar','META-INF/LICENSE.txt')}),
     'trino':dict(files=[('https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar','trino-jdbc.jar')],entry='trino-jdbc.jar',license_url='https://raw.githubusercontent.com/trinodb/trino/master/LICENSE'),
+    # H2 is an embedded Java database that also serves TCP; the driver comes from Maven Central and
+    # is dual licensed under the MPL 2.0 or the EPL 1.0.
+    'h2':dict(files=[('https://repo.maven.apache.org/maven2/com/h2database/h2/2.5.250/h2-2.5.250.jar','h2.jar')],entry='h2.jar',license_url='https://raw.githubusercontent.com/h2database/h2database/master/LICENSE.txt'),
     # Dameng and KingbaseES publish their JDBC drivers on Maven Central under the Apache license.
     'dameng':dict(files=[('https://repo.maven.apache.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.jar','dm-jdbc.jar')],entry='dm-jdbc.jar',license_url='https://repo1.maven.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.pom'),
     'kingbase':dict(files=[('https://repo.maven.apache.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.jar','kingbase8-jdbc.jar')],entry='kingbase8-jdbc.jar',license_url='https://repo1.maven.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.pom'),

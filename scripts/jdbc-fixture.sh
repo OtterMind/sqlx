@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-kind="${1:?oracle, sqlserver, clickhouse or trino required}"
+kind="${1:?oracle, sqlserver, clickhouse, trino, h2 or another JDBC engine required}"
 mkdir -p target/debug
 # The runner version follows Cargo.toml; these fixtures only stage the jars the CLI loads in dev mode.
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
@@ -22,6 +22,10 @@ case "$kind" in
     ;;
   trino)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/io/trino/trino-jdbc/476/trino-jdbc-476.jar' -o target/debug/trino-jdbc.jar
+    ;;
+  h2)
+    # H2 is embedded: the jar is all this fixture needs, and the tests open a local file.
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/h2database/h2/2.5.250/h2-2.5.250.jar' -o target/debug/h2.jar
     ;;
   dameng)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.jar' -o target/debug/dm-jdbc.jar

@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Instant};
 
 /// Components accepted on the command line, in the order `all` downloads them.
-pub(crate) const CHOICES: [&str; 23] = [
+pub(crate) const CHOICES: [&str; 26] = [
     "mysql",
     "mariadb",
     "tidb",
@@ -26,6 +26,9 @@ pub(crate) const CHOICES: [&str; 23] = [
     "kingbase",
     "redis",
     "mongodb",
+    "sqlite",
+    "duckdb",
+    "h2",
     "ui",
     "skill",
     "all",
@@ -35,14 +38,16 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
     let entries = match name {
         // MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Doris speak the MySQL protocol, and
         // CockroachDB, YugabyteDB and openGauss the PostgreSQL protocol, so they reuse a worker.
-        "mysql" | "postgres" | "redis" | "mongodb" => vec![(name.to_owned(), platform.to_owned())],
+        "mysql" | "postgres" | "redis" | "mongodb" | "sqlite" | "duckdb" => {
+            vec![(name.to_owned(), platform.to_owned())]
+        }
         "mariadb" | "tidb" | "greatsql" | "oceanbase" | "starrocks" | "doris" => {
             vec![("mysql".to_owned(), platform.to_owned())]
         }
         "cockroachdb" | "yugabytedb" => vec![("postgres".to_owned(), platform.to_owned())],
         // The JDBC databases need the shared runner and the pinned JRE as well.
         "oracle" | "sqlserver" | "clickhouse" | "trino" | "tdengine" | "opengauss" | "dameng"
-        | "kingbase" => vec![
+        | "kingbase" | "h2" => vec![
             ("java".to_owned(), platform.to_owned()),
             ("jdbc".to_owned(), "any".to_owned()),
             (name.to_owned(), "any".to_owned()),
@@ -77,6 +82,9 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
                 "kingbase",
                 "redis",
                 "mongodb",
+                "sqlite",
+                "duckdb",
+                "h2",
             ] {
                 all.extend(expand(target, platform)?);
             }
@@ -236,8 +244,8 @@ mod tests {
     }
     #[test]
     fn unknown_components_are_rejected() {
-        let error = expand("sqlite", "macos-arm64").unwrap_err().to_string();
-        assert!(error.contains("unknown component sqlite"), "{error}");
+        let error = expand("sqlite3", "macos-arm64").unwrap_err().to_string();
+        assert!(error.contains("unknown component sqlite3"), "{error}");
         assert!(error.contains("mysql"), "{error}");
     }
 }

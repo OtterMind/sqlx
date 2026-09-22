@@ -33,6 +33,8 @@ fn native_worker(kind: Database) -> Option<&'static str> {
         Database::Postgresql | Database::Cockroachdb | Database::Yugabytedb => Some("postgres"),
         Database::Redis => Some("redis"),
         Database::Mongodb => Some("mongodb"),
+        Database::Sqlite => Some("sqlite"),
+        Database::Duckdb => Some("duckdb"),
         _ => None,
     }
 }
@@ -73,6 +75,10 @@ fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
         Database::Tdengine => JdbcDriver {
             component: "tdengine",
             jars: &["taos-jdbcdriver.jar", "slf4j-nop.jar"],
+        },
+        Database::H2 => JdbcDriver {
+            component: "h2",
+            jars: &["h2.jar"],
         },
         other => bail!("{other:?} is not a JDBC database"),
     })
@@ -162,6 +168,7 @@ pub fn prepare(
         Database::Opengauss => "org.opengauss.Driver",
         Database::Dameng => "dm.jdbc.driver.DmDriver",
         Database::Kingbase => "com.kingbase8.Driver",
+        Database::H2 => "org.h2.Driver",
         _ => "",
     }
     .into();
