@@ -35,6 +35,12 @@ def copy_plugin(source: Path, target: Path, version: str) -> None:
             if key in manifest:
                 manifest[key] = version
         path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    runtime = target / "runtime.json"
+    if runtime.is_file():
+        metadata = json.loads(runtime.read_text(encoding="utf-8"))
+        metadata["plugin_version"] = version
+        metadata["cli_min_version"] = version
+        runtime.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     launcher = target / "bin" / "sqlx-mcp"
     if launcher.is_file():
         os.chmod(launcher, 0o755)
@@ -119,9 +125,10 @@ claude plugin install sqlx@ottermind
 | `plugins/sqlx/` | Codex plugin (`.codex-plugin/plugin.json`, `.mcp.json`, `bin/sqlx-mcp`) |
 | `plugins/sqlx-claude/` | Claude Code plugin (`.claude-plugin/plugin.json`, `.mcp.json`, `bin/sqlx-mcp`) |
 
-Both plugins launch `sqlx mcp`; the launcher uses `SQLX_BIN` when set, otherwise the first `sqlx`
-on `PATH`. The CLI version in each plugin manifest matches the repository release that generated
-the branch.
+Both plugins launch `sqlx mcp`; each launcher reads the minimum CLI version from its plugin runtime
+metadata, accepts only a compatible `SQLX_BIN`/PATH executable, and pins the official installer to
+that version when the CLI is missing or too old. The CLI version in each plugin manifest matches
+the repository release that generated the branch.
 """
 
 

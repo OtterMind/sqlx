@@ -1,12 +1,81 @@
 #!/bin/sh
 # Launch the OtterMind SQLX CLI as an MCP stdio server.
 #
-# The executable is resolved in this order: SQLX_BIN, `sqlx` on PATH, the official user-level
-# installation (SQLX_INSTALL_DIR, ~/.local/bin/sqlx, %LOCALAPPDATA%\Programs\SQLX\sqlx.exe). When
-# none of them exists the launcher installs the CLI with the official npm installer, so adding the
-# plugin is the only setup step. The official location also covers harnesses started from a GUI,
-# where ~/.local/bin is normally missing from PATH.
+# The executable is resolved from a compatible plugin-managed installation first. SQLX_BIN remains
+# an explicit override, while PATH is accepted only when it satisfies the plugin's minimum CLI
+# version. An older or missing CLI is installed with the exact version required by this plugin.
 set -eu
+
+# shellcheck disable=SC1007
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck disable=SC1007
+plugin_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+runtime_manifest="$plugin_root/runtime.json"
+
+if [ -f "$plugin_root/.codex-plugin/plugin.json" ]; then
+  agent_target=codex
+  plugin_manifest="$plugin_root/.codex-plugin/plugin.json"
+elif [ -f "$plugin_root/.claude-plugin/plugin.json" ]; then
+  agent_target=claude
+  plugin_manifest="$plugin_root/.claude-plugin/plugin.json"
+else
+  echo "sqlx plugin manifest is missing" >&2
+  exit 78
+fi
+
+metadata_value() {
+  sed -n "s/^[[:space:]]*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$2" | head -n 1
+}
+
+plugin_version=$(metadata_value plugin_version "$runtime_manifest")
+manifest_version=$(metadata_value version "$plugin_manifest")
+minimum_cli_version=$(metadata_value cli_min_version "$runtime_manifest")
+
+version_key() {
+  case "$1" in
+    ''|*[!0-9.]*) return 1 ;;
+  esac
+  old_ifs=$IFS
+  IFS=.
+  # shellcheck disable=SC2086
+  set -- $1
+  IFS=$old_ifs
+  [ "$#" -eq 3 ] || return 1
+  printf '%03d%03d%03d' "$1" "$2" "$3"
+}
+
+version_at_least() {
+  actual_key=$(version_key "$1") || return 1
+  minimum_key=$(version_key "$2") || return 1
+  [ "$actual_key" -ge "$minimum_key" ]
+}
+
+cli_version() {
+  [ -x "$1" ] || return 1
+  "$1" --version 2>/dev/null |
+    sed -n 's/^sqlx \([^ ]*\) (OtterMind\/sqlx)$/\1/p' |
+    head -n 1
+}
+
+compatible() {
+  actual_version=$(cli_version "$1") || return 1
+  version_at_least "$actual_version" "$minimum_cli_version"
+}
+
+if [ -z "$plugin_version" ] || [ -z "$manifest_version" ] || [ -z "$minimum_cli_version" ]; then
+  echo "sqlx plugin runtime manifest is missing a valid version" >&2
+  exit 78
+fi
+if [ "$plugin_version" != "$manifest_version" ]; then
+  echo "sqlx plugin runtime version $plugin_version does not match plugin version $manifest_version" >&2
+  exit 78
+fi
+if ! version_key "$plugin_version" >/dev/null 2>&1 ||
+  ! version_key "$minimum_cli_version" >/dev/null 2>&1 ||
+  ! version_at_least "$plugin_version" "$minimum_cli_version"; then
+  echo "sqlx plugin runtime manifest has an invalid version range" >&2
+  exit 78
+fi
 
 install_directory() {
   if [ -n "${SQLX_INSTALL_DIR:-}" ]; then
@@ -23,24 +92,33 @@ binary_name() {
     *) printf 'sqlx' ;;
   esac
 }
-runs() {
-  [ -n "$1" ] && [ -x "$1" ] && "$1" --version >/dev/null 2>&1
-}
-
-if runs "${SQLX_BIN:-}"; then
+if [ -n "${SQLX_BIN:-}" ]; then
+  actual_version=$(cli_version "$SQLX_BIN" || true)
+  if [ -z "$actual_version" ]; then
+    echo "SQLX_BIN does not point to a runnable OtterMind SQLX CLI: $SQLX_BIN" >&2
+    exit 127
+  fi
+  if ! version_at_least "$actual_version" "$minimum_cli_version"; then
+    echo "SQLX_BIN has SQLX $actual_version; this plugin requires SQLX >= $minimum_cli_version" >&2
+    exit 78
+  fi
   exec "$SQLX_BIN" mcp "$@"
 fi
-if command -v sqlx >/dev/null 2>&1; then
-  exec sqlx mcp "$@"
-fi
 installed="$(install_directory)/$(binary_name)"
-if ! runs "$installed"; then
-  echo "sqlx is not installed; installing it with 'npx -y @ottermind/sqlx@latest --target codex'" >&2
-  npx -y @ottermind/sqlx@latest --target codex >&2 || true
-fi
-if runs "$installed"; then
+
+if compatible "$installed"; then
   exec "$installed" mcp "$@"
 fi
-echo "sqlx is not installed and could not be installed automatically." >&2
-echo "Install it with 'npx -y @ottermind/sqlx@latest' and start the plugin again." >&2
+
+path_sqlx=$(command -v sqlx 2>/dev/null || true)
+if [ -n "$path_sqlx" ] && compatible "$path_sqlx"; then
+  exec "$path_sqlx" mcp "$@"
+fi
+
+echo "SQLX plugin requires CLI >= $minimum_cli_version; preparing the compatible CLI" >&2
+SQLX_VERSION="$minimum_cli_version" npx -y @ottermind/sqlx@latest --target "$agent_target" >&2 || true
+if compatible "$installed"; then
+  exec "$installed" mcp "$@"
+fi
+echo "SQLX CLI is missing or incompatible; install SQLX >= $minimum_cli_version and start the plugin again." >&2
 exit 127

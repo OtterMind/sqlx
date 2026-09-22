@@ -584,12 +584,12 @@ mod tests {
             (
                 "codex plugin",
                 include_str!("../../../integrations/codex/plugins/sqlx/bin/sqlx-mcp"),
-                "--target codex",
+                "agent_target=codex",
             ),
             (
                 "claude plugin",
                 include_str!("../../../integrations/claude/plugins/sqlx/bin/sqlx-mcp"),
-                "--target claude",
+                "agent_target=claude",
             ),
         ] {
             assert!(
@@ -603,6 +603,10 @@ mod tests {
             assert!(
                 source.contains("SQLX_INSTALL_DIR"),
                 "the {plugin} launcher must honour SQLX_INSTALL_DIR"
+            );
+            assert!(
+                source.contains("SQLX_VERSION=") && source.contains("runtime.json"),
+                "the {plugin} launcher must install the version required by its manifest"
             );
         }
         // Codex passes only the variables named here to the MCP server, so the launcher's fallback

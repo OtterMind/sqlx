@@ -13,12 +13,13 @@ thin native-tool packages for harnesses that register tools themselves.
 
 ## Requirements
 
-The `sqlx` CLI (0.1.14 or later, which provides `sqlx mcp`). Every integration resolves it the same
-way: `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
-(`SQLX_INSTALL_DIR`, `~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`), and when none of
-them exists it installs the CLI itself with the official npm installer, so installing the plugin or
-the extension is the only setup step. The official location also covers harnesses started from a
-GUI, where `~/.local/bin` is normally missing from `PATH`.
+The `sqlx` CLI (0.1.14 or later, which provides `sqlx mcp`). Codex and Claude plugin launchers read
+the minimum CLI version from their plugin runtime metadata, prefer a compatible CLI in the official
+user-level installation (`SQLX_INSTALL_DIR`, `~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`),
+and accept `SQLX_BIN` or `PATH` only when that CLI is compatible. When the CLI is missing or too old,
+the launcher invokes the official npm installer with the manifest's version pinned through
+`SQLX_VERSION`; it never silently starts an older MCP server. The official location also covers
+harnesses started from a GUI, where `~/.local/bin` is normally missing from `PATH`.
 
 ## Tools
 
