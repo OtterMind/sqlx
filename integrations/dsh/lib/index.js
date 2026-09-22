@@ -106,7 +106,7 @@ function apply(ctx) {
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute(args) {
       const command = ["sql", "execute", "--datasource", args.datasource];
-      for (const statement of args.statements) command.push("--sql", statement);
+      for (const statement of args.statements) command.push("--command", statement);
       return await run(command);
     },
   }));
@@ -120,7 +120,7 @@ function apply(ctx) {
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute(args) {
       const command = ["sql", "execute", "--datasource", args.datasource, "--view", "--no-open"];
-      for (const statement of args.statements) command.push("--sql", statement);
+      for (const statement of args.statements) command.push("--command", statement);
       return await run(command);
     },
   }));

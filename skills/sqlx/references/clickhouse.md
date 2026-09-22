@@ -1,6 +1,6 @@
 # ClickHouse database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. ClickHouse accepts one statement per request, so every operation is its own `--sql` argument.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. ClickHouse accepts one statement per request, so every operation is its own `--command` argument.
 
 Replace `database_name` and `table_name` with actual identifiers. Quote identifiers with backticks or double quotes.
 

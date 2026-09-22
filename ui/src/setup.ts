@@ -59,6 +59,8 @@ export async function setupPage(
       ["tdengine", "TDEngine"],
       ["dameng", "Dameng"],
       ["kingbase", "KingbaseES"],
+      ["redis", "Redis"],
+      ["mongodb", "MongoDB"],
     ],
     setup.connection.database_type,
   );

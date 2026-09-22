@@ -111,15 +111,15 @@ def main():
             assert command('datasource','show','--id',source_id)['name']=='concurrent-name'
             # A sequence proves that page reads and reloads do not execute SQL again.
             sequence='ui_once_'+uuid.uuid4().hex[:10]
-            command('sql','execute','--datasource',source_id,'--sql',f'CREATE SEQUENCE {sequence}')
+            command('sql','execute','--datasource',source_id,'--command',f'CREATE SEQUENCE {sequence}')
             try:
-                view=command('sql','execute','--datasource',source_id,'--sql',f"SELECT nextval('{sequence}') AS execution, n AS id, 9007199254740993::bigint AS exact, '<script>alert(1)</script>' AS content FROM generate_series(1,251) n ORDER BY n",'--view')
+                view=command('sql','execute','--datasource',source_id,'--command',f"SELECT nextval('{sequence}') AS execution, n AS id, 9007199254740993::bigint AS exact, '<script>alert(1)</script>' AS content FROM generate_series(1,251) n ORDER BY n",'--view')
                 metadata=wait_result(view['result_id']);assert metadata['status']=='completed';assert metadata['tables'][0]['rows']==251
                 command('ui','plugin','use','terminal')
                 assert request('/plugin')['id']=='terminal'
                 for _ in range(3):
                     page=request('/results/'+view['result_id']+'/rows?statement=0&result=0&offset=200&limit=100');assert len(page['rows'])==51 and page['rows'][0][2]=='9007199254740993'
-                check=subprocess.run([str(cli),'sql','execute','--datasource',source_id,'--sql',f'SELECT last_value FROM {sequence}'],env=env,capture_output=True,text=True,check=True)
+                check=subprocess.run([str(cli),'sql','execute','--datasource',source_id,'--command',f'SELECT last_value FROM {sequence}'],env=env,capture_output=True,text=True,check=True)
                 rows=[e['values'] for e in json.loads(check.stdout)['events'] if e['event']=='row'];assert rows==[['251']]
                 # Internal control retries with the same request ID return existing results.
                 state=json.loads((data/'ui/state.json').read_text());admin={'Authorization':'Bearer '+state['token']}
@@ -131,18 +131,18 @@ def main():
                 home=command('ui');parsed=urllib.parse.urlsplit(home['url']);origin=parsed.scheme+'://'+parsed.netloc;open_page(home['url'])
                 assert request('/results/'+old_id)['status']=='completed'
                 assert len(request('/results/'+old_id+'/rows?statement=0&result=0&offset=200&limit=100')['rows'])==51
-                error=command('sql','execute','--datasource',source_id,'--sql','SELECT 1','--sql','SELECT * FROM ui_missing_table','--sql','SELECT 2','--view')
+                error=command('sql','execute','--datasource',source_id,'--command','SELECT 1','--command','SELECT * FROM ui_missing_table','--command','SELECT 2','--view')
                 failed=wait_result(error['result_id']);assert failed['status']=='failed';assert any(e['event']=='skipped' for e in failed['events'])
-                slow=command('sql','execute','--datasource',source_id,'--sql','SELECT pg_sleep(30)','--view')
+                slow=command('sql','execute','--datasource',source_id,'--command','SELECT pg_sleep(30)','--view')
                 request('/results/'+slow['result_id']+'/cancel',{});assert wait_result(slow['result_id'])['status']=='cancelled'
-            finally:command('sql','execute','--datasource',source_id,'--sql',f'DROP SEQUENCE {sequence}')
+            finally:command('sql','execute','--datasource',source_id,'--command',f'DROP SEQUENCE {sequence}')
             # Refresh reexecutes the exact SQL batch, including an explicit write.
             # Repeated request IDs cannot execute that write a second time.
             counter='ui_refresh_'+uuid.uuid4().hex[:10]
-            command('sql','execute','--datasource',source_id,'--sql',f'CREATE TABLE {counter} (value integer NOT NULL)','--sql',f'INSERT INTO {counter} VALUES (0)')
+            command('sql','execute','--datasource',source_id,'--command',f'CREATE TABLE {counter} (value integer NOT NULL)','--command',f'INSERT INTO {counter} VALUES (0)')
             try:
                 statements=[f'UPDATE {counter} SET value=value+1 RETURNING value',f'SELECT value, pg_sleep(0.2) FROM {counter}']
-                viewed=command('sql','execute','--datasource',source_id,'--sql',statements[0],'--sql',statements[1],'--view')
+                viewed=command('sql','execute','--datasource',source_id,'--command',statements[0],'--command',statements[1],'--view')
                 rid=viewed['result_id'];assert wait_result(rid)['status']=='completed'
                 before_count=len(request('/home')['results'])
                 first=str(uuid.uuid4());second=str(uuid.uuid4())
@@ -161,12 +161,12 @@ def main():
                 request('/results/'+rid+'/cancel',{})
                 cancelled=wait_refresh(rid);assert cancelled['refresh']['status']=='cancelled'
                 assert cancelled['snapshot']==second
-                command('sql','execute','--datasource',source_id,'--sql',f'DROP TABLE {counter}')
+                command('sql','execute','--datasource',source_id,'--command',f'DROP TABLE {counter}')
                 failed_id=str(uuid.uuid4());request('/results/'+rid+'/refresh',{'request_id':failed_id})
                 failed=wait_refresh(rid);assert failed['refresh']['status']=='failed' and failed['snapshot']==second
                 assert request('/results/'+rid+'/rows?statement=0&result=0&offset=0&limit=100')['rows']==[['3']]
                 assert request('/results/'+rid+'/refresh',{'request_id':failed_id})['status']=='failed'
-            finally:command('sql','execute','--datasource',source_id,'--sql',f'DROP TABLE IF EXISTS {counter}')
+            finally:command('sql','execute','--datasource',source_id,'--command',f'DROP TABLE IF EXISTS {counter}')
             command('datasource','remove','--id',source_id)
             assert request('/home')['datasources']==[]
             request('/datasources/'+source_id,expected=404)

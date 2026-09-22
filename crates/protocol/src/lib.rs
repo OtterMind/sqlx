@@ -30,6 +30,8 @@ pub enum Database {
     Tdengine,
     Dameng,
     Kingbase,
+    Redis,
+    Mongodb,
 }
 
 impl std::str::FromStr for Database {
@@ -54,8 +56,10 @@ impl std::str::FromStr for Database {
             "tdengine" | "taos" => Ok(Self::Tdengine),
             "dameng" | "dm" => Ok(Self::Dameng),
             "kingbase" | "kingbasees" => Ok(Self::Kingbase),
+            "redis" => Ok(Self::Redis),
+            "mongodb" | "mongo" => Ok(Self::Mongodb),
             _ => Err(
-                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, or kingbase"
+                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, kingbase, redis, or mongodb"
                     .into(),
             ),
         }
@@ -240,9 +244,27 @@ pub fn redact(message: &str, connection: &Connection) -> String {
     for secret in [&connection.password, &connection.username] {
         if !secret.is_empty() {
             text = redact_secret(&text, secret);
+            // URLs carry credentials percent-encoded, so a driver can echo that form instead.
+            let encoded = percent_encode(secret);
+            if encoded != *secret {
+                text = redact_secret(&text, &encoded);
+            }
         }
     }
     text
+}
+
+/// Percent-encode everything outside the unreserved set, the way a connection URL does.
+fn percent_encode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                (byte as char).to_string()
+            }
+            other => format!("%{other:02X}"),
+        })
+        .collect()
 }
 /// Replace standalone occurrences of a secret. A secret that is only part of a word or a
 /// hostname stays: the password `oracle` must not turn `docs.oracle.com` into
@@ -293,6 +315,17 @@ mod tests {
         assert_eq!(
             redact("the application could not start", &connection),
             "the application could not start"
+        );
+    }
+    #[test]
+    fn redaction_covers_percent_encoded_credentials() {
+        let connection = connection("app", "p@ss word");
+        assert_eq!(
+            redact(
+                "invalid URI: redis://app:p%40ss%20word@localhost:6379",
+                &connection
+            ),
+            "invalid URI: redis://[redacted]:[redacted]@localhost:6379"
         );
     }
     #[test]

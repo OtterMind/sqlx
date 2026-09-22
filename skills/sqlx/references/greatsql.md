@@ -1,6 +1,6 @@
 # GreatSQL database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, `view_name`, and `procedure_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -101,8 +101,8 @@ SHOW CREATE VIEW `database_name`.`view_name`;
 SHOW CREATE PROCEDURE `database_name`.`procedure_name`;
 ```
 
-**Result:** The definition plus its character-set and SQL-mode context. Semicolons inside a routine body belong to that statement; submit the complete definition in one `--sql` argument.
+**Result:** The definition plus its character-set and SQL-mode context. Semicolons inside a routine body belong to that statement; submit the complete definition in one `--command` argument.
 
 **Official documentation:** [GreatSQL documentation](https://greatsql.cn/docs/)
 
-GreatSQL follows MySQL semantics: each `--sql` argument is one statement, DDL commonly commits implicitly so a later error does not roll back earlier statements, and `GO` or `DELIMITER` are client directives rather than SQL. Because GreatSQL adds features beyond MySQL, check the documentation of the connected version before relying on a GreatSQL-only statement.
+GreatSQL follows MySQL semantics: each `--command` argument is one statement, DDL commonly commits implicitly so a later error does not roll back earlier statements, and `GO` or `DELIMITER` are client directives rather than SQL. Because GreatSQL adds features beyond MySQL, check the documentation of the connected version before relying on a GreatSQL-only statement.

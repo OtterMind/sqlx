@@ -18,7 +18,9 @@ export type DatabaseType =
   | "doris"
   | "tdengine"
   | "dameng"
-  | "kingbase";
+  | "kingbase"
+  | "redis"
+  | "mongodb";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;

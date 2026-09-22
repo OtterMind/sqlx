@@ -1,6 +1,6 @@
 # MySQL database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, `view_name`, and `procedure_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -112,7 +112,7 @@ SHOW CREATE VIEW `database_name`.`view_name`;
 SHOW CREATE PROCEDURE `database_name`.`procedure_name`;
 ```
 
-**Result:** Procedure definition, SQL mode, and character-set context. Semicolons inside a routine body belong to that statement. Submit the complete definition in one `--sql` argument; do not submit the client-only `DELIMITER` directive.
+**Result:** Procedure definition, SQL mode, and character-set context. Semicolons inside a routine body belong to that statement. Submit the complete definition in one `--command` argument; do not submit the client-only `DELIMITER` directive.
 
 **Official documentation:** [SHOW CREATE PROCEDURE](https://dev.mysql.com/doc/refman/8.4/en/show-create-procedure.html)
 

@@ -1,6 +1,6 @@
 # OceanBase database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, `tenant_name`, and `user_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -104,4 +104,4 @@ SELECT * FROM `table_name` LIMIT 100;
 
 **Official documentation:** [OceanBase documentation](https://www.oceanbase.com/docs)
 
-OceanBase runs in MySQL mode by default; the same server can also expose an Oracle-mode tenant, which this recipe does not cover because the CLI connects through the MySQL protocol. Each `--sql` argument is one statement. Distributed transactions and partitions can make a statement slow rather than wrong, so bound exploratory queries and never replay an uncertain write.
+OceanBase runs in MySQL mode by default; the same server can also expose an Oracle-mode tenant, which this recipe does not cover because the CLI connects through the MySQL protocol. Each `--command` argument is one statement. Distributed transactions and partitions can make a statement slow rather than wrong, so bound exploratory queries and never replay an uncertain write.

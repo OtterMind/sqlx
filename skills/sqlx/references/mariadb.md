@@ -1,6 +1,6 @@
 # MariaDB database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `database_name`, `table_name`, `view_name`, and `procedure_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -101,7 +101,7 @@ SHOW CREATE VIEW `database_name`.`view_name`;
 SHOW CREATE PROCEDURE `database_name`.`procedure_name`;
 ```
 
-**Result:** The definition plus its character-set and SQL-mode context. Semicolons inside a routine body belong to that statement; submit the complete definition in one `--sql` argument and never the client-only `DELIMITER` directive.
+**Result:** The definition plus its character-set and SQL-mode context. Semicolons inside a routine body belong to that statement; submit the complete definition in one `--command` argument and never the client-only `DELIMITER` directive.
 
 **Official documentation:** [SHOW CREATE VIEW](https://mariadb.com/kb/en/show-create-view/) · [SHOW CREATE PROCEDURE](https://mariadb.com/kb/en/show-create-procedure/)
 

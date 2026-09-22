@@ -1,6 +1,6 @@
 # KingbaseES database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `schema_name`, `table_name`, and `database_name` with actual identifiers. Quote identifiers with double quotes when they need case or special characters; unquoted names are folded to lower case.
 
@@ -122,4 +122,4 @@ EXPLAIN SELECT * FROM "schema_name"."table_name" WHERE id = 1;
 
 **Official documentation:** [Kingbase documentation portal](https://help.kingbase.com.cn/)
 
-KingbaseES keeps the PostgreSQL catalog and information schema, so unquoted identifiers fold to lower case and there is no `SHOW CREATE TABLE`; read definitions from `pg_indexes`, `information_schema` and the catalog instead. Administrative schemas such as `sys` and `sysaudit` hold system objects. Each `--sql` argument is one statement, and a statement whose outcome is unknown must not be replayed automatically.
+KingbaseES keeps the PostgreSQL catalog and information schema, so unquoted identifiers fold to lower case and there is no `SHOW CREATE TABLE`; read definitions from `pg_indexes`, `information_schema` and the catalog instead. Administrative schemas such as `sys` and `sysaudit` hold system objects. Each `--command` argument is one statement, and a statement whose outcome is unknown must not be replayed automatically.

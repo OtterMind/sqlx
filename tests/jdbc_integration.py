@@ -25,7 +25,7 @@ def exercise(kind,bin_dir):
         else:
             statements=['CREATE TABLE #sqlx_values (id BIGINT, amount DECIMAL(30,4), label NVARCHAR(100))',"INSERT INTO #sqlx_values VALUES (9007199254740993,123.4500,'hello')",'SELECT id AS DUP,id AS DUP,amount,label FROM #sqlx_values']
         args=['sql','execute','--datasource','fixture']
-        for statement in statements:args+=['--sql',statement]
+        for statement in statements:args+=['--command',statement]
         _,result=call(*args)
         row=next(e for e in result['events'] if e['event']=='row' and e['index']==2)
         assert row['values'][:2]==['9007199254740993','9007199254740993'],row
@@ -34,10 +34,10 @@ def exercise(kind,bin_dir):
         columns=next(e for e in result['events'] if e['event']=='columns' and e['index']==2)
         assert columns['columns'][0]['name']==columns['columns'][1]['name']
         query='SELECT 1 FROM dual' if kind=='oracle' else 'SELECT 1'
-        code,result=call('sql','execute','--datasource','fixture','--sql',query,'--sql','SELECT * FROM SQLX_MISSING_TABLE','--sql',query,ok=False)
+        code,result=call('sql','execute','--datasource','fixture','--command',query,'--command','SELECT * FROM SQLX_MISSING_TABLE','--command',query,ok=False)
         assert code!=0 and any(e['event']=='skipped' and e['index']==2 for e in result['events']),result
         if kind=='sqlserver':
-            _,result=call('sql','execute','--datasource','fixture','--sql','SELECT 1 AS value; SELECT 2 AS value')
+            _,result=call('sql','execute','--datasource','fixture','--command','SELECT 1 AS value; SELECT 2 AS value')
             assert len([e for e in result['events'] if e['event']=='row'])==2
         print(f'{kind}: actual JDBC load, connection, same-session batch, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed')
 

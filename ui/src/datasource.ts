@@ -23,6 +23,8 @@ const databaseNames: Record<DatabaseType, string> = {
   tdengine: "TDengine",
   dameng: "Dameng",
   kingbase: "KingbaseES",
+  redis: "Redis",
+  mongodb: "MongoDB",
 };
 
 export function datasourceList(

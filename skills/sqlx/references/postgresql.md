@@ -1,6 +1,6 @@
 # PostgreSQL database operations
 
-Each SQL block is a separate operation submitted through `sqlx sql execute --datasource <id> --sql "..."`. Put statements requiring shared session state in the same invocation.
+Each SQL block is a separate operation submitted through `sqlx sql execute --datasource <id> --command "..."`. Put statements requiring shared session state in the same invocation.
 
 Choose the datasource's database first, then a schema within it. `public` is an example schema; replace it and all object-name placeholders. Double quotes delimit identifiers, with embedded quotes doubled. Single quotes delimit filter strings. Preserve the exact spelling of quoted mixed-case names.
 

@@ -9,7 +9,7 @@ SQLX 0.1.3 adds saved datasources to the default workbench sidebar and home page
 - `datasource add --ui ...` creates a prefilled setup request without prompting for or accepting a password in the command. `--username-env` can prefill a known username.
 - `datasource update --id <id> --ui` opens an edit form. Keeping the existing password, replacing it, and explicitly using an empty password are distinct actions.
 - `datasource setup-status --request-id <id>` returns status and a saved datasource ID, never the password.
-- `sql execute --datasource <id> --sql "..." --view` starts one execution in the UI service and returns its result URL. A repeated internal request ID is idempotent for the same datasource/SQL.
+- `sql execute --datasource <id> --command "..." --view` starts one execution in the UI service and returns its result URL. A repeated internal request ID is idempotent for the same datasource/SQL.
 - `ui`, `ui status`, and `ui stop` manage the local companion. `--no-open` prints a launch link without starting a browser.
 
 ## UI plugins

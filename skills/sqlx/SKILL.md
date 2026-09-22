@@ -1,6 +1,6 @@
 ---
 name: sqlx
-description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, and KingbaseES connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
+description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis, and MongoDB connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
   cli-compat: ">=0.1.11, <0.2.0"
 ---
@@ -11,7 +11,7 @@ Operate databases through the OtterMind SQLX executable. Confirm it with `sqlx -
 
 ```sh
 sqlx datasource list
-sqlx sql execute --datasource <id> --sql "SELECT 1" --sql "SELECT 2"
+sqlx sql execute --datasource <id> --command "SELECT 1" --command "SELECT 2"
 ```
 
 ## Read the reference for the task
@@ -30,9 +30,9 @@ sqlx sql execute --datasource <id> --sql "SELECT 1" --sql "SELECT 2"
 
 Load the recipe of the connected datasource, and only that one. Each recipe links the vendor's own documentation for its operations; match the connected server version.
 
-MySQL `references/mysql.md` · MariaDB `references/mariadb.md` · TiDB `references/tidb.md` · GreatSQL `references/greatsql.md` · OceanBase `references/oceanbase.md` · PostgreSQL `references/postgresql.md` · CockroachDB `references/cockroachdb.md` · YugabyteDB `references/yugabytedb.md` · openGauss `references/opengauss.md` · Oracle `references/oracle.md` · SQL Server `references/sqlserver.md` · ClickHouse `references/clickhouse.md` · Trino `references/trino.md` · StarRocks `references/starrocks.md` · Apache Doris `references/doris.md` · TDengine `references/tdengine.md` · Dameng `references/dameng.md` · KingbaseES `references/kingbase.md`
+MySQL `references/mysql.md` · MariaDB `references/mariadb.md` · TiDB `references/tidb.md` · GreatSQL `references/greatsql.md` · OceanBase `references/oceanbase.md` · PostgreSQL `references/postgresql.md` · CockroachDB `references/cockroachdb.md` · YugabyteDB `references/yugabytedb.md` · openGauss `references/opengauss.md` · Oracle `references/oracle.md` · SQL Server `references/sqlserver.md` · ClickHouse `references/clickhouse.md` · Trino `references/trino.md` · StarRocks `references/starrocks.md` · Apache Doris `references/doris.md` · TDengine `references/tdengine.md` · Dameng `references/dameng.md` · KingbaseES `references/kingbase.md` · Redis `references/redis.md` · MongoDB `references/mongodb.md`
 
-TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris reuse the MySQL worker, and YugabyteDB reuses the PostgreSQL worker; ClickHouse needs its HTTP port, Trino needs `--database <catalog>[.<schema>]`, and the remaining engines, including TDengine, openGauss, Dameng and KingbaseES, connect through the JDBC worker.
+TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris reuse the MySQL worker, and YugabyteDB reuses the PostgreSQL worker; ClickHouse needs its HTTP port, Trino needs `--database <catalog>[.<schema>]`, and the remaining engines, including TDengine, openGauss, Dameng and KingbaseES, connect through the JDBC worker. Redis and MongoDB are not SQL: each `--command` is one Redis command or one MongoDB command document, and `references/approval.md` lists the write commands for both.
 
 ## Rules that always apply
 

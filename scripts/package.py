@@ -4,7 +4,7 @@ import argparse,hashlib,json,os,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 # Components that exist once per platform, and the executable each archive carries.
-BINARIES={'cli':'sqlx','mysql':'sqlx-driver-mysql','postgres':'sqlx-driver-postgres','ui':'sqlx-ui'}
+BINARIES={'cli':'sqlx','mysql':'sqlx-driver-mysql','postgres':'sqlx-driver-postgres','redis':'sqlx-driver-redis','mongodb':'sqlx-driver-mongodb','ui':'sqlx-ui'}
 PLATFORM_KINDS=tuple(BINARIES)
 def archive(output,files):
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:

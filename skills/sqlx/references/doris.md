@@ -1,6 +1,6 @@
 # Apache Doris database operations
 
-Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --sql "..."`. Repeat `--sql` in the same invocation when operations need to share connection state.
+Each SQL block below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command "..."`. Repeat `--command` in the same invocation when operations need to share connection state.
 
 Replace `catalog_name`, `database_name`, `table_name`, and `job_name` with actual identifiers. Quote identifiers with backticks and double embedded backticks. Single-quoted SQL strings have separate escaping rules.
 
@@ -113,4 +113,4 @@ SELECT * FROM `database_name`.`table_name` LIMIT 100;
 
 **Official documentation:** [SELECT](https://doris.apache.org/docs/sql-manual/sql-statements/table-and-view/table/SELECT/)
 
-Doris is an OLAP database: every CREATE TABLE declares a data model (`DUPLICATE`, `AGGREGATE`, or `UNIQUE`), a distribution strategy, and enough live backends for the replication number, while the selected catalog decides which external systems a query can reach. SQL written for MySQL mostly runs unchanged, but the documented differences apply. Each `--sql` argument is one statement, so keep multi-statement maintenance jobs in separate invocations and never replay an uncertain write.
+Doris is an OLAP database: every CREATE TABLE declares a data model (`DUPLICATE`, `AGGREGATE`, or `UNIQUE`), a distribution strategy, and enough live backends for the replication number, while the selected catalog decides which external systems a query can reach. SQL written for MySQL mostly runs unchanged, but the documented differences apply. Each `--command` argument is one statement, so keep multi-statement maintenance jobs in separate invocations and never replay an uncertain write.

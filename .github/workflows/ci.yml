@@ -213,6 +213,28 @@ jobs:
         run: docker logs sqlx-integration-oceanbase-1 --tail 60 || true
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
+  nosql-databases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
+      # Redis and MongoDB run as native Rust workers, so this job needs no JDBC runtime.
+      - run: cargo build --workspace --locked
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 300 redis mongodb
+      - run: python3 tests/nosql.py
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
   jdbc:
     runs-on: ubuntu-24.04
     steps:
