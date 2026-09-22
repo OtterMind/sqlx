@@ -1,6 +1,6 @@
 {
   "name": "@ottermind/sqlx-pi",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "OtterMind SQLX tools for the Pi coding agent: list datasources, test connections, execute SQL and open local result pages.",
   "keywords": [
     "pi-package",
