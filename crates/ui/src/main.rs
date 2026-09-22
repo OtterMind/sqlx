@@ -1,4 +1,3 @@
-mod results;
 mod server;
 use anyhow::{Context, Result};
 use clap::Parser;

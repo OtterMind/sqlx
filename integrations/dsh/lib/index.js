@@ -98,7 +98,7 @@ function apply(ctx) {
   }));
   ctx.tools.register(defineTool({
     name: "sqlx_sql_execute",
-    description: "Execute one or more complete SQL statements through SQLX and return the full structured result. Statements may modify data: call this only after the user authorized that exact operation and scope. Results are never replayed automatically.",
+    description: "Execute one or more complete SQL statements through SQLX and return the table-shaped result: cols, previewed rows and the row count per statement. A result set larger than the preview is stored and pointed at by file; read it with sqlx_results_rows. Statements may modify data: call this only after the user authorized that exact operation and scope. Results are never replayed automatically.",
     parameters: {
       datasource: { type: "string", required: true, description: "Datasource UUID or unique name" },
       statements: { type: "array", items: { type: "string" }, required: true, description: "Complete SQL statements, executed in order on one connection" },
@@ -121,6 +121,26 @@ function apply(ctx) {
     async execute(args) {
       const command = ["sql", "execute", "--datasource", args.datasource, "--view", "--no-open"];
       for (const statement of args.statements) command.push("--command", statement);
+      return await run(command);
+    },
+  }));
+  ctx.tools.register(defineTool({
+    name: "sqlx_results_rows",
+    description: "Read one page of a result that sqlx_sql_execute stored because it did not fit the printed preview. Read-only: it never contacts the database again.",
+    parameters: {
+      id: { type: "string", required: true, description: "Result UUID from the execute response" },
+      statement: { type: "integer", description: "Statement index inside the result, counted from zero" },
+      set: { type: "integer", description: "Result set index of that statement, counted from zero" },
+      offset: { type: "integer", description: "First row to return" },
+      limit: { type: "integer", description: "Rows to return, 50 by default" },
+    },
+    output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
+    async execute(args) {
+      const command = ["results", "rows", "--id", args.id];
+      if (args.statement !== undefined) command.push("--statement", String(args.statement));
+      if (args.set !== undefined) command.push("--set", String(args.set));
+      if (args.offset !== undefined) command.push("--offset", String(args.offset));
+      if (args.limit !== undefined) command.push("--limit", String(args.limit));
       return await run(command);
     },
   }));

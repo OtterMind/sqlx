@@ -222,6 +222,8 @@ Datasource responses omit usernames, passwords and vendor properties.
 | Execute SQL | `sqlx sql execute --datasource dev --command "SELECT 1" --command "SELECT 2"` |
 | Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `skill` or `all`) |
 | Execute and open a result page | `sqlx sql execute --datasource dev --command "SELECT 1" --view` |
+| Read a stored result | `sqlx results list`, `sqlx results rows --id <result-id> --offset 100 --limit 50` |
+| Show or change settings | `sqlx setting list`, `sqlx setting set preview-rows 20`, `sqlx setting set results-dir ~/sqlx-results` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
 | Serve MCP over stdio | `sqlx mcp` |
 | Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
@@ -236,9 +238,13 @@ Each invocation owns one database connection. Repeated `--command` arguments exe
 
 `--command` is the current flag and `--sql` is still accepted as an alias.
 
-SQL output is one JSON object containing `protocol_version`, `datasource_id`, an ordered `events` array and `success`. Events distinguish columns, positional row values, result boundaries, statement completion, errors, skipped statements and overall completion; duplicate labels remain distinct. Numbers are encoded as strings to preserve integer and decimal precision; binary data and PostgreSQL types without a text decoder use Base64 with type metadata, and an explicit SQL cast to text is available when a readable database representation is preferable.
+Output is one JSON object with one item per executed statement: `results[].stmt` identifies the statement, `cols` lists the columns as `[name, type]` pairs (`base64`, `boolean` and `json` join as a third entry when values are not plain text), `rows` holds positional values and `count` holds the driver's row count. Duplicate labels remain distinct. Numbers are encoded as strings to preserve integer and decimal precision, and binary data uses Base64. A failed statement carries its own `error` with an `outcome`; statements that never ran are listed in `skipped`; the object ends with `success`, which is also the process exit status.
 
-Rows are streamed without a CLI row limit or silent truncation; the agent's own tool output limits still apply. Check the final `success` flag and the exit status, and never replay an uncertain write automatically.
+Only a preview travels through standard output. A result set with more rows than `preview-rows` (10 by default) or more than 16 KiB of values is written completely to `results/<id>/<statement>-<result>.jsonl` inside the result directory, and its item carries a `file` path plus the object's `id`. Read more rows from that file, or page them with `sqlx results rows --id <id> --offset 100`. The default result directory is a private directory inside the system temporary directory, so results disappear when the machine reboots; `sqlx setting set results-dir ~/sqlx-results` keeps them, and `sqlx setting set results-retention-hours 0` stops the 24-hour cleanup.
+
+`--events` prints the raw worker event stream instead (`protocol_version`, `datasource_id`, `events`, `success`) for scripts that parse it, and never stores anything. `--preview <rows>` overrides the preview size for one call.
+
+Check the final `success` flag and the exit status, and never replay an uncertain write automatically.
 
 ## Local pages
 
@@ -269,7 +275,7 @@ To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the 
 
 ## Data and downloads
 
-User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
+User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Settings are stored in `~/.sqlx/settings.json` and managed with `sqlx setting list|get|set|unset`; `SQLX_PREVIEW_ROWS`, `SQLX_RESULTS_DIR` and `SQLX_RESULTS_RETENTION_HOURS` override the file for one environment, and a command line flag overrides both. Stored results live in the result directory described above, keep 24 hours by default and stay under 1 GiB in total; older results are removed before the next command runs, and page results from `--view` are managed by the local service. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
 
 The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, Redis and MongoDB run in their own native workers, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng and KingbaseES use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
 

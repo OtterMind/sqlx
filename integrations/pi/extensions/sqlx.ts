@@ -113,7 +113,7 @@ export default function (pi: ExtensionAPI) {
 		name: "sqlx_sql_execute",
 		label: "SQLX SQL execution",
 		description:
-			"Execute one or more complete SQL statements through SQLX and return the full structured result. Statements may modify data: call this only after the user authorized that exact operation and scope. Results are never replayed automatically.",
+			"Execute one or more complete SQL statements through SQLX and return the table-shaped result: cols, previewed rows and the row count per statement. A result set larger than the preview is stored and pointed at by file; read it with sqlx_results_rows. Statements may modify data: call this only after the user authorized that exact operation and scope. Results are never replayed automatically.",
 		parameters: Type.Object({
 			datasource: Type.String({ description: "Datasource UUID or unique name" }),
 			statements: Type.Array(Type.String(), {
@@ -141,6 +141,28 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params) {
 			const args = ["sql", "execute", "--datasource", params.datasource, "--view", "--no-open"];
 			for (const statement of params.statements) args.push("--command", statement);
+			return result(await sqlx(args));
+		},
+	});
+
+	pi.registerTool({
+		name: "sqlx_results_rows",
+		label: "SQLX stored result rows",
+		description:
+			"Read one page of a result that sqlx_sql_execute stored because it did not fit the printed preview. Read-only: it never contacts the database again.",
+		parameters: Type.Object({
+			id: Type.String({ description: "Result UUID from the execute response" }),
+			statement: Type.Optional(Type.Number({ description: "Statement index inside the result, counted from zero" })),
+			set: Type.Optional(Type.Number({ description: "Result set index of that statement, counted from zero" })),
+			offset: Type.Optional(Type.Number({ description: "First row to return" })),
+			limit: Type.Optional(Type.Number({ description: "Rows to return, 50 by default" })),
+		}),
+		async execute(_toolCallId, params) {
+			const args = ["results", "rows", "--id", params.id];
+			if (params.statement !== undefined) args.push("--statement", String(params.statement));
+			if (params.set !== undefined) args.push("--set", String(params.set));
+			if (params.offset !== undefined) args.push("--offset", String(params.offset));
+			if (params.limit !== undefined) args.push("--limit", String(params.limit));
 			return result(await sqlx(args));
 		},
 	});

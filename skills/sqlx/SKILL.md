@@ -23,6 +23,7 @@ sqlx sql execute --datasource <id> --command "SELECT 1" --command "SELECT 2"
 | The user types the password in a browser, or pages and UI plugins are involved | `references/local-ui.md` |
 | Before any statement that is not clearly read-only, including `--view`, manual Refresh and automatic refresh | `references/approval.md` |
 | Execution semantics, output fields, partial or unknown outcomes, retries | `references/execution.md` |
+| Reading more rows of a large result, stored results, preview size and retention | `references/results.md` |
 | A first command is waiting on a download, or components are prefetched | `references/downloads.md` |
 | Writing SQL for the connected engine | the recipe of that engine, below |
 

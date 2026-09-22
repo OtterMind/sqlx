@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Run the actual CLI/JDBC path against an isolated Oracle or SQL Server fixture."""
-import argparse,json,os,subprocess,tempfile,time
+import argparse,json,os,subprocess,sys,tempfile,time
 from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+import contract
 
 ROOT=Path(__file__).resolve().parents[1]
 def exercise(kind,bin_dir):
@@ -27,18 +29,18 @@ def exercise(kind,bin_dir):
         args=['sql','execute','--datasource','fixture']
         for statement in statements:args+=['--command',statement]
         _,result=call(*args)
-        row=next(e for e in result['events'] if e['event']=='row' and e['index']==2)
-        assert row['values'][:2]==['9007199254740993','9007199254740993'],row
+        rows=contract.rows(result,2)
+        assert len(rows)==1 and rows[0][:2]==['9007199254740993','9007199254740993'],rows
         from decimal import Decimal
-        assert Decimal(row['values'][2])==Decimal('123.4500')
-        columns=next(e for e in result['events'] if e['event']=='columns' and e['index']==2)
-        assert columns['columns'][0]['name']==columns['columns'][1]['name']
+        assert Decimal(rows[0][2])==Decimal('123.4500')
+        columns=contract.columns(result,2)
+        assert columns[0][0]==columns[1][0],columns
         query='SELECT 1 FROM dual' if kind=='oracle' else 'SELECT 1'
         code,result=call('sql','execute','--datasource','fixture','--command',query,'--command','SELECT * FROM SQLX_MISSING_TABLE','--command',query,ok=False)
-        assert code!=0 and any(e['event']=='skipped' and e['index']==2 for e in result['events']),result
+        assert code!=0 and contract.skipped(result)==[2],result
         if kind=='sqlserver':
             _,result=call('sql','execute','--datasource','fixture','--command','SELECT 1 AS value; SELECT 2 AS value')
-            assert len([e for e in result['events'] if e['event']=='row'])==2
+            assert contract.rows(result)==[['1'],['2']],result
         print(f'{kind}: actual JDBC load, connection, same-session batch, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed')
 
 if __name__=='__main__':

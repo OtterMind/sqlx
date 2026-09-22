@@ -1,5 +1,6 @@
 use crate::{
     components::{platform, Components},
+    output, settings,
     storage::Datasource,
 };
 use anyhow::{bail, Context, Result};
@@ -7,7 +8,7 @@ use sqlx_protocol::{Action, Connection, Database, Event, Request, VERSION};
 use std::{
     fs,
     io::{self, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Stdio,
 };
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
@@ -181,6 +182,40 @@ fn connection_failure_hint(
     (index.is_none() && outcome == "not_started" && connection.tls == "verify-full")
         .then_some("the connection failed before any statement; if this database does not serve TLS, retry with --tls disable")
 }
+/// Resolve the settings one execution uses, so every command stores and previews the same way.
+pub fn output_settings(
+    root: &Path,
+    mode: output::Mode,
+    preview: Option<u64>,
+) -> Result<(Output, settings::Effective)> {
+    let settings = settings::Settings::load(root)?;
+    let effective = settings::resolve(root, &settings, preview)?;
+    let out = Output {
+        mode,
+        preview_rows: effective.preview_rows,
+        results_dir: effective.results_dir.clone(),
+        results_owned: matches!(effective.results_dir_source, settings::Source::Default),
+    };
+    Ok((out, effective))
+}
+/// Remove expired stored results; called once per execution.
+pub fn prune_results(effective: &settings::Effective) -> Result<()> {
+    crate::results::prune(
+        &effective.results_dir,
+        crate::results::CLI_ORIGIN,
+        effective.retention,
+        crate::results::MAX_STORED_BYTES,
+    )?;
+    Ok(())
+}
+/// How one execution prints its result.
+pub struct Output {
+    pub mode: output::Mode,
+    pub preview_rows: u64,
+    pub results_dir: PathBuf,
+    /// Whether the result directory is the private default rather than a configured one.
+    pub results_owned: bool,
+}
 pub fn run(
     root: PathBuf,
     manifest: String,
@@ -188,6 +223,7 @@ pub fn run(
     source: Datasource,
     action: Action,
     statements: Vec<String>,
+    out: Output,
 ) -> Result<bool> {
     run_to(
         io::stdout().lock(),
@@ -197,21 +233,36 @@ pub fn run(
         source,
         action,
         statements,
+        out,
     )
 }
-/// Run an execution and write its JSON event stream to `output`.
+/// Run an execution and write its result to `output`.
 ///
-/// The CLI passes stdout; the MCP server passes a buffer so protocol output stays clean.
+/// The CLI passes stdout; the MCP server passes a buffer so protocol output stays clean. Both
+/// modes always leave exactly one valid JSON object behind, including when the worker cannot be
+/// started or stops in the middle of a result.
+#[allow(clippy::too_many_arguments)]
 pub fn run_to<W: Write>(
-    mut output: W,
+    output: W,
     root: PathBuf,
     manifest: String,
     local: Option<PathBuf>,
     source: Datasource,
     action: Action,
     statements: Vec<String>,
+    out: Output,
 ) -> Result<bool> {
-    let id = source.id.clone();
+    let connection = source.connection.clone();
+    let writer_options = output::writer_options(
+        out.mode,
+        out.preview_rows,
+        &source.id,
+        &source.name,
+        statements.clone(),
+        &out.results_dir,
+        out.results_owned,
+        &root,
+    );
     let prepared = prepare(root, manifest, local, source, action, statements)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -223,30 +274,24 @@ pub fn run_to<W: Write>(
             let _ = tokio::signal::ctrl_c().await;
             signal.cancel();
         });
-        write!(
-            output,
-            "{{\"protocol_version\":1,\"datasource_id\":{},\"events\":[",
-            serde_json::to_string(&id)?
-        )?;
-        let mut first = true;
-        let result = prepared
-            .execute(
-                |event| {
-                    if !first {
-                        output.write_all(b",")?;
-                    }
-                    first = false;
-                    serde_json::to_writer(&mut output, &event)?;
-                    output.flush()?;
-                    Ok(())
-                },
-                cancel,
-            )
-            .await;
+        let mut writer = output::Writer::new(output, writer_options);
+        let result = prepared.execute(|event| writer.event(event), cancel).await;
         signal_task.abort();
-        let success = result?;
-        writeln!(output, "],\"success\":{success}}}")?;
-        output.flush()?;
+        let success = match result {
+            Ok(success) => {
+                writer.finish(success)?;
+                success
+            }
+            Err(error) => {
+                // The worker never started or the connection to it broke: report it inside the
+                // printed object instead of leaving a half-written one behind.
+                writer.failure(
+                    "sqlx.error",
+                    &sqlx_protocol::redact(&format!("{error:#}"), &connection),
+                )?;
+                false
+            }
+        };
         Ok(success)
     })
 }

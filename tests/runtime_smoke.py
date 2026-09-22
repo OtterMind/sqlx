@@ -21,7 +21,8 @@ def main():
             config=dict(database_type='oracle',host='127.0.0.1',port=1,service='FREEPDB1',username='test',password='not_a_real_password',tls='disable',properties={'oracle.net.CONNECT_TIMEOUT':'2000'})
             add=subprocess.run(args+['datasource','add','--name','fixture','--connection-stdin'],input=json.dumps(config),text=True,capture_output=True,env=env,timeout=20)
             assert add.returncode==0,add.stdout
-            result=subprocess.run(args+['datasource','test','--id','fixture'],text=True,capture_output=True,env=env,timeout=360)
+            # This test verifies the worker handshake, so it asks for the raw event stream.
+            result=subprocess.run(args+['datasource','test','--id','fixture','--events'],text=True,capture_output=True,env=env,timeout=360)
             value=json.loads(result.stdout)
             assert not value['success'],value
             assert any(e['event']=='ready' for e in value.get('events',[])),value

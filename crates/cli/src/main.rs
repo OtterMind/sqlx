@@ -8,7 +8,7 @@ use sqlx_protocol::{Action, Connection, Database};
 use std::{
     collections::BTreeMap,
     io::{self, IsTerminal, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 use storage::{Datasource, Store};
 
@@ -64,6 +64,16 @@ enum Commands {
     Sql {
         #[command(subcommand)]
         command: SqlCommand,
+    },
+    /// Read the results this CLI stored, including the ones a command only previewed.
+    Results {
+        #[command(subcommand)]
+        command: ResultsCommand,
+    },
+    /// Show or change settings such as the preview size and the result directory.
+    Setting {
+        #[command(subcommand)]
+        command: SettingCommand,
     },
     Skill {
         #[command(subcommand)]
@@ -159,6 +169,9 @@ enum DatasourceCommand {
     Test {
         #[arg(long)]
         id: String,
+        /// Print the raw worker event stream instead of the table-shaped result.
+        #[arg(long)]
+        events: bool,
     },
     /// Check a browser setup request without retrieving credentials.
     SetupStatus {
@@ -208,7 +221,50 @@ enum SqlCommand {
         /// Execute once in the local UI service and open a paginated result page.
         #[arg(long)]
         view: bool,
+        /// Rows printed per result set; more rows are stored and pointed at by `file`.
+        #[arg(long, value_name = "ROWS")]
+        preview: Option<u64>,
+        /// Print the raw worker event stream instead of the table-shaped result.
+        #[arg(long)]
+        events: bool,
     },
+}
+#[derive(Subcommand)]
+enum ResultsCommand {
+    /// List stored results, newest first.
+    List {
+        /// Show at most this many results.
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    /// Read rows of one stored result.
+    Rows {
+        #[arg(long)]
+        id: String,
+        /// Statement index inside the result, counted from zero.
+        #[arg(long, default_value_t = 0)]
+        statement: usize,
+        /// Result set index of that statement, counted from zero.
+        #[arg(long, default_value_t = 0)]
+        set: usize,
+        /// First row to return.
+        #[arg(long, default_value_t = 0)]
+        offset: u64,
+        /// Rows to return, at most 200.
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+}
+#[derive(Subcommand)]
+enum SettingCommand {
+    /// Show every setting with its effective value and where it comes from.
+    List,
+    /// Show one setting.
+    Get { key: String },
+    /// Change one setting: preview-rows, results-dir or results-retention-hours.
+    Set { key: String, value: String },
+    /// Restore the default of one setting.
+    Unset { key: String },
 }
 #[derive(Subcommand)]
 enum SkillCommand {
@@ -416,19 +472,23 @@ fn run(cli: Cli) -> Result<bool> {
                 store.save(&sources)?;
                 print(json!({"removed":found.id}));
             }
-            DatasourceCommand::Test { id } => {
+            DatasourceCommand::Test { id, events } => {
                 let source = {
                     let store = Store::open(root.clone())?;
                     store.find(&id)?
                 };
-                return execution::run(
+                let (out, effective) = execution::output_settings(&root, mode(events), None)?;
+                let outcome = execution::run(
                     root,
                     cli.manifest,
                     cli.worker_dir,
                     source,
                     Action::Test,
                     vec![],
+                    out,
                 );
+                execution::prune_results(&effective)?;
+                return outcome;
             }
             DatasourceCommand::SetupStatus { request_id } => {
                 uuid::Uuid::parse_str(&request_id).context("invalid setup request ID")?;
@@ -443,6 +503,8 @@ fn run(cli: Cli) -> Result<bool> {
                     datasource,
                     statements,
                     view,
+                    preview,
+                    events,
                 },
         } => {
             if statements.iter().any(|s| s.trim().is_empty()) {
@@ -474,14 +536,25 @@ fn run(cli: Cli) -> Result<bool> {
                 print(result);
                 return Ok(true);
             }
-            return execution::run(
+            let (out, effective) = execution::output_settings(&root, mode(events), preview)?;
+            let outcome = execution::run(
                 root,
                 cli.manifest,
                 cli.worker_dir,
                 source,
                 Action::Execute,
                 statements,
+                out,
             );
+            execution::prune_results(&effective)?;
+            return outcome;
+        }
+        Commands::Results { command } => {
+            return results_command(&root, command);
+        }
+        Commands::Setting { command } => {
+            Store::open(root.clone())?;
+            return setting_command(&root, command);
         }
         Commands::Skill { command } => {
             {
@@ -562,6 +635,142 @@ fn run(cli: Cli) -> Result<bool> {
 }
 /// Write one JSON line. A consumer that stops reading (`sqlx … | head`) must not turn
 /// into a panic; any other write failure still reports itself and fails.
+fn mode(events: bool) -> sqlx_core::output::Mode {
+    if events {
+        sqlx_core::output::Mode::Events
+    } else {
+        sqlx_core::output::Mode::Compact
+    }
+}
+/// Stored results, all of them written by this CLI into the configured result directory.
+fn results_command(root: &Path, command: ResultsCommand) -> Result<bool> {
+    let settings = sqlx_core::settings::Settings::load(root)?;
+    let effective = sqlx_core::settings::resolve(root, &settings, None)?;
+    sqlx_core::results::prune(
+        &effective.results_dir,
+        sqlx_core::results::CLI_ORIGIN,
+        effective.retention,
+        sqlx_core::results::MAX_STORED_BYTES,
+    )?;
+    match command {
+        ResultsCommand::List { limit } => {
+            let stored = sqlx_core::results::stored(&effective.results_dir)?;
+            let results: Vec<Value> = stored
+                .iter()
+                .take(limit)
+                .map(|store| {
+                    let rows: u64 = store.metadata.tables.iter().map(|table| table.rows).sum();
+                    json!({
+                        "id": store.metadata.result_id,
+                        "datasource": store.metadata.datasource_name,
+                        "status": store.metadata.status,
+                        "created_at": store.metadata.created_at,
+                        "rows": rows.to_string(),
+                    })
+                })
+                .collect();
+            print(json!({"dir": effective.results_dir.to_string_lossy(), "results": results}));
+        }
+        ResultsCommand::Rows {
+            id,
+            statement,
+            set,
+            offset,
+            limit,
+        } => {
+            uuid::Uuid::parse_str(&id).context("id must be a result UUID")?;
+            let store = sqlx_core::results::ResultStore::recover(&effective.results_dir.join(&id))
+                .with_context(|| {
+                    format!(
+                        "result {id} is not stored in {}",
+                        effective.results_dir.display()
+                    )
+                })?;
+            let page = store.page(statement, set, offset, limit)?;
+            let columns: Vec<Value> = store
+                .metadata
+                .tables
+                .iter()
+                .find(|table| table.statement == statement && table.result == set)
+                .map(|table| {
+                    table
+                        .columns
+                        .iter()
+                        .map(sqlx_core::output::column_json)
+                        .collect()
+                })
+                .unwrap_or_default();
+            print(json!({
+                "cols": columns,
+                "rows": page.rows,
+                "offset": page.offset.to_string(),
+                "next_offset": page.next_offset.to_string(),
+                "total": page.total_rows.to_string(),
+                "complete": page.complete,
+            }));
+        }
+    }
+    Ok(true)
+}
+/// Show or change the settings stored next to the datasources.
+fn setting_command(root: &Path, command: SettingCommand) -> Result<bool> {
+    use sqlx_core::settings::{self, Key, Settings};
+    let mut stored = Settings::load(root)?;
+    let effective = settings::resolve(root, &stored, None)?;
+    let describe = |effective: &settings::Effective, key: Key| -> Value {
+        let (value, source) = match key {
+            Key::PreviewRows => (effective.preview_rows.to_string(), effective.preview_source),
+            Key::ResultsDir => (
+                effective.results_dir.to_string_lossy().into_owned(),
+                effective.results_dir_source,
+            ),
+            Key::RetentionHours => (
+                effective
+                    .retention
+                    .map_or(0, |seconds| seconds / 3_600)
+                    .to_string(),
+                effective.retention_source,
+            ),
+        };
+        json!({"key": key.name(), "value": value, "source": source.name()})
+    };
+    match command {
+        SettingCommand::List => {
+            let settings: Vec<Value> = Key::ALL
+                .into_iter()
+                .map(|key| describe(&effective, key))
+                .collect();
+            print(json!({
+                "settings": settings,
+                "path": settings::path(root).to_string_lossy(),
+            }));
+        }
+        SettingCommand::Get { key } => {
+            let key = Key::parse(&key)?;
+            print(describe(&effective, key));
+        }
+        SettingCommand::Set { key, value } => {
+            let key = Key::parse(&key)?;
+            stored.set(key, &value)?;
+            if key == Key::ResultsDir {
+                // Fail now instead of during the first large result.
+                let directory = PathBuf::from(stored.results_dir.clone().unwrap_or_default());
+                settings::ensure_results_dir(&directory, false, root)?;
+            }
+            stored.save(root)?;
+            let effective = settings::resolve(root, &stored, None)?;
+            print(describe(&effective, key));
+        }
+        SettingCommand::Unset { key } => {
+            let key = Key::parse(&key)?;
+            stored.unset(key);
+            stored.save(root)?;
+            let effective = settings::resolve(root, &stored, None)?;
+            print(describe(&effective, key));
+        }
+    }
+    Ok(true)
+}
 fn print_line(value: &Value) {
     if let Err(error) = writeln!(io::stdout(), "{value}") {
         if error.kind() == io::ErrorKind::BrokenPipe {

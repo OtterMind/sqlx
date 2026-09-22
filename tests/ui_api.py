@@ -120,7 +120,7 @@ def main():
                 for _ in range(3):
                     page=request('/results/'+view['result_id']+'/rows?statement=0&result=0&offset=200&limit=100');assert len(page['rows'])==51 and page['rows'][0][2]=='9007199254740993'
                 check=subprocess.run([str(cli),'sql','execute','--datasource',source_id,'--command',f'SELECT last_value FROM {sequence}'],env=env,capture_output=True,text=True,check=True)
-                rows=[e['values'] for e in json.loads(check.stdout)['events'] if e['event']=='row'];assert rows==[['251']]
+                rows=json.loads(check.stdout)['results'][0]['rows'];assert rows==[['251']]
                 # Internal control retries with the same request ID return existing results.
                 state=json.loads((data/'ui/state.json').read_text());admin={'Authorization':'Bearer '+state['token']}
                 request('/results',dict(request_id=view['result_id'],datasource=source_id,statements=metadata['statements']),extra=admin)
