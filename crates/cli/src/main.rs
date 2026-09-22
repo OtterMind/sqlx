@@ -43,12 +43,12 @@ enum Commands {
     Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
-        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, ui, skill or all.
+        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, ui, skill or all.
         #[arg(
             value_name = "COMPONENT",
             required = true,
             num_args = 1..,
-            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "ui", "skill", "all"]
+            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "ui", "skill", "all"]
         )]
         components: Vec<String>,
     },
@@ -622,6 +622,8 @@ impl ConnectionArgs {
                     Database::Trino => 8080,
                     Database::Starrocks | Database::Doris => 9030,
                     Database::Tdengine => 6041,
+                    Database::Dameng => 5236,
+                    Database::Kingbase => 54321,
                 },
                 database: String::new(),
                 service: String::new(),

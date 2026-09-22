@@ -28,6 +28,8 @@ pub enum Database {
     Starrocks,
     Doris,
     Tdengine,
+    Dameng,
+    Kingbase,
 }
 
 impl std::str::FromStr for Database {
@@ -50,8 +52,10 @@ impl std::str::FromStr for Database {
             "starrocks" => Ok(Self::Starrocks),
             "doris" => Ok(Self::Doris),
             "tdengine" | "taos" => Ok(Self::Tdengine),
+            "dameng" | "dm" => Ok(Self::Dameng),
+            "kingbase" | "kingbasees" => Ok(Self::Kingbase),
             _ => Err(
-                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, or tdengine"
+                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, or kingbase"
                     .into(),
             ),
         }

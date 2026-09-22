@@ -59,6 +59,14 @@ fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
             component: "opengauss",
             jars: &["opengauss-jdbc.jar"],
         },
+        Database::Dameng => JdbcDriver {
+            component: "dameng",
+            jars: &["dm-jdbc.jar"],
+        },
+        Database::Kingbase => JdbcDriver {
+            component: "kingbase",
+            jars: &["kingbase8-jdbc.jar"],
+        },
         Database::Tdengine => JdbcDriver {
             component: "tdengine",
             jars: &["taos-jdbcdriver.jar", "slf4j-nop.jar"],
@@ -149,6 +157,8 @@ pub fn prepare(
         Database::Trino => "io.trino.jdbc.TrinoDriver",
         Database::Tdengine => "com.taosdata.jdbc.ws.WebSocketDriver",
         Database::Opengauss => "org.opengauss.Driver",
+        Database::Dameng => "dm.jdbc.driver.DmDriver",
+        Database::Kingbase => "com.kingbase8.Driver",
         _ => "",
     }
     .into();

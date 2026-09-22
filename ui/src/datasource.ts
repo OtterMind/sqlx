@@ -21,6 +21,8 @@ const databaseNames: Record<DatabaseType, string> = {
   starrocks: "StarRocks",
   doris: "Apache Doris",
   tdengine: "TDengine",
+  dameng: "Dameng",
+  kingbase: "KingbaseES",
 };
 
 export function datasourceList(

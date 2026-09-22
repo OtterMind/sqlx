@@ -25,6 +25,9 @@ FIXTURES = {
     # openGauss takes the PostgreSQL worker, so it authenticates like the PostgreSQL fixture.
     "opengauss": {"port": 24320, "database": "postgres", "username": "gaussdb", "password": COMPLEX_PASSWORD},
     "oceanbase": {"port": 28811, "database": "oceanbase", "username": "root@sys", "password": COMPLEX_PASSWORD},
+    # Dameng and KingbaseES are commercial engines; these fixtures expect a local instance.
+    "dameng": {"port": 5236, "database": "", "username": "SYSDBA", "password": os.environ.get("SQLX_TEST_DAMENG_PASSWORD", "SYSDBA_dm001")},
+    "kingbase": {"port": 54321, "database": "kingbase", "username": "system", "password": os.environ.get("SQLX_TEST_KINGBASE_PASSWORD", "12345678ab")},
     # TDengine starts without the scratch database, so connect to its catalog and create one.
     "tdengine": {"port": 26041, "database": "information_schema", "username": "root", "password": "taosdata"},
 }
@@ -75,6 +78,8 @@ DROP_IF_EXISTS = {
     "opengauss": "DROP TABLE IF EXISTS sqlx_values",
     "oceanbase": "DROP TABLE IF EXISTS sqlx_values",
     "tdengine": "DROP TABLE IF EXISTS sqlx_probe.recipe_values",
+    "dameng": "DROP TABLE IF EXISTS sqlx_values",
+    "kingbase": "DROP TABLE IF EXISTS sqlx_values",
 }
 CREATE = {
     "mariadb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
@@ -89,6 +94,8 @@ CREATE = {
     "opengauss": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "oceanbase": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "tdengine": "CREATE TABLE sqlx_probe.recipe_values (ts TIMESTAMP, id BIGINT, amount DECIMAL(30,4), label NCHAR(100))",
+    "dameng": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "kingbase": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
 }
 INSERT = {
     "mariadb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
@@ -103,6 +110,8 @@ INSERT = {
     "opengauss": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "oceanbase": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "tdengine": "INSERT INTO sqlx_probe.recipe_values VALUES (NOW, 9007199254740993, 123.4500, 'hello')",
+    "dameng": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "kingbase": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
 }
 SELECT = {
     "mariadb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
@@ -118,6 +127,8 @@ SELECT = {
     "opengauss": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "oceanbase": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "tdengine": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_probe.recipe_values",
+    "dameng": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "kingbase": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
 }
 
 
