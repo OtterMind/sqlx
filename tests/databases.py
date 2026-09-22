@@ -32,7 +32,13 @@ FIXTURES = {
     "kingbase": {"port": 54321, "database": "kingbase", "username": "system", "password": os.environ.get("SQLX_TEST_KINGBASE_PASSWORD", "12345678ab")},
     # TDengine starts without the scratch database, so connect to its catalog and create one.
     "tdengine": {"port": 26041, "database": "information_schema", "username": "root", "password": "taosdata"},
+    # SQLite, DuckDB and H2 open a local file, so their fixture is a path inside the test directory.
+    "sqlite": {"local": True},
+    "duckdb": {"local": True},
+    "h2": {"local": True},
 }
+# Engines that open a local file instead of a server, and the file extension they use.
+LOCAL = {"sqlite": ".db", "duckdb": ".duckdb", "h2": ".mv.db"}
 # Statements that must run before the table batch, for engines without a scratch database.
 PREPARE = {
     "starrocks": "CREATE DATABASE IF NOT EXISTS sqlx_test",
@@ -59,8 +65,8 @@ BACKEND_CLEANUP = {
     "starrocks": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
     "doris": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
 }
-# TDengine reserves "value", so its readiness and error probes alias the column differently.
-ALIASES = {"tdengine": "ok"}
+# TDengine and H2 reserve "value", so their readiness and error probes alias the column differently.
+ALIASES = {"tdengine": "ok", "h2": "ok"}
 
 
 def alias(kind):
@@ -82,6 +88,9 @@ DROP_IF_EXISTS = {
     "tdengine": "DROP TABLE IF EXISTS sqlx_probe.recipe_values",
     "dameng": "DROP TABLE IF EXISTS sqlx_values",
     "kingbase": "DROP TABLE IF EXISTS sqlx_values",
+    "sqlite": "DROP TABLE IF EXISTS sqlx_values",
+    "duckdb": "DROP TABLE IF EXISTS sqlx_values",
+    "h2": "DROP TABLE IF EXISTS sqlx_values",
 }
 CREATE = {
     "mariadb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
@@ -98,6 +107,9 @@ CREATE = {
     "tdengine": "CREATE TABLE sqlx_probe.recipe_values (ts TIMESTAMP, id BIGINT, amount DECIMAL(30,4), label NCHAR(100))",
     "dameng": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "kingbase": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "sqlite": "CREATE TABLE sqlx_values (id INTEGER, amount NUMERIC, label TEXT)",
+    "duckdb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "h2": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
 }
 INSERT = {
     "mariadb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
@@ -114,6 +126,9 @@ INSERT = {
     "tdengine": "INSERT INTO sqlx_probe.recipe_values VALUES (NOW, 9007199254740993, 123.4500, 'hello')",
     "dameng": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "kingbase": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "sqlite": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "duckdb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "h2": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
 }
 SELECT = {
     "mariadb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
@@ -131,6 +146,9 @@ SELECT = {
     "tdengine": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_probe.recipe_values",
     "dameng": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "kingbase": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "sqlite": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "duckdb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "h2": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
 }
 
 
@@ -148,9 +166,13 @@ def retry(kind, description, action, attempts=6, delay=5):
 
 def exercise(cli, bin_dir, kind):
     fixture = FIXTURES[kind]
-    connection = dict(database_type=kind, host="127.0.0.1", port=fixture["port"], database=fixture["database"],
-                      service="", username=fixture["username"], password=fixture["password"], tls="disable")
     with tempfile.TemporaryDirectory(prefix=f"sqlx-{kind}-test-") as tmp:
+        if fixture.get("local"):
+            connection = dict(database_type=kind, host="", port=0, database=str(Path(tmp)/f"fixture{LOCAL[kind]}"),
+                              service="", username="", password="", tls="disable")
+        else:
+            connection = dict(database_type=kind, host="127.0.0.1", port=fixture["port"], database=fixture["database"],
+                              service="", username=fixture["username"], password=fixture["password"], tls="disable")
         def call(*args, ok=True, payload=None):
             result = subprocess.run([str(cli), "--data-dir", tmp, "--worker-dir", str(bin_dir), *args],
                                     input=json.dumps(payload) if payload else None, text=True, capture_output=True,
@@ -162,7 +184,7 @@ def exercise(cli, bin_dir, kind):
 
         call("datasource", "add", "--name", "fixture", "--connection-stdin", payload=connection)
         # A heavy engine can take minutes to accept the first connection.
-        for attempt in range(60):
+        for attempt in range(1 if fixture.get("local") else 60):
             code, result = call("datasource", "test", "--id", "fixture", ok=False)
             if code == 0:
                 break
@@ -170,7 +192,7 @@ def exercise(cli, bin_dir, kind):
                 raise AssertionError(result)
             time.sleep(3)
         # A reachable endpoint can still refuse queries while the engine registers its worker.
-        for attempt in range(40):
+        for attempt in range(1 if fixture.get("local") else 40):
             code, result = call("sql", "execute", "--datasource", "fixture",
                                 "--command", f"SELECT 1 AS {alias(kind)}", ok=False)
             if code == 0:

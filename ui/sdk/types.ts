@@ -20,7 +20,10 @@ export type DatabaseType =
   | "dameng"
   | "kingbase"
   | "redis"
-  | "mongodb";
+  | "mongodb"
+  | "sqlite"
+  | "duckdb"
+  | "h2";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;

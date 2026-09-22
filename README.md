@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis and MongoDB from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more statements or commands, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis and MongoDB, or open a local SQLite, DuckDB or H2 file, from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more statements or commands, and the results come back complete and structured.
 
 ## Quick start
 
@@ -164,6 +164,9 @@ sqlx sql execute --datasource dev --command "SELECT current_database()" --comman
 | KingbaseES | `kingbase`, `kingbasees` | JDBC worker | port 54321 by default |
 | Redis | `redis` | native worker | port 6379 by default; each `--command` is one Redis command, not SQL |
 | MongoDB | `mongodb`, `mongo` | native worker | port 27017 by default; each `--command` is one command document, not SQL |
+| SQLite | `sqlite`, `sqlite3` | native worker | `--path <file>` (or `--database`) opens or creates a local file; no host, port or credentials; `--property mode=ro` and `--property busy_timeout=<ms>` |
+| DuckDB | `duckdb` | native worker | `--path <file>` opens or creates a local file, `:memory:` keeps one for the invocation; `--property read_only=true` and `--property threads=<n>` |
+| H2 | `h2` | JDBC worker | `--path <file>` opens a local file, or `--host` and `--port` (9092 by default) reach a TCP server |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name.
 
@@ -220,7 +223,7 @@ Datasource responses omit usernames, passwords and vendor properties.
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --command "SELECT 1" --command "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `sqlite`, `duckdb`, `h2`, `skill` or `all`) |
 | Execute and open a result page | `sqlx sql execute --datasource dev --command "SELECT 1" --view` |
 | Read a stored result | `sqlx results list`, `sqlx results rows --id <result-id> --offset 100 --limit 50` |
 | Show or change settings | `sqlx setting list`, `sqlx setting set preview-rows 20`, `sqlx setting set results-dir ~/sqlx-results` |
@@ -280,13 +283,13 @@ To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the 
 
 User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Settings are stored in `~/.sqlx/settings.json` and managed with `sqlx setting list|get|set|unset`; `SQLX_PREVIEW_ROWS`, `SQLX_RESULTS_DIR`, `SQLX_RESULTS_RETENTION_HOURS` and `SQLX_RESULT_MODE` override the file for one environment, and a command line flag overrides both. Stored results live in the result directory described above, keep 24 hours by default and stay under 1 GiB in total; older results are removed before the next command runs, and page results from `--view` are managed by the local service. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
 
-The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, Redis and MongoDB run in their own native workers, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng and KingbaseES use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
+The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, Redis, MongoDB, SQLite and DuckDB run in their own native workers, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng, KingbaseES and H2 use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
 
 Downloads happen on first use and are cached afterwards. Each one prints `Downloading …` with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and rerunning a failed command reuses every component that is already installed. To avoid waiting inside the first query or page:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, TDengine, Dameng, KingbaseES, Redis and MongoDB components, the JDBC runtime and the JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, TDengine, Dameng, KingbaseES, Redis, MongoDB, SQLite, DuckDB and H2 components, the JDBC runtime and the JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.

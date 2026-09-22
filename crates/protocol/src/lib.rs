@@ -32,6 +32,16 @@ pub enum Database {
     Kingbase,
     Redis,
     Mongodb,
+    Sqlite,
+    Duckdb,
+    H2,
+}
+
+impl Database {
+    /// Engines that open a local file instead of a network endpoint.
+    pub fn is_file_based(self) -> bool {
+        matches!(self, Database::Sqlite | Database::Duckdb)
+    }
 }
 
 impl std::str::FromStr for Database {
@@ -58,8 +68,11 @@ impl std::str::FromStr for Database {
             "kingbase" | "kingbasees" => Ok(Self::Kingbase),
             "redis" => Ok(Self::Redis),
             "mongodb" | "mongo" => Ok(Self::Mongodb),
+            "sqlite" | "sqlite3" => Ok(Self::Sqlite),
+            "duckdb" => Ok(Self::Duckdb),
+            "h2" => Ok(Self::H2),
             _ => Err(
-                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, kingbase, redis, or mongodb"
+                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, kingbase, redis, mongodb, sqlite, duckdb, or h2"
                     .into(),
             ),
         }
@@ -88,14 +101,34 @@ fn default_tls() -> String {
     "verify-full".into()
 }
 impl Connection {
+    /// A connection that opens a local file: a file-based engine, or embedded H2 without a host.
+    pub fn is_local(&self) -> bool {
+        self.database_type.is_file_based()
+            || (self.database_type == Database::H2 && self.host.trim().is_empty())
+    }
     pub fn validate(&self) -> Result<()> {
-        if self.host.trim().is_empty() || self.port == 0 {
+        // A local engine opens a file, so it carries a path instead of a host and port.
+        if self.is_local() {
+            if self.database.trim().is_empty() {
+                bail!("{:?} requires the database file", self.database_type);
+            }
+            if self.database_type.is_file_based()
+                && (!self.host.trim().is_empty() || self.port != 0)
+            {
+                bail!(
+                    "{:?} opens a local file and takes no host or port",
+                    self.database_type
+                );
+            }
+        } else if self.host.trim().is_empty() || self.port == 0 {
             bail!("host and nonzero port are required");
         }
         if !matches!(self.tls.as_str(), "disable" | "verify-full") {
             bail!("tls must be disable or verify-full");
         }
-        if self.host.contains([';', '/', '\\', '\n', '\r', '\0']) {
+        if !self.database_type.is_file_based()
+            && self.host.contains([';', '/', '\\', '\n', '\r', '\0'])
+        {
             bail!("invalid host");
         }
         if self.database_type == Database::Oracle && self.service.trim().is_empty() {

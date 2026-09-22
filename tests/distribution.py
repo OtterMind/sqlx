@@ -109,7 +109,7 @@ def exercise(cli):
             assert value['data']['downloaded']==1,value
             assert 'retrying in 2s (1/3)' in log,log
             assert 'Downloaded postgres 0.1.0' in log,log
-            for args,fragment in ((['prefetch','sqlite'],'invalid value'),(['prefetch'],'required')):
+            for args,fragment in ((['prefetch','sqlite3'],'invalid value'),(['prefetch'],'required')):
                 result=subprocess.run([str(cli),*args],env=os.environ.copy(),text=True,capture_output=True,timeout=20)
                 assert result.returncode!=0 and fragment in result.stderr,result.stderr
             print('distribution: download, checksum, archive traversal rejection, compatibility, Skill install/update, local edits, prefetch reuse, retry and progress output passed')
@@ -147,10 +147,10 @@ def check_skill_source():
         assert f'`{name}`' in text,f'SKILL.md does not name {name}'
     assert "The Skill's approval gate therefore applies on the agent side" in reference,'references/local-ui.md no longer applies the approval gate to refresh'
     # Every reference path must appear in the index, and each database must appear in the recipe list.
-    linked={name for name in re.findall(r'`references/([a-z-]+\.md)`',text)}
+    linked={name for name in re.findall(r'`references/([a-z0-9-]+\.md)`',text)}
     present={path.name for path in (skill/'references').glob('*.md')}
     assert present<=linked,f'SKILL.md does not name every reference: {sorted(present-linked)}'
-    databases=('mysql','mariadb','tidb','greatsql','oceanbase','postgresql','cockroachdb','yugabytedb','opengauss','oracle','sqlserver','clickhouse','trino','starrocks','doris','tdengine','dameng','kingbase','redis','mongodb')
+    databases=('mysql','mariadb','tidb','greatsql','oceanbase','postgresql','cockroachdb','yugabytedb','opengauss','oracle','sqlserver','clickhouse','trino','starrocks','doris','tdengine','dameng','kingbase','redis','mongodb','sqlite','duckdb','h2')
     for database in databases:
         assert (skill/'references'/f'{database}.md').is_file(),f'missing database reference references/{database}.md'
         assert f'`references/{database}.md`' in text,f'SKILL.md does not name references/{database}.md'

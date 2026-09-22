@@ -43,12 +43,12 @@ enum Commands {
     Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
-        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, redis, mongodb, ui, skill or all.
+        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, redis, mongodb, sqlite, duckdb, h2, ui, skill or all.
         #[arg(
             value_name = "COMPONENT",
             required = true,
             num_args = 1..,
-            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "redis", "mongodb", "ui", "skill", "all"]
+            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "redis", "mongodb", "sqlite", "duckdb", "h2", "ui", "skill", "all"]
         )]
         components: Vec<String>,
     },
@@ -187,7 +187,8 @@ struct ConnectionArgs {
     host: Option<String>,
     #[arg(long)]
     port: Option<u16>,
-    #[arg(long)]
+    /// Database name, or the database file for sqlite, duckdb and embedded H2.
+    #[arg(long, alias = "path")]
     database: Option<String>,
     #[arg(long)]
     service: Option<String>,
@@ -796,6 +797,25 @@ fn print_line(value: &Value) {
 fn print(data: Value) {
     print_line(&json!({"success":true,"data":data}));
 }
+/// Resolve a local database file: expand `~`, then make it absolute so a saved datasource
+/// keeps working from any directory.
+fn local_database_path(value: &str) -> Result<String> {
+    let expanded = if let Some(rest) = value.trim().strip_prefix("~/") {
+        dirs::home_dir()
+            .context("cannot resolve the home directory")?
+            .join(rest)
+    } else if value.trim() == "~" {
+        dirs::home_dir().context("cannot resolve the home directory")?
+    } else {
+        PathBuf::from(value.trim())
+    };
+    let absolute = if expanded.is_absolute() {
+        expanded
+    } else {
+        std::env::current_dir()?.join(expanded)
+    };
+    Ok(absolute.to_string_lossy().into_owned())
+}
 fn validate_name(name: &str) -> Result<()> {
     if name.trim().is_empty() || uuid::Uuid::parse_str(name).is_ok() {
         bail!("datasource name must be nonempty and must not be a UUID");
@@ -835,7 +855,11 @@ impl ConnectionArgs {
             let database_type = self.database_type.context("--type is required")?;
             Connection {
                 database_type,
-                host: "localhost".into(),
+                // H2 opens a local file until a host is given; every other engine needs one.
+                host: match database_type {
+                    Database::H2 => String::new(),
+                    _ => "localhost".into(),
+                },
                 port: match database_type {
                     Database::Mysql | Database::Mariadb => 3306,
                     Database::Tidb => 4000,
@@ -854,6 +878,9 @@ impl ConnectionArgs {
                     Database::Kingbase => 54321,
                     Database::Redis => 6379,
                     Database::Mongodb => 27017,
+                    // A local engine has no port, and H2 uses its file mode until a host is given.
+                    Database::Sqlite | Database::Duckdb => 0,
+                    Database::H2 => 9092,
                 },
                 database: String::new(),
                 service: String::new(),
@@ -889,10 +916,26 @@ impl ConnectionArgs {
                 .context("--property requires KEY=VALUE")?;
             c.properties.insert(key.into(), value.into());
         }
+        let local = c.is_local();
+        if local {
+            if c.database.is_empty() {
+                bail!(
+                    "{:?} needs --database <file> or --path <file>",
+                    c.database_type
+                );
+            }
+            c.database = local_database_path(&c.database)?;
+            c.host = String::new();
+            c.port = 0;
+            c.username = String::new();
+            c.password = String::new();
+            c.service = String::new();
+            c.tls = "disable".into();
+        }
         if let Some(name) = self.username_env {
             c.username =
                 std::env::var(&name).context("username environment variable is unavailable")?;
-        } else if is_new && prompt {
+        } else if is_new && prompt && !local {
             if !io::stdin().is_terminal() {
                 bail!("use --username-env and --password-env, or --connection-stdin for noninteractive creation");
             }
@@ -901,11 +944,15 @@ impl ConnectionArgs {
         if let Some(name) = self.password_env {
             c.password =
                 std::env::var(&name).context("password environment variable is unavailable")?;
-        } else if is_new && prompt {
+        } else if is_new && prompt && !local {
             if !io::stdin().is_terminal() {
                 bail!("use --password-env or --connection-stdin for noninteractive creation");
             }
             c.password = rpassword::prompt_password("Database password: ")?;
+        }
+        if local {
+            c.username = String::new();
+            c.password = String::new();
         }
         Ok(c)
     }

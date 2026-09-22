@@ -25,7 +25,14 @@ const databaseNames: Record<DatabaseType, string> = {
   kingbase: "KingbaseES",
   redis: "Redis",
   mongodb: "MongoDB",
+  sqlite: "SQLite",
+  duckdb: "DuckDB",
+  h2: "H2",
 };
+/** Engines that open a local file, or a local file until a host is given. */
+export function isFileEngine(kind: string): boolean {
+  return kind === "sqlite" || kind === "duckdb";
+}
 
 export function datasourceList(
   sources: Datasource[],
@@ -56,7 +63,9 @@ export function datasourceList(
     const context = element(
       "span",
       "entry-context datasource-context",
-      `${databaseNames[connection.database_type]} · ${connection.host}:${connection.port}`,
+      isFileEngine(connection.database_type)
+        ? `${databaseNames[connection.database_type]} · ${connection.database}`
+        : `${databaseNames[connection.database_type]} · ${connection.host}:${connection.port}`,
     );
     context.title = context.textContent ?? "";
     link.append(name, context);
@@ -80,19 +89,25 @@ export async function datasourcePage(
   const c = source.connection;
   const card = element("section", "card setup-card");
   const details = element("dl", "datasource-details");
-  const values: [string, string][] = [
-    ["Database type", databaseNames[c.database_type]],
-    ["Host", c.host],
-    ["Port", String(c.port)],
-    [
-      c.database_type === "oracle" ? "Service name" : "Database",
-      c.database_type === "oracle" ? c.service : c.database || "Not specified",
-    ],
-    [
-      "Connection security",
-      c.tls === "disable" ? "TLS disabled" : "Verify server certificate",
-    ],
-  ];
+  const file = isFileEngine(c.database_type) || (c.database_type === "h2" && !c.host);
+  const values: [string, string][] = file
+    ? [
+        ["Database type", databaseNames[c.database_type]],
+        ["Database file", c.database],
+      ]
+    : [
+        ["Database type", databaseNames[c.database_type]],
+        ["Host", c.host],
+        ["Port", String(c.port)],
+        [
+          c.database_type === "oracle" ? "Service name" : "Database",
+          c.database_type === "oracle" ? c.service : c.database || "Not specified",
+        ],
+        [
+          "Connection security",
+          c.tls === "disable" ? "TLS disabled" : "Verify server certificate",
+        ],
+      ];
   for (const [label, value] of values)
     details.append(element("dt", "", label), element("dd", "", value));
   const actions = element("div", "actions");
