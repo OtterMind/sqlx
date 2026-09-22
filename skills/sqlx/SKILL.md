@@ -2,7 +2,7 @@
 name: sqlx
 description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis, and MongoDB connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
-  cli-compat: ">=0.1.13, <0.2.0"
+  cli-compat: ">=0.1.14, <0.2.0"
 ---
 
 # SQLX
