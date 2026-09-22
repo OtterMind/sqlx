@@ -497,7 +497,14 @@ impl<W: Write> Writer<W> {
     fn attach_error(&mut self, statement: usize, error: Value) -> Result<()> {
         if let Some(item) = self.item.as_ref() {
             if item.statement == statement && item.rows_open {
-                write!(self.output, "],\"error\":")?;
+                // A stored result keeps whatever arrived before the failure, so point at it.
+                let file = item.file.clone().filter(|_| item.stored);
+                write!(self.output, "]")?;
+                if let Some(file) = &file {
+                    write!(self.output, ",\"file\":")?;
+                    serde_json::to_writer(&mut self.output, &file.to_string_lossy().into_owned())?;
+                }
+                write!(self.output, ",\"error\":")?;
                 serde_json::to_writer(&mut self.output, &error)?;
                 write!(self.output, "}}")?;
                 self.item = None;
@@ -874,6 +881,38 @@ mod tests {
             String::from_utf8(writer.output).unwrap(),
             "{\"results\":[{\"stmt\":0,\"cols\":[[\"value\",\"int8\"]],\"rows\":[[\"9\"]],\"error\":{\"code\":\"worker.incomplete\",\"message\":\"worker stopped\",\"outcome\":\"unknown\"}}],\"skipped\":[1,2],\"success\":false}\n"
         );
+    }
+    #[test]
+    fn a_stored_result_that_fails_mid_way_points_at_its_partial_file() {
+        let root = tempfile::tempdir().unwrap();
+        let mut writer = Writer::new(Vec::new(), options(Mode::Compact, 2, root.path()));
+        writer.event(Event::StatementStart { index: 0 }).unwrap();
+        writer
+            .event(Event::Columns {
+                index: 0,
+                result: 0,
+                columns: vec![column("value", "int8")],
+            })
+            .unwrap();
+        for value in ["1", "2", "3"] {
+            writer
+                .event(Event::Row {
+                    index: 0,
+                    result: 0,
+                    values: vec![Value::String(value.into())],
+                })
+                .unwrap();
+        }
+        writer
+            .failure("worker.incomplete", "worker stopped")
+            .unwrap();
+        let printed = String::from_utf8(writer.output).unwrap();
+        assert!(
+            printed.contains("\"rows\":[[\"1\"],[\"2\"]],\"file\":\""),
+            "{printed}"
+        );
+        assert!(printed.contains(",\"error\":{\"code\":\"worker.incomplete\",\"message\":\"worker stopped\",\"outcome\":\"unknown\"}}],\"skipped\":[1,2],\"id\":\""), "{printed}");
+        assert!(printed.ends_with(",\"success\":false}\n"), "{printed}");
     }
     #[test]
     fn multiple_result_sets_of_one_statement_are_numbered() {
