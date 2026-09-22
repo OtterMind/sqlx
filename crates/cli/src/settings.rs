@@ -339,17 +339,15 @@ mod tests {
         let flag = resolve(root.path(), &settings, Some(7)).unwrap();
         assert_eq!(flag.preview_rows, 7);
         assert_eq!(flag.preview_source.name(), "flag");
+        let environment_dir = std::env::temp_dir().join("sqlx-env-results");
         std::env::set_var("SQLX_PREVIEW_ROWS", "9");
-        std::env::set_var("SQLX_RESULTS_DIR", "/tmp/sqlx-env-results");
+        std::env::set_var("SQLX_RESULTS_DIR", &environment_dir);
         let environment = resolve(root.path(), &settings, None).unwrap();
         std::env::remove_var("SQLX_PREVIEW_ROWS");
         std::env::remove_var("SQLX_RESULTS_DIR");
         assert_eq!(environment.preview_rows, 9);
         assert_eq!(environment.preview_source.name(), "env");
-        assert_eq!(
-            environment.results_dir,
-            PathBuf::from("/tmp/sqlx-env-results")
-        );
+        assert_eq!(environment.results_dir, environment_dir);
         assert_eq!(environment.results_dir_source.name(), "env");
     }
     #[test]

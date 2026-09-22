@@ -40,7 +40,8 @@ def exercise(kind,bin_dir):
         assert code!=0 and contract.skipped(result)==[2],result
         if kind=='sqlserver':
             _,result=call('sql','execute','--datasource','fixture','--command','SELECT 1 AS value; SELECT 2 AS value')
-            assert contract.rows(result)==[['1'],['2']],result
+            # One statement that returns two result sets numbers the second one.
+            assert contract.rows(result,0,0)==[['1']] and contract.rows(result,0,1)==[['2']],result
         print(f'{kind}: actual JDBC load, connection, same-session batch, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed')
 
 if __name__=='__main__':
