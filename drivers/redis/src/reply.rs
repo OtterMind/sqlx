@@ -19,13 +19,12 @@ pub fn split_command(line: &str) -> Result<Vec<String>, String> {
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
-            ' ' | '\t' | '\n' | '\r' if !started || !current.is_empty() || !started => {
-                if !current.is_empty() || started {
+            c if c.is_whitespace() => {
+                if started {
                     args.push(std::mem::take(&mut current));
                     started = false;
                 }
             }
-            ' ' | '\t' | '\n' | '\r' => {}
             '\'' => {
                 started = true;
                 for inner in chars.by_ref() {
@@ -44,11 +43,17 @@ pub fn split_command(line: &str) -> Result<Vec<String>, String> {
                             Some('n') => current.push('\n'),
                             Some('r') => current.push('\r'),
                             Some('t') => current.push('\t'),
+                            Some('0') => current.push('\0'),
                             Some('x') => {
                                 let digits: String = chars.by_ref().take(2).collect();
                                 match u8::from_str_radix(&digits, 16) {
-                                    Ok(byte) => current.push(byte as char),
-                                    Err(_) => return Err(format!("invalid hex escape \\x{digits}")),
+                                    Ok(byte) if byte.is_ascii() => current.push(byte as char),
+                                    Ok(byte) => {
+                                        return Err(format!("\\x{byte:02X} is not an ASCII byte"))
+                                    }
+                                    Err(_) => {
+                                        return Err(format!("invalid hex escape \\x{digits}"))
+                                    }
                                 }
                             }
                             Some(other) => current.push(other),
@@ -80,8 +85,12 @@ fn pairs_with(command: &str, arity: usize) -> bool {
         return false;
     }
     // CONFIG GET and the WITHSCORES variants are the pair-shaped forms; plain ZRANGE is not.
-    arity % 2 == 0
-        && (name == "HGETALL" || name == "CONFIG" || name == "HRANDFIELD" || name == "ZRANGE" || name == "ZREVRANGE")
+    arity.is_multiple_of(2)
+        && (name == "HGETALL"
+            || name == "CONFIG"
+            || name == "HRANDFIELD"
+            || name == "ZRANGE"
+            || name == "ZREVRANGE")
 }
 
 /// Render one reply element as a cell. Nested structures keep their JSON text.
@@ -161,7 +170,11 @@ pub fn map_reply(command: &str, reply: &RedisCell) -> Mapping {
         RedisCell::Bytes(bytes) => {
             let base64 = std::str::from_utf8(bytes).is_err();
             Mapping {
-                columns: vec![column("value", "string", if base64 { "base64" } else { "string" })],
+                columns: vec![column(
+                    "value",
+                    "string",
+                    if base64 { "base64" } else { "string" },
+                )],
                 rows: vec![vec![cell(reply, base64)]],
             }
         }
@@ -188,7 +201,12 @@ pub fn map_reply(command: &str, reply: &RedisCell) -> Mapping {
                     .iter()
                     .map(|item| match item {
                         RedisCell::Array(inner) => (0..width)
-                            .map(|index| inner.get(index).map(|value| cell(value, false)).unwrap_or(Json::Null))
+                            .map(|index| {
+                                inner
+                                    .get(index)
+                                    .map(|value| cell(value, false))
+                                    .unwrap_or(Json::Null)
+                            })
                             .collect(),
                         _ => vec![Json::Null; width],
                     })
@@ -200,10 +218,17 @@ pub fn map_reply(command: &str, reply: &RedisCell) -> Mapping {
                     .map(|index| column(&format!("c{index}"), "string", "string"))
                     .collect();
                 let row: Vec<Json> = items.iter().map(|item| cell(item, false)).collect();
-                return Mapping { columns, rows: vec![row] };
+                return Mapping {
+                    columns,
+                    rows: vec![row],
+                };
             }
             let base64 = needs_base64(items);
-            let mut columns = vec![column("value", "string", if base64 { "base64" } else { "string" })];
+            let mut columns = vec![column(
+                "value",
+                "string",
+                if base64 { "base64" } else { "string" },
+            )];
             if pairs_with(command, items.len()) {
                 columns = vec![
                     column("field", "string", "string"),
@@ -275,7 +300,10 @@ mod tests {
         let nested = map_reply(
             "XRANGE",
             &RedisCell::Array(vec![
-                RedisCell::Array(vec![RedisCell::Text("1-1".into()), RedisCell::Text("a".into())]),
+                RedisCell::Array(vec![
+                    RedisCell::Text("1-1".into()),
+                    RedisCell::Text("a".into()),
+                ]),
                 RedisCell::Array(vec![RedisCell::Text("2-2".into())]),
             ]),
         );

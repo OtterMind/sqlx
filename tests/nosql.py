@@ -69,6 +69,56 @@ def exercise_redis(cli, bin_dir, tmp, call):
           "server error mapping and first-error stop passed")
 
 
+def exercise_mongodb(cli, bin_dir, tmp, call, fixture):
+    collection = "recipe_values"
+    command = lambda document: json.dumps(document)
+    # A fresh collection, then the writes the assertions depend on.
+    call("sql", "execute", "--datasource", "fixture", "--command", command({"deleteMany": collection, "filter": {}}))
+    _, result = call("sql", "execute", "--datasource", "fixture",
+                     "--command", command({"insertOne": collection,
+                                           "document": {"_id": 1, "big": 9007199254740993,
+                                                        "label": "hello", "nested": {"a": [1, 2]}}}),
+                     "--command", command({"find": collection, "filter": {}}),
+                     "--command", command({"count": collection, "query": {}}))
+    endings = [event for event in result["events"] if event["event"] == "result_end"]
+    assert endings[0]["affected_rows"] == "1", endings[0]
+    # The insert emits an empty column list, so the find's columns are the first non-empty ones.
+    columns = [event["columns"] for event in result["events"] if event["event"] == "columns" and event["columns"]]
+    assert columns[0][0]["name"] == "_id", columns[0]
+    rows = [event["values"] for event in result["events"] if event["event"] == "row"]
+    def column(name, values):
+        return values[columns[0].index(next(c for c in columns[0] if c["name"] == name))]
+    row = rows[0]
+    assert column("big", row) == "9007199254740993", row
+    # Nested values use canonical extended JSON, so exact numbers survive inside them.
+    assert json.loads(column("nested", row)) == {"a": [{"$numberLong": "1"}, {"$numberLong": "2"}]}, row
+    count_columns = [event["columns"] for event in result["events"]
+                     if event["event"] == "columns" and [c["name"] for c in event["columns"]] == ["n"]]
+    assert count_columns and rows[1] == ["1"], (count_columns, rows)
+
+    _, result = call("sql", "execute", "--datasource", "fixture",
+                     "--command", command({"insertMany": collection, "documents": [{"_id": 2}, {"_id": 3}]}),
+                     "--command", command({"updateMany": collection, "filter": {"_id": {"$gte": 2}},
+                                           "update": {"$set": {"label": "updated"}}}),
+                     "--command", command({"deleteMany": collection, "filter": {"_id": 3}}))
+    endings = [event for event in result["events"] if event["event"] == "result_end"]
+    assert [event["affected_rows"] for event in endings] == ["2", "2", "1"], endings
+
+    code, result = call("sql", "execute", "--datasource", "fixture",
+                        "--command", command({"insertOne": collection, "document": {"_id": 1}}),
+                        "--command", command({"count": collection, "query": {}}), ok=False)
+    error = next(event for event in result["events"] if event["event"] == "error")
+    assert code != 0 and error["code"].startswith("mongodb."), error
+    assert any(event["event"] == "skipped" and event["index"] == 1 for event in result["events"]), result
+
+    code, result = call("sql", "execute", "--datasource", "fixture", "--command", "not json", ok=False)
+    error = next(event for event in result["events"] if event["event"] == "error")
+    assert code != 0 and error["code"] == "mongodb.invalid_command", error
+    call("sql", "execute", "--datasource", "fixture", "--command", command({"drop": collection}))
+    print("mongodb: connection, cursor rows, exact integers, nested documents, write counts, "
+          "server error mapping and first-error stop passed")
+
+
 def seed_binary_key():
     """Store bytes that are not valid UTF-8, so the reply has to be base64."""
     probe = ["docker", "exec", "sqlx-integration-redis-1", "sh", "-c",
@@ -101,8 +151,8 @@ def exercise(cli, bin_dir, kind):
             time.sleep(2)
         if kind == "redis":
             exercise_redis(cli, bin_dir, tmp, call)
-        else:
-            raise AssertionError(f"no checks written for {kind} yet")
+        elif kind == "mongodb":
+            exercise_mongodb(cli, bin_dir, tmp, call, FIXTURES[kind])
 
 
 if __name__ == "__main__":

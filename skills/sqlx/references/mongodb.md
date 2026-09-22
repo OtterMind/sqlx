@@ -2,7 +2,7 @@
 
 Each command below performs one operation. Submit it through `sqlx sql execute --datasource <id> --command '...'`. Repeat `--command` in the same invocation when commands need to share connection state; they run in order and the first error stops the rest.
 
-A command is one JSON object, the same shape `db.runCommand()` takes. The first field names the operation and the rest are its parameters, for example `{"find":"users","filter":{"age":{"$gt":30}},"limit":10}`. A single-quoted shell argument is the easiest way to pass one, because the JSON itself contains double quotes. MongoDB has no SQL, so a command document is the statement here.
+A command is one JSON object, the same shape `db.runCommand()` takes. The write helpers `insertOne`, `insertMany`, `updateOne`, `updateMany`, `replaceOne`, `deleteOne` and `deleteMany`, and the read helper `findOne`, are translated to the server commands `insert`, `update`, `delete` and `find` before they are sent, so both spellings work. The first field names the operation and the rest are its parameters, for example `{"find":"users","filter":{"age":{"$gt":30}},"limit":10}`. A single-quoted shell argument is the easiest way to pass one, because the JSON itself contains double quotes. MongoDB has no SQL, so a command document is the statement here.
 
 `--type mongodb` (alias `mongo`) connects to a standalone server, a replica set or a sharded cluster on port 27017 by default. `--database` selects the database the commands run against, and `--username`/`--password` authenticate against `--property authSource=<database>` (`admin` by default). `--tls disable` leaves TLS off; any other value turns it on. Official links target the MongoDB command reference; match the connected server version when you look them up. The documentation root is https://www.mongodb.com/docs/manual/reference/command/.
 
@@ -16,7 +16,7 @@ A command is one JSON object, the same shape `db.runCommand()` takes. The first 
 {"dbStats": 1}
 ```
 
-**Result:** `ping` returns `ok: 1`. `buildInfo` returns version and build details. `dbStats` returns collections, objects, data size and index size for the selected database.
+**Result:** `ping` answers without rows, and the call succeeds. `buildInfo` returns version and build details as one row. `dbStats` returns one row with the collection, object and size counters for the selected database.
 
 **Official documentation:** [ping](https://www.mongodb.com/docs/manual/reference/command/ping/) · [buildInfo](https://www.mongodb.com/docs/manual/reference/command/buildInfo/) · [dbStats](https://www.mongodb.com/docs/manual/reference/command/dbStats/)
 
@@ -42,7 +42,7 @@ A command is one JSON object, the same shape `db.runCommand()` takes. The first 
 {"findOne": "collection", "filter": {"_id": 1}}
 ```
 
-**Result:** One row per document, with the union of the top-level fields as columns and `_id` first. Nested documents and arrays appear as JSON text in their cell. The driver follows the cursor until it ends or until 10000 documents have been returned, so a `limit` keeps a read small.
+**Result:** One row per document, with the union of the top-level fields as columns and `_id` first. `findOne` is the single-document form of `find` and returns at most one row. Nested documents and arrays appear as JSON text in their cell. The driver follows the cursor until it ends or until 10000 documents have been returned, so a `limit` keeps a read small.
 
 **Official documentation:** [find](https://www.mongodb.com/docs/manual/reference/command/find/) · [findOne](https://www.mongodb.com/docs/manual/reference/command/findOne/)
 
@@ -125,4 +125,4 @@ A command is one JSON object, the same shape `db.runCommand()` takes. The first 
 
 **Official documentation:** [serverStatus](https://www.mongodb.com/docs/manual/reference/command/serverStatus/) · [collStats](https://www.mongodb.com/docs/manual/reference/command/collStats/)
 
-A reply becomes a table by these rules: `find`, `aggregate` and `listCollections` reuse their cursor into rows; write commands report `affected_rows` from `n` with no columns; `findAndModify` maps its `value` document; any other successful reply with `n` reports it the same way. Column values keep exact numbers as strings, dates as RFC 3339 text, object identifiers as their hex string, binary values as base64, and nested documents or arrays as JSON text, so a large integer such as `9007199254740993` survives the round trip. Write commands are `insert`, `update`, `delete`, `findAndModify`, `create*`, `drop*`, `renameCollection` and anything else that changes data, indexes or collections; `$where`, `$function`, `mapReduce` and `eval` are unknown operations that can do anything, so confirm them with the user and never replay them after an uncertain outcome.
+A reply becomes a table by these rules: `find`, `aggregate` and `listCollections` reuse their cursor into rows; write commands report `affected_rows` from `n` with no columns; `findAndModify` maps its `value` document; any other successful reply with `n` reports it the same way. Column values keep exact numbers as strings, dates as RFC 3339 text, object identifiers as their hex string, binary values as base64, and nested documents or arrays as canonical extended JSON text, so no number loses precision and `$oid`, `$date` and `$numberLong` survive inside them. A successful reply that has neither a cursor nor a write count, such as `dbStats` or `serverStatus`, becomes one row made of its own fields, without the bookkeeping fields `ok`, `operationTime` and `$clusterTime`. Write commands are `insert`, `update`, `delete`, `findAndModify`, `create*`, `drop*`, `renameCollection` and anything else that changes data, indexes or collections; `$where`, `$function`, `mapReduce` and `eval` are unknown operations that can do anything, so confirm them with the user and never replay them after an uncertain outcome.

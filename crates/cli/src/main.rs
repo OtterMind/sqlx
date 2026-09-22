@@ -198,7 +198,12 @@ enum SqlCommand {
         #[arg(long)]
         datasource: String,
         /// One complete statement or engine-native command; repeat for a batch.
-        #[arg(long = "command", alias = "sql", required = true, allow_hyphen_values = true)]
+        #[arg(
+            long = "command",
+            alias = "sql",
+            required = true,
+            allow_hyphen_values = true
+        )]
         statements: Vec<String>,
         /// Execute once in the local UI service and open a paginated result page.
         #[arg(long)]

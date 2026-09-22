@@ -162,8 +162,8 @@ sqlx sql execute --datasource dev --command "SELECT current_database()" --comman
 | TDengine | `tdengine`, `taos` | JDBC worker | connects through taosAdapter, 6041 by default |
 | Dameng | `dameng`, `dm` | JDBC worker | port 5236 by default; the account is also the default schema |
 | KingbaseES | `kingbase`, `kingbasees` | JDBC worker | port 54321 by default |
-| Redis | `redis` | native worker | port 6379 by default; each `--command` is one Redis command |
-| MongoDB | `mongodb`, `mongo` | native worker | port 27017 by default; each `--command` is one command document |
+| Redis | `redis` | native worker | port 6379 by default; each `--command` is one Redis command, not SQL |
+| MongoDB | `mongodb`, `mongo` | native worker | port 27017 by default; each `--command` is one command document, not SQL |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name.
 

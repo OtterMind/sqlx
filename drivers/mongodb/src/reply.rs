@@ -37,6 +37,43 @@ pub struct Mapping {
 }
 
 /// Map one reply, following a cursor with `fetcher` when the reply carries one.
+/// Replies whose `n` is data rather than a write count need the command name to be read correctly.
+///
+/// `count` answers with `n`, and a write reply carries `n` as well, so only the command tells them
+/// apart. `distinct` answers with a plain `values` array instead of a cursor.
+pub fn named_mapping(command: &str, reply: &Document) -> Option<Mapping> {
+    match command {
+        "count" => {
+            let value = reply.get("n")?;
+            Some(Mapping {
+                columns: vec![column(
+                    "n",
+                    if nested_value(value) {
+                        "json"
+                    } else {
+                        "string"
+                    },
+                )],
+                rows: vec![vec![cell(Some(value))]],
+                affected_rows: None,
+            })
+        }
+        "distinct" => {
+            let values = match reply.get("values")? {
+                Bson::Array(values) => values,
+                _ => return None,
+            };
+            let nested = values.iter().any(nested_value);
+            Some(Mapping {
+                columns: vec![column("value", if nested { "json" } else { "string" })],
+                rows: values.iter().map(|value| vec![cell(Some(value))]).collect(),
+                affected_rows: None,
+            })
+        }
+        _ => None,
+    }
+}
+
 pub async fn map_reply<F: BatchFetcher>(reply: &Document, fetcher: &F) -> Result<Mapping> {
     if let Some(cursor) = reply.get("cursor") {
         let documents = follow(cursor, fetcher).await?;
@@ -48,7 +85,11 @@ pub async fn map_reply<F: BatchFetcher>(reply: &Document, fetcher: &F) -> Result
             _ => empty_mapping(None),
         });
     }
-    Ok(empty_mapping(affected_rows(reply)))
+    let affected = affected_rows(reply);
+    if affected.is_some() {
+        return Ok(empty_mapping(affected));
+    }
+    Ok(fields_mapping(reply))
 }
 
 /// A rejection that still arrives as a successful reply: `ok` other than 1, a `writeErrors`
@@ -180,17 +221,42 @@ fn documents_mapping(documents: &[Document], affected: Option<String>) -> Mappin
         .collect();
     let rows = documents
         .iter()
-        .map(|document| {
-            names
-                .iter()
-                .map(|name| cell(document.get(*name)))
-                .collect()
-        })
+        .map(|document| names.iter().map(|name| cell(document.get(*name))).collect())
         .collect();
     Mapping {
         columns,
         rows,
         affected_rows: affected,
+    }
+}
+
+/// A reply that carries neither a cursor nor a write count describes the server itself, so its own
+/// fields become one row. Bookkeeping fields the server adds to every reply are left out.
+fn fields_mapping(reply: &Document) -> Mapping {
+    const BOOKKEEPING: [&str; 3] = ["ok", "operationTime", "$clusterTime"];
+    let fields: Vec<&String> = reply
+        .keys()
+        .filter(|key| !BOOKKEEPING.contains(&key.as_str()))
+        .collect();
+    if fields.is_empty() {
+        return empty_mapping(None);
+    }
+    Mapping {
+        columns: fields
+            .iter()
+            .map(|name| {
+                column(
+                    name,
+                    if nested_value(&reply[*name]) {
+                        "json"
+                    } else {
+                        "string"
+                    },
+                )
+            })
+            .collect(),
+        rows: vec![fields.iter().map(|name| cell(reply.get(*name))).collect()],
+        affected_rows: None,
     }
 }
 
@@ -349,7 +415,11 @@ mod tests {
         let mapping = documents_mapping(&documents, None);
         let names: Vec<&str> = mapping.columns.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, ["_id", "label", "big", "nested", "extra"]);
-        let encodings: Vec<&str> = mapping.columns.iter().map(|c| c.encoding.as_str()).collect();
+        let encodings: Vec<&str> = mapping
+            .columns
+            .iter()
+            .map(|c| c.encoding.as_str())
+            .collect();
         assert_eq!(encodings, ["string", "string", "string", "json", "string"]);
         assert!(mapping
             .columns
@@ -404,7 +474,9 @@ mod tests {
     #[tokio::test]
     async fn write_and_empty_replies_report_affected_rows() {
         let fetcher = FakeFetcher::new(0, 0);
-        let write = map_reply(&doc! {"n": 3_i32, "ok": 1}, &fetcher).await.unwrap();
+        let write = map_reply(&doc! {"n": 3_i32, "ok": 1}, &fetcher)
+            .await
+            .unwrap();
         assert!(write.columns.is_empty());
         assert!(write.rows.is_empty());
         assert_eq!(write.affected_rows.as_deref(), Some("3"));

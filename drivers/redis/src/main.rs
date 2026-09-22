@@ -61,7 +61,11 @@ fn error_code(error: &anyhow::Error) -> String {
 
 /// Build the connection URL. Credentials are percent-encoded, and TLS switches the scheme.
 fn connection_url(c: &sqlx_protocol::Connection) -> String {
-    let scheme = if c.tls == "disable" { "redis" } else { "rediss" };
+    let scheme = if c.tls == "disable" {
+        "redis"
+    } else {
+        "rediss"
+    };
     let credentials = if c.username.is_empty() && c.password.is_empty() {
         String::new()
     } else if c.username.is_empty() {
@@ -127,10 +131,13 @@ async fn connect(c: &sqlx_protocol::Connection) -> Result<MultiplexedConnection>
         .get("connect_timeout_seconds")
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(15);
-    tokio::time::timeout(timeout_secs(timeout), client.get_multiplexed_async_connection())
-        .await
-        .context("Redis connection timed out")?
-        .context("Redis connection failed")
+    tokio::time::timeout(
+        timeout_secs(timeout),
+        client.get_multiplexed_async_connection(),
+    )
+    .await
+    .context("Redis connection timed out")?
+    .context("Redis connection failed")
 }
 
 fn timeout_secs(seconds: u64) -> Duration {
@@ -155,7 +162,10 @@ async fn execute(
         .query_async(&mut connection)
         .await
         .map_err(|error: redis::RedisError| (None, error.into()))?;
-    if !matches!(ping, RedisValue::Okay | RedisValue::SimpleString(_) | RedisValue::BulkString(_)) {
+    if !matches!(
+        ping,
+        RedisValue::Okay | RedisValue::SimpleString(_) | RedisValue::BulkString(_)
+    ) {
         return Err((None, anyhow::anyhow!("Redis did not answer PING")));
     }
     out.send(Event::Connected).map_err(|error| (None, error))?;
