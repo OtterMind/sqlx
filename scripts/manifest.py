@@ -16,7 +16,7 @@ def required_components():
     once=set(package_shared.SHARED_KINDS)|set(package_shared.VENDOR_KINDS)
     return {f'{kind}:{platform}' for kind in per_platform for platform in PLATFORMS}|{f'{kind}:any' for kind in once}
 def main():
-    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.1.12');a=p.parse_args();components={}
+    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.1.13');a=p.parse_args();components={}
     for path in sorted(a.directory.glob('metadata-*.json')):
         fragment=json.loads(path.read_text())
         if set(components)&set(fragment):raise ValueError('duplicate manifest components')

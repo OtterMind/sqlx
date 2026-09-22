@@ -122,12 +122,12 @@ jobs:
           done
           test "$passed" -gt 0
           # checkout's shallow SHA fetch creates a local lightweight tag; retrieve the actual tag object.
-          git fetch --force origin refs/tags/v0.1.12:refs/tags/v0.1.12
-          test "$(git rev-parse 'v0.1.12^{commit}')" = "$GITHUB_SHA"
-          test "$(git describe --tags --exact-match HEAD)" = v0.1.12
-          test "$(git cat-file -t refs/tags/v0.1.12)" = tag
-          gh release create v0.1.12 --draft --verify-tag --title 'SQLX 0.1.12' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
-          gh release edit v0.1.12 --draft=false --latest
+          git fetch --force origin refs/tags/v0.1.13:refs/tags/v0.1.13
+          test "$(git rev-parse 'v0.1.13^{commit}')" = "$GITHUB_SHA"
+          test "$(git describe --tags --exact-match HEAD)" = v0.1.13
+          test "$(git cat-file -t refs/tags/v0.1.13)" = tag
+          gh release create v0.1.13 --draft --verify-tag --title 'SQLX 0.1.13' --notes-file docs/release-notes.md dist/*.zip dist/manifest.json dist/SHA256SUMS dist/release-version.txt
+          gh release edit v0.1.13 --draft=false --latest
   npm:
     needs: [assemble]
     if: github.event_name == 'push' || inputs.publish
@@ -143,7 +143,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          test "$GITHUB_REF_NAME" = v0.1.12
+          test "$GITHUB_REF_NAME" = v0.1.13
           name=$(node -p 'require("./package.json").name')
           version=$(node -p 'require("./package.json").version')
           test "$version" = "${GITHUB_REF_NAME#v}"
@@ -157,7 +157,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          test "$GITHUB_REF_NAME" = v0.1.12
+          test "$GITHUB_REF_NAME" = v0.1.13
           for package in dsh pi; do
             name=$(node -p "require('./${package}/package.json').name")
             version=$(node -p "require('./${package}/package.json').version")
