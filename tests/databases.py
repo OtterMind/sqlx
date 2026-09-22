@@ -38,7 +38,8 @@ FIXTURES = {
     "h2": {"local": True},
 }
 # Engines that open a local file instead of a server, and the file extension they use.
-LOCAL = {"sqlite": ".db", "duckdb": ".duckdb", "h2": ".mv.db"}
+# H2 appends its own .mv.db suffix to the file name it is given.
+LOCAL = {"sqlite": ".db", "duckdb": ".duckdb", "h2": ""}
 # Statements that must run before the table batch, for engines without a scratch database.
 PREPARE = {
     "starrocks": "CREATE DATABASE IF NOT EXISTS sqlx_test",

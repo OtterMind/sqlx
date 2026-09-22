@@ -18,3 +18,5 @@ __pycache__/
 integrations/*/node_modules/
 integrations/*/*.tgz
 integrations/*/package-lock.json
+# A local H2 database opened during development.
+*.mv.db
