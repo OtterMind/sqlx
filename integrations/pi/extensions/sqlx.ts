@@ -119,9 +119,15 @@ export default function (pi: ExtensionAPI) {
 			statements: Type.Array(Type.String(), {
 				description: "Complete SQL statements, executed in order on one connection",
 			}),
+			full: Type.Optional(
+				Type.Boolean({
+					description: "Print every row and store nothing, for a caller that cannot read the stored file",
+				}),
+			),
 		}),
 		async execute(_toolCallId, params) {
 			const args = ["sql", "execute", "--datasource", params.datasource];
+			if (params.full) args.push("--full");
 			for (const statement of params.statements) args.push("--command", statement);
 			return result(await sqlx(args));
 		},

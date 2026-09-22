@@ -102,10 +102,12 @@ function apply(ctx) {
     parameters: {
       datasource: { type: "string", required: true, description: "Datasource UUID or unique name" },
       statements: { type: "array", items: { type: "string" }, required: true, description: "Complete SQL statements, executed in order on one connection" },
+      full: { type: "boolean", description: "Print every row and store nothing, for a caller that cannot read the stored file" },
     },
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute(args) {
       const command = ["sql", "execute", "--datasource", args.datasource];
+      if (args.full) command.push("--full");
       for (const statement of args.statements) command.push("--command", statement);
       return await run(command);
     },

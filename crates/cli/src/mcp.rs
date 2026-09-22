@@ -6,7 +6,7 @@
 use crate::{
     execution,
     output::{self, Mode},
-    prefetch, results,
+    prefetch, results, settings,
     storage::{Datasource, Store},
     ui,
 };
@@ -121,7 +121,19 @@ fn call(params: Value, root: &Path, manifest: &str, local: &Option<PathBuf>) -> 
         "sqlx_sql_execute" => {
             let source = datasource_arg(root, &arguments)?;
             let statements = statements_arg(&arguments)?;
-            run_action(root, manifest, local, source, Action::Execute, statements)?
+            let full = arguments
+                .get("full")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            run_action_with_mode(
+                root,
+                manifest,
+                local,
+                source,
+                Action::Execute,
+                statements,
+                full,
+            )?
         }
         "sqlx_sql_view" => {
             let source = datasource_arg(root, &arguments)?;
@@ -179,7 +191,19 @@ fn run_action(
     action: Action,
     statements: Vec<String>,
 ) -> Result<Value> {
-    let (out, effective) = execution::output_settings(root, Mode::Compact, None)?;
+    run_action_with_mode(root, manifest, local, source, action, statements, false)
+}
+fn run_action_with_mode(
+    root: &Path,
+    manifest: &str,
+    local: &Option<PathBuf>,
+    source: Datasource,
+    action: Action,
+    statements: Vec<String>,
+    full: bool,
+) -> Result<Value> {
+    let flag = full.then_some(settings::ResultMode::Full);
+    let (out, effective) = execution::output_settings(root, Mode::Compact, None, flag)?;
     let mut buffer = Vec::new();
     let outcome = execution::run_to(
         &mut buffer,
@@ -205,7 +229,7 @@ fn run_action(
 fn stored_rows(root: &Path, arguments: &Value) -> Result<Value> {
     let id = string_arg(arguments, "id")?;
     uuid::Uuid::parse_str(&id).context("id must be a result UUID")?;
-    let (_, effective) = execution::output_settings(root, Mode::Compact, None)?;
+    let (_, effective) = execution::output_settings(root, Mode::Compact, None, None)?;
     let path = effective.results_dir.join(&id);
     let store = results::ResultStore::recover(&path).with_context(|| {
         format!(
@@ -326,6 +350,10 @@ fn tools() -> Vec<Value> {
                         "items": {"type": "string"},
                         "minItems": 1,
                         "description": "Complete SQL statements, executed in order on one connection",
+                    },
+                    "full": {
+                        "type": "boolean",
+                        "description": "Print every row instead of a preview and store nothing. Use it only when the caller cannot read the stored file, because a large result then fills the response.",
                     },
                 },
                 "required": ["datasource", "statements"],
