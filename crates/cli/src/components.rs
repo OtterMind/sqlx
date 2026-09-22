@@ -49,14 +49,24 @@ impl Components {
     pub fn new(root: PathBuf, source: String) -> Self {
         Self { root, source }
     }
-    pub fn manifest(&self, refresh: bool) -> Result<Manifest> {
-        let dir = self.root.join("manifests");
-        fs::create_dir_all(&dir)?;
-        let cache = dir.join(format!(
+    fn manifest_cache(&self) -> PathBuf {
+        self.root.join("manifests").join(format!(
             "{}-{}.json",
             hex::encode(Sha256::digest(self.source.as_bytes())),
             env!("CARGO_PKG_VERSION")
-        ));
+        ))
+    }
+    /// The release manifest this CLI version already downloaded, without any network access.
+    pub fn cached_manifest(&self) -> Option<Manifest> {
+        let parsed: Manifest =
+            serde_json::from_slice(&fs::read(self.manifest_cache()).ok()?).ok()?;
+        validate_manifest(&parsed).ok()?;
+        Some(parsed)
+    }
+    pub fn manifest(&self, refresh: bool) -> Result<Manifest> {
+        let dir = self.root.join("manifests");
+        fs::create_dir_all(&dir)?;
+        let cache = self.manifest_cache();
         let bytes = if cache.exists() && !refresh {
             fs::read(&cache)?
         } else {

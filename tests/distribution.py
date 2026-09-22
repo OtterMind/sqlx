@@ -179,19 +179,19 @@ def check_release_contract():
     assert {'clickhouse','trino'}<=once,'the JDBC worker engines must ship a vendor component'
     with tempfile.TemporaryDirectory(prefix='sqlx-manifest-') as tmp:
         directory=Path(tmp)
-        shared={f'{kind}:any':{'version':'0.1.11'} for kind in once}
+        shared={f'{kind}:any':{'version':'0.1.12'} for kind in once}
         (directory/'metadata-shared.json').write_text(json.dumps(shared))
         for platform in manifest.PLATFORMS:
             (directory/f'metadata-{platform}.json').write_text(
-                json.dumps({f'{kind}:{platform}':{'version':'0.1.11'} for kind in per_platform}))
+                json.dumps({f'{kind}:{platform}':{'version':'0.1.12'} for kind in per_platform}))
         def run(*extra):
             sys.argv=['manifest.py',str(directory),*extra]
             manifest.main()
         run()
         produced=json.loads((directory/'manifest.json').read_text())['components']
         assert set(produced)==manifest.required_components(),'the manifest must carry every required component'
-        assert (directory/'SHA256SUMS').is_file() and (directory/'release-version.txt').read_text()=='0.1.11\n'
-        (directory/'metadata-extra.json').write_text(json.dumps({'duckdb:any':{'version':'0.1.11'}}))
+        assert (directory/'SHA256SUMS').is_file() and (directory/'release-version.txt').read_text()=='0.1.12\n'
+        (directory/'metadata-extra.json').write_text(json.dumps({'duckdb:any':{'version':'0.1.12'}}))
         try:
             run()
         except ValueError as error:

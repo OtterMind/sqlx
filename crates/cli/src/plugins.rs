@@ -13,6 +13,8 @@ use std::{
 };
 
 pub const API_VERSION: u32 = 1;
+/// Identifier of the interface that ships with the CLI and is refreshed by CLI updates.
+pub const DEFAULT_ID: &str = "default";
 const RECEIPT: &str = ".sqlx-ui-receipt.json";
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
@@ -290,27 +292,55 @@ pub fn remove(root: &Path, id: &str, version: &str) -> Result<()> {
     fs::remove_dir_all(plugin.root)?;
     Ok(())
 }
-pub fn ensure_default(manager: &Components) -> Result<()> {
-    if selected(&manager.root)?.is_some() {
+/// Install and select the interface that ships with this CLI.
+///
+/// A plugin the user installed always keeps the version they selected. `refresh` moves an
+/// installed default interface to the version of the release manifest; without it only the cached
+/// manifest is consulted, so a locally built interface never requires network access.
+pub fn ensure_default(manager: &Components, refresh: bool) -> Result<()> {
+    let current = selected(&manager.root)?;
+    if current.as_ref().is_some_and(|s| s.id != DEFAULT_ID) {
         active(&manager.root)?;
         return Ok(());
     }
-    let m = manager.manifest(false)?;
+    let m = match &current {
+        // A locally built interface is used as installed and never requires the release manifest.
+        Some(_) if !refresh => manager.cached_manifest(),
+        // An installed interface keeps working while the release manifest is unreachable.
+        Some(_) => manager.manifest(false).ok(),
+        None => Some(manager.manifest(false)?),
+    };
+    let Some(m) = m else {
+        active(&manager.root)?;
+        return Ok(());
+    };
     let asset = manager
         .asset(&m, "ui-default", "any")
         .context("the release does not provide the default UI plugin")?;
+    let installed = current
+        .as_ref()
+        .map(|s| semver::Version::parse(&s.version))
+        .transpose()
+        .context("the selected UI plugin has an invalid version")?;
+    // Only a newer release replaces the installed default, so a manifest from another release
+    // never downgrades an interface that is already current.
+    let released = semver::Version::parse(&asset.version).context("invalid component version")?;
+    if installed.is_some_and(|v| v >= released) {
+        active(&manager.root)?;
+        return Ok(());
+    }
     let entry = manager.ensure("ui-default", "any", asset)?;
     let manifest = install(&manager.root, entry.parent().unwrap())?;
     let parent = directory(&manager.root);
     let lock = open_private(&parent.join("registry.lock"))?;
     lock.lock_exclusive()?;
-    if selected(&manager.root)?.is_none() {
+    if selected(&manager.root)?.is_none_or(|s| s.id == manifest.id) {
         load(&manager.root, &manifest.id, &manifest.version)?;
         atomic_write(
             &parent.join("active.json"),
             &serde_json::to_vec(&Selection {
-                id: manifest.id,
-                version: manifest.version,
+                id: manifest.id.clone(),
+                version: manifest.version.clone(),
             })?,
         )?;
     }
