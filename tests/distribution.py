@@ -214,5 +214,25 @@ def check_release_contract():
     print(f'release contract: {len(per_platform)} per-platform and {len(once)} shared components stay in sync with the packagers')
 
 
+def check_version_consistency():
+    """Every place that carries the release number must agree, because CI reads several of them."""
+    version=re.search(r'^version = "([^"]+)"',(ROOT/'Cargo.toml').read_text(),re.M).group(1)
+    pom=re.search(r'<artifactId>sqlx-jdbc</artifactId><version>([^<]+)</version>',(ROOT/'java/jdbc/pom.xml').read_text()).group(1)
+    assert pom==version,f'java/jdbc/pom.xml is {pom}, Cargo.toml is {version}'
+    for name in ('package.py','package-shared.py','manifest.py'):
+        source=(ROOT/'scripts'/name).read_text()
+        defaults=set(re.findall(r"default='([0-9][^']*)'",source))|set(re.findall(r"DEFAULT_VERSION='([^']+)'",source))
+        assert defaults=={version},f'scripts/{name} defaults are {sorted(defaults)}, Cargo.toml is {version}'
+    for name in ('packages/npm-installer','integrations/dsh','integrations/pi'):
+        published=json.loads((ROOT/name/'package.json').read_text())['version']
+        assert published==version,f'{name}/package.json is {published}, Cargo.toml is {version}'
+    for plugin in ('integrations/claude/plugins/sqlx','integrations/codex/plugins/sqlx'):
+        runtime=json.loads((ROOT/plugin/'runtime.json').read_text())
+        assert runtime['plugin_version']==version,f'{plugin}/runtime.json pins {runtime["plugin_version"]}'
+    workflow=(ROOT/'.github/workflows/packages.yml').read_text()
+    assert f'test "$GITHUB_REF_NAME" = v{version}' in workflow,f'.github/workflows/packages.yml does not guard npm publishing on v{version}'
+    print(f'version consistency: {version} across Cargo.toml, java/jdbc, packagers, npm packages, plugins and the release workflow')
+
+
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();check_skill_source();check_release_contract();exercise(args.cli)
+    parser=argparse.ArgumentParser();parser.add_argument('--cli',type=Path,default=ROOT/'target/debug'/('sqlx.exe' if os.name=='nt' else 'sqlx'));args=parser.parse_args();check_skill_source();check_version_consistency();check_release_contract();exercise(args.cli)
