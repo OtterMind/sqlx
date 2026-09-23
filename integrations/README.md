@@ -13,7 +13,7 @@ thin native-tool packages for harnesses that register tools themselves.
 
 ## Requirements
 
-The `sqlx` CLI (0.1.14 or later, which provides `sqlx mcp`). Codex and Claude plugin launchers read
+The `sqlx` CLI (0.1.15 or later, which provides `sqlx mcp`). Codex and Claude plugin launchers read
 the minimum CLI version from their plugin runtime metadata, prefer a compatible CLI in the official
 user-level installation (`SQLX_INSTALL_DIR`, `~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`),
 and accept `SQLX_BIN` or `PATH` only when that CLI is compatible. When the CLI is missing or too old,

@@ -109,13 +109,14 @@ def main() -> None:
                     "HOME": str(root / f"{agent}-home"),
                     "SQLX_INSTALL_DIR": str(root / f"{agent}-install"),
                     "PATH": f"{fake_bin}:/usr/bin:/bin",
-                    "FAKE_SQLX_VERSION": "0.1.15",
+                    # Far ahead of any release, so a version bump cannot collide with this fake.
+                    "FAKE_SQLX_VERSION": "0.1.99",
                 }
             )
             (root / f"{agent}-home").mkdir()
             result = run(agent, common)
             assert result.returncode == 0, (agent, result.stderr)
-            assert result.stdout.strip() == "mcp:0.1.15", (agent, result.stdout)
+            assert result.stdout.strip() == "mcp:0.1.99", (agent, result.stdout)
 
             old_dir = root / f"{agent}-old-bin"
             install = root / f"{agent}-upgrade"

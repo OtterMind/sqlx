@@ -1,6 +1,6 @@
 {
   "name": "@ottermind/sqlx",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Install or update the SQLX database CLI and its agent Skill.",
   "license": "LicenseRef-Chat2DB",
   "homepage": "https://github.com/OtterMind/sqlx#readme",
