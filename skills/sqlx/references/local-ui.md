@@ -1,6 +1,6 @@
 # Local credential and result pages
 
-This Skill requires SQLX 0.1.14. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
+This Skill requires SQLX 0.1.15. The page is served by a separately downloaded local service and the selected UI plugin, and opens on the machine where the CLI runs. A local URL from a remote SSH environment does not automatically open the remote page on the user's computer.
 
 ## Deliver the page link
 
