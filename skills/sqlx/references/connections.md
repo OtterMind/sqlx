@@ -56,6 +56,22 @@ For structured non-interactive input, `--connection-stdin` reads one connection 
 
 `sqlx datasource update --id dev` changes the saved settings, or add `--ui` to edit them in the browser. `sqlx datasource remove --id dev` deletes it. Changing the database type requires a new datasource.
 
+## Import connections in bulk
+
+When the user already has connections in another tool, `sqlx datasource import --stdin` (SQLX 0.1.16 or newer) accepts one document instead of asking for every connection again:
+
+```json
+{
+  "version": 1,
+  "mode": "merge",
+  "datasources": [
+    { "name": "dev", "connection": { "database_type": "postgresql", "host": "localhost", "port": 5432, "database": "app", "username": "example_account", "password": "replace_with_real_input", "tls": "verify-full" } }
+  ]
+}
+```
+
+Each `connection` is the same object `--connection-stdin` accepts, and the password belongs in the document rather than in an argument. `merge` adds new names and updates existing ones in place. An entry with an unknown engine or incomplete parameters is reported in `skipped` with a reason instead of failing the import, `--dry-run` reports without storing, `--strict` refuses the whole document when any entry is invalid, and `--file <path>` reads the document from a file. Read the report and tell the user which entries were skipped instead of assuming every entry was imported.
+
 ## Engine-specific fields
 
 - Oracle uses `--service <service-name>` instead of a database name.

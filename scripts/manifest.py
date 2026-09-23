@@ -10,13 +10,14 @@ def load_shared():
     return module
 package_shared=load_shared()
 PLATFORMS=['macos-arm64','macos-x64','windows-x64','linux-arm64','linux-x64']
+DEFAULT_VERSION='0.1.16'
 def required_components():
     """Exactly the components the packaging scripts emit: per-platform plus once-for-all."""
     per_platform=set(package.PLATFORM_KINDS)|set(package_shared.PLATFORM_KINDS)
     once=set(package_shared.SHARED_KINDS)|set(package_shared.VENDOR_KINDS)
     return {f'{kind}:{platform}' for kind in per_platform for platform in PLATFORMS}|{f'{kind}:any' for kind in once}
 def main():
-    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default='0.1.15');a=p.parse_args();components={}
+    p=argparse.ArgumentParser();p.add_argument('directory',type=Path);p.add_argument('--version',default=DEFAULT_VERSION);a=p.parse_args();components={}
     for path in sorted(a.directory.glob('metadata-*.json')):
         fragment=json.loads(path.read_text())
         if set(components)&set(fragment):raise ValueError('duplicate manifest components')

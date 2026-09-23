@@ -1,3 +1,4 @@
+mod import;
 mod skill;
 use sqlx_core::{components, execution, mcp, plugins, prefetch, storage, ui, updates};
 
@@ -165,6 +166,21 @@ enum DatasourceCommand {
     Remove {
         #[arg(long)]
         id: String,
+    },
+    /// Import datasources from another tool's JSON document, read from a file or stdin.
+    Import {
+        /// Read the document from this file instead of stdin.
+        #[arg(long, conflicts_with = "stdin", required_unless_present = "stdin")]
+        file: Option<PathBuf>,
+        /// Read the document from stdin; credentials then never touch the filesystem.
+        #[arg(long, conflicts_with = "file", required_unless_present = "file")]
+        stdin: bool,
+        /// Validate the document and report the outcome without storing anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Fail the whole import when any datasource is invalid; nothing is stored.
+        #[arg(long)]
+        strict: bool,
     },
     Test {
         #[arg(long)]
@@ -475,6 +491,20 @@ fn run(cli: Cli) -> Result<bool> {
                 sources.retain(|s| s.id != found.id);
                 store.save(&sources)?;
                 print(json!({"removed":found.id}));
+            }
+            DatasourceCommand::Import {
+                file,
+                stdin: _,
+                dry_run,
+                strict,
+            } => {
+                let input = match file {
+                    Some(path) => std::fs::read_to_string(&path)
+                        .with_context(|| format!("cannot read {}", path.display()))?,
+                    None => import::read_stdin()?,
+                };
+                let store = Store::open(root)?;
+                print(import::run(&store, &input, dry_run, strict)?);
             }
             DatasourceCommand::Test { id, events } => {
                 let source = {

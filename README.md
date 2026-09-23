@@ -214,6 +214,43 @@ sqlx datasource add --name dev --connection-stdin
 
 Datasource responses omit usernames, passwords and vendor properties.
 
+### Importing connections
+
+A tool that already stores connections can hand all of them over in one versioned document, so a migration never needs a password in a command argument. [examples/import-connections.json](examples/import-connections.json) is a runnable starting point:
+
+```sh
+sqlx datasource import --stdin < connections.json
+```
+
+```json
+{
+  "version": 1,
+  "mode": "merge",
+  "datasources": [
+    {
+      "name": "dev",
+      "connection": {
+        "database_type": "postgresql",
+        "host": "localhost",
+        "port": 5432,
+        "database": "app",
+        "username": "example_account",
+        "password": "replace_with_real_input",
+        "tls": "verify-full"
+      }
+    }
+  ]
+}
+```
+
+Each `connection` is the same object `--connection-stdin` accepts. `merge` (the default) adds new names and updates existing ones in place while keeping their IDs, and it never deletes a stored connection. Every entry is validated on its own, so an unsupported engine or an incomplete connection is reported in `skipped` with its reason instead of failing the document:
+
+```json
+{"success":true,"data":{"mode":"merge","added":1,"updated":0,"unchanged":0,"total":1,"datasources":[{"id":"...","name":"dev","connection":{"database_type":"postgresql"}}],"skipped":[{"name":"legacy","reason":"invalid_connection","detail":"..."}]}}
+```
+
+`--dry-run` validates and reports without storing anything, `--strict` refuses the whole document when any entry is invalid, and `--file <path>` reads the document from a file for callers that cannot pipe stdin. The store is written once, so an import is never half applied.
+
 ### Commands
 
 | Operation | Command |
@@ -223,6 +260,7 @@ Datasource responses omit usernames, passwords and vendor properties.
 | List connections | `sqlx datasource list` |
 | Inspect a connection | `sqlx datasource show --id dev` |
 | Change connection settings | `sqlx datasource update --id dev --host db.example.com` |
+| Import saved connections | `sqlx datasource import --stdin` |
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --command "SELECT 1" --command "SELECT 2"` |
@@ -350,7 +388,7 @@ For Oracle and SQL Server, build the JDBC worker and place its driver JARs along
 
 ```sh
 mvn -B -f java/jdbc/pom.xml package
-cp java/jdbc/target/sqlx-jdbc-0.1.15.jar target/release/sqlx-jdbc.jar
+cp java/jdbc/target/sqlx-jdbc-0.1.16.jar target/release/sqlx-jdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar -o target/release/ojdbc.jar
 curl -fL https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar -o target/release/mssql-jdbc.jar
 ```
@@ -359,7 +397,7 @@ On Windows PowerShell:
 
 ```powershell
 mvn -B -f java/jdbc/pom.xml package
-Copy-Item java/jdbc/target/sqlx-jdbc-0.1.15.jar target/release/sqlx-jdbc.jar
+Copy-Item java/jdbc/target/sqlx-jdbc-0.1.16.jar target/release/sqlx-jdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar' -OutFile target/release/ojdbc.jar
 Invoke-WebRequest 'https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.10.1.jre11/mssql-jdbc-12.10.1.jre11.jar' -OutFile target/release/mssql-jdbc.jar
 ```

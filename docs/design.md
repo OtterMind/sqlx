@@ -257,7 +257,7 @@ Automatic updates can use the device ID for stable rollout grouping and combine 
 
 ## 5. Datasource and connection management
 
-The first release provides create, list, show, update, remove and connection test.
+The first release provides create, list, show, update, remove and connection test. A later revision adds a versioned bulk import so another tool can hand over saved connections without putting credentials on a command line.
 
 Every datasource has a stable ID and stores a name, database type, backend identifier, connection parameters and encrypted credentials. Renaming does not change the datasource ID.
 
@@ -275,7 +275,10 @@ sqlx datasource show --id <datasource-id>
 sqlx datasource update --id <datasource-id> ...
 sqlx datasource remove --id <datasource-id>
 sqlx datasource test --id <datasource-id>
+sqlx datasource import --stdin
 ```
+
+The import document is versioned and carries one connection object per entry, exactly like `--connection-stdin`. Entries merge by name, keeping the ID of a datasource that already exists; the store is written once, so an import is never half applied, and the report lists every entry that was skipped with a reason.
 
 The above are proposed command designs, not yet implemented. The interactive entry and the agent's non-interactive entry for username and password are completed when the interface is finalized, so that real credentials never go into a process command line.
 

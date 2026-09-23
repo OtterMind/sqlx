@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "mode": "merge",
+  "datasources": [
+    {
+      "name": "prod-pg",
+      "connection": {
+        "database_type": "postgresql",
+        "host": "db.example.com",
+        "port": 5432,
+        "database": "app",
+        "username": "reader",
+        "password": "replace_with_real_input",
+        "tls": "verify-full"
+      }
+    },
+    {
+      "name": "local-mysql",
+      "connection": {
+        "database_type": "mysql",
+        "host": "127.0.0.1",
+        "port": 3306,
+        "database": "app",
+        "username": "root",
+        "password": "replace_with_real_input",
+        "tls": "disable"
+      }
+    },
+    {
+      "name": "local-sqlite",
+      "connection": {
+        "database_type": "sqlite",
+        "host": "",
+        "port": 0,
+        "database": "~/data/app.db",
+        "tls": "disable"
+      }
+    }
+  ]
+}

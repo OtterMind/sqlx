@@ -1,5 +1,5 @@
 {
-  "plugin_version": "0.1.15",
-  "cli_min_version": "0.1.15",
+  "plugin_version": "0.1.16",
+  "cli_min_version": "0.1.16",
   "mcp_protocol": 1
 }
