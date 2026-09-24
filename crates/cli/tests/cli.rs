@@ -263,7 +263,7 @@ fn provided_drivers_are_validated_installed_and_removed() {
     let jar = temp.path().join("jcc-12.1.0.0.jar");
     write_jar(&jar, &["com/ibm/db2/jcc/DB2Driver.class"]);
 
-    // The jar must carry the driver class the worker loads, not just any archive.
+    // One of the jars must carry the driver class the worker loads, not just any archive.
     let wrong = temp.path().join("wrong.jar");
     write_jar(&wrong, &["com/example/Other.class"]);
     let rejected = call(
@@ -280,8 +280,7 @@ fn provided_drivers_are_validated_installed_and_removed() {
     );
     assert!(!rejected.status.success());
     assert!(
-        String::from_utf8_lossy(&rejected.stdout)
-            .contains("does not contain com.ibm.db2.jcc.DB2Driver"),
+        String::from_utf8_lossy(&rejected.stdout).contains("contains com.ibm.db2.jcc.DB2Driver"),
         "{}",
         String::from_utf8_lossy(&rejected.stdout)
     );
@@ -334,10 +333,63 @@ fn provided_drivers_are_validated_installed_and_removed() {
         "{engines:?}"
     );
 
+    // A file that is not named as a jar would be stored and then never loaded, so it is refused.
+    let misnamed = temp.path().join("driver.jar.bak");
+    write_jar(&misnamed, &["com/ibm/db2/jcc/DB2Driver.class"]);
+    let refused = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            misnamed.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8_lossy(&refused.stdout).contains("is not named as a jar"),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+
+    // Driver components are platform independent, so an installed one lives under `any`.
+    std::fs::create_dir_all(root.join("drivers/oracle/any/1.0.0")).unwrap();
+    let installed = call(&root, &["driver", "list", "--type", "oracle"], None);
+    let value: Value = serde_json::from_slice(&installed.stdout).unwrap();
+    assert_eq!(value["data"]["drivers"][0]["installed"], true, "{value}");
+    assert_eq!(value["data"]["drivers"][0]["source"], "release", "{value}");
+
     let removed = call(&root, &["driver", "remove", "--type", "db2"], None);
     let value: Value = serde_json::from_slice(&removed.stdout).unwrap();
     assert_eq!(value["data"]["removed"][0], "jcc-12.1.0.0.jar");
     assert!(!root.join("drivers/db2/jcc-12.1.0.0.jar").exists());
+
+    // A driver that needs dependencies is accepted with them, as long as the driver is among them.
+    let helper = temp.path().join("helper.jar");
+    write_jar(&helper, &["com/example/Helper.class"]);
+    let with_helper = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            jar.to_str().unwrap(),
+            "--jar",
+            helper.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(
+        with_helper.status.success(),
+        "{}",
+        String::from_utf8_lossy(&with_helper.stdout)
+    );
+    assert!(root.join("drivers/db2/helper.jar").is_file());
 }
 /// An engine served by the JDBC worker that has no driver yet explains how to provide one.
 #[test]

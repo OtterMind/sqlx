@@ -851,8 +851,7 @@ fn driver_command(root: &Path, command: DriverCommand) -> Result<bool> {
     let describe = |kind: Database| -> Result<Value> {
         let driver = execution::jdbc_driver(kind)?;
         let provided = drivers::provided(root, driver.component)?;
-        let platform = components::platform()?;
-        let released = drivers::released(root, driver.component, &platform);
+        let released = drivers::released(root, driver.component);
         let source = if !provided.is_empty() {
             "provided"
         } else if driver.bundled {

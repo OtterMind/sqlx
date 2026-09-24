@@ -329,17 +329,17 @@ def exercise(cli, bin_dir, kind):
                 assert error is not None and contract.rows(result, 0), result
                 assert code != 0 and contract.skipped(result) == [2], result
             retry(kind, "the first-error batch", read_only_error_batch)
-            print(f"{kind}: connection, cube query and first-error stop passed (read-only engine)")
+            print(f"{kind}: connection, a literal query and the first-error stop passed (read-only engine)")
             return
         # Writes are submitted once: replaying this batch could apply them twice. An engine without
         # DROP TABLE IF EXISTS gets its drop first, where a missing table is allowed to fail.
         writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
         if kind in TOLERANT_DROP:
-            dropped = call("sql", "execute", "--datasource", "fixture",
-                           "--command", DROP_IF_EXISTS[kind], ok=False)
+            call("sql", "execute", "--datasource", "fixture",
+                 "--command", DROP_IF_EXISTS[kind], ok=False)
             writes = writes[1:]
         call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--command", statement)])
-        _, result = retry(kind, "the read-only query", lambda: call(
+        _, result = retry(kind, "the row query", lambda: call(
             "sql", "execute", "--datasource", "fixture", "--command", SELECT[kind]))
         rows = contract.rows(result)
         assert len(rows) == 1, result

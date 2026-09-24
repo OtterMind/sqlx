@@ -90,14 +90,16 @@ def main():
         entries={};sources=[]
         for url,filename in spec['files']:
             entries[filename]=get(url);sources.append(url)
-        # Every driver runs in the pinned JRE 17, so a jar compiled for a newer Java would only fail
-        # on a user's machine. Check the driver class here, where the fix is a version bump.
+        # Every driver runs in the pinned JRE 17, so a class compiled for a newer Java would only
+        # fail on a user's machine. Check each driver entry point here, where the fix is a version
+        # bump: a bundled helper that loads eagerly would break the engine just the same.
         with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:
-            driver=next((n for n in jar.namelist() if n.endswith('Driver.class') and '$' not in n),None)
-            if driver:
-                major=int.from_bytes(jar.read(driver)[6:8],'big')
-                if major>61:
-                    raise ValueError(f'{name} driver {driver} targets Java {major-44} but SQLX ships JRE 17')
+            too_new=[(entry,int.from_bytes(jar.read(entry)[6:8],'big'))
+                     for entry in jar.namelist() if entry.endswith('Driver.class') and '$' not in entry]
+            too_new=[(entry,major) for entry,major in too_new if major>61]
+            if too_new:
+                listed=', '.join(f'{entry} (Java {major-44})' for entry,major in too_new)
+                raise ValueError(f'{name} ships a driver class newer than the pinned JRE 17: {listed}')
         if 'license_from_jar' in spec:
             # Preserve the license shipped with this exact driver; the HTML page blocks automated downloads.
             with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:license_text=jar.read(spec['license_from_jar'])

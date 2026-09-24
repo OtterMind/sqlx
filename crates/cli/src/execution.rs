@@ -194,8 +194,8 @@ pub fn prepare(
             // A driver the user provides is resolved before anything is downloaded: an engine whose
             // vendor allows no redistribution must not fetch a JRE only to report that the driver is
             // missing.
-            let mut jars = drivers::provided(&manager.root, driver.component)?;
-            if jars.is_empty() && !driver.bundled {
+            let provided = drivers::provided(&manager.root, driver.component)?;
+            if provided.is_empty() && !driver.bundled {
                 bail!(
                     "SQLX does not redistribute the {} driver; run `sqlx driver add --type {} --jar <path>` with the vendor driver jar first",
                     driver.component,
@@ -206,20 +206,24 @@ pub fn prepare(
             let java = manager.ensure("java", &platform, manager.asset(&m, "java", &platform)?)?;
             let runner = manager.ensure("jdbc", "any", manager.asset(&m, "jdbc", "any")?)?;
             args.extend(["-jar".into(), runner.to_string_lossy().into_owned()]);
-            // A provided driver wins; otherwise the released component is the one loaded.
-            if jars.is_empty() {
+            // A provided jar is loaded before the released one it replaces, and the rest of the
+            // component keeps supplying what the driver needs, such as a logging API or JAXB. An
+            // engine the release does not carry loads only what the user provided.
+            let mut jars = provided;
+            if driver.bundled {
                 let entry = manager.ensure(
                     driver.component,
                     "any",
                     manager.asset(&m, driver.component, "any")?,
                 )?;
-                // A JDBC component can ship more than the driver itself, such as a logging API.
                 let directory = entry.parent().context("JDBC component has no directory")?;
-                jars = fs::read_dir(directory)?
+                let mut released: Vec<PathBuf> = fs::read_dir(directory)?
                     .filter_map(|item| item.ok().map(|item| item.path()))
                     .filter(|path| path.extension().is_some_and(|extension| extension == "jar"))
+                    .filter(|path| !jars.iter().any(|jar| jar.file_name() == path.file_name()))
                     .collect();
-                jars.sort();
+                released.sort();
+                jars.extend(released);
                 if jars.is_empty() {
                     bail!("JDBC component {} contains no jar", driver.component);
                 }

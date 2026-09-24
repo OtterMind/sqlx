@@ -26,12 +26,18 @@ pub fn provided(root: &Path, component: &str) -> Result<Vec<PathBuf>> {
     let mut jars: Vec<PathBuf> = fs::read_dir(&directory)
         .with_context(|| format!("cannot read {}", directory.display()))?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|path| {
-            path.is_file() && path.extension().is_some_and(|extension| extension == "jar")
-        })
+        .filter(|path| path.is_file() && is_jar(path))
         .collect();
     jars.sort();
     Ok(jars)
+}
+
+/// Whether a file is a jar by its name; the extension decides for the driver directory and for the
+/// files a user passes, so a jar named with another extension is rejected instead of stored and
+/// silently ignored later.
+fn is_jar(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("jar"))
 }
 
 /// Whether a jar carries the driver class the JDBC worker loads.
@@ -45,28 +51,40 @@ fn carries(jar: &Path, class: &str) -> Result<bool> {
     Ok(carried)
 }
 
-/// Copy the given jars into the engine directory, after checking each one is the driver.
+/// Copy the given jars into the engine directory, after checking the driver is among them.
 ///
-/// A jar that does not carry the driver class is rejected instead of being stored: it would fail
-/// later, inside the worker, with a far less useful message.
+/// One of the jars must carry the driver class, and the rest are stored as its dependencies; a set
+/// that carries no driver class is rejected instead of being stored, because it would fail later,
+/// inside the worker, with a far less useful message.
 pub fn install(root: &Path, component: &str, class: &str, jars: &[PathBuf]) -> Result<Vec<String>> {
     if jars.is_empty() {
         bail!("at least one --jar is required");
     }
     let directory = directory(root, component);
-    fs::create_dir_all(&directory)
-        .with_context(|| format!("cannot create {}", directory.display()))?;
-    let mut stored = Vec::new();
+    let mut carries_driver = false;
     for jar in jars {
         if !jar.is_file() {
             bail!("the driver jar {} does not exist", jar.display());
         }
-        if !carries(jar, class)? {
+        if !is_jar(jar) {
             bail!(
-                "{} does not contain {class}; pass the vendor's JDBC driver jar",
+                "{} is not named as a jar; give it a .jar name so the worker loads it",
                 jar.display()
             );
         }
+        carries_driver |= carries(jar, class)?;
+    }
+    if !carries_driver {
+        bail!(
+            "none of the given jars contains {class}; pass the vendor's JDBC driver jar, and its \
+             dependencies alongside it when the driver needs them. GBase 8s ships a wrapper jar: \
+             unpack its inner ifxjdbc.jar and pass that file"
+        );
+    }
+    fs::create_dir_all(&directory)
+        .with_context(|| format!("cannot create {}", directory.display()))?;
+    let mut stored = Vec::new();
+    for jar in jars {
         let name = jar
             .file_name()
             .context("the driver jar has no file name")?
@@ -96,9 +114,11 @@ pub fn remove(root: &Path, component: &str) -> Result<Vec<String>> {
     Ok(removed)
 }
 
-/// Whether a released driver component is installed for this platform.
-pub fn released(root: &Path, component: &str, platform: &str) -> bool {
-    fs::read_dir(root.join("drivers").join(component).join(platform))
+/// Whether the released driver component is installed.
+///
+/// Driver components are platform-independent, so the components manager installs them under `any`.
+pub fn released(root: &Path, component: &str) -> bool {
+    fs::read_dir(root.join("drivers").join(component).join("any"))
         .map(|entries| entries.flatten().any(|entry| entry.path().is_dir()))
         .unwrap_or(false)
 }
