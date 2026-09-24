@@ -103,7 +103,7 @@ public final class JdbcWorker {
                     try (Connection connection = driver.connect(url(config), properties)) {
                         if (connection == null) throw new SQLException("driver rejected connection URL");
                         connection.setAutoCommit(true);
-                        if (!connection.isValid(15)) throw new SQLException("connection validation failed");
+                        if (!connectionIsValid(connection)) throw new SQLException("connection validation failed");
                         emit("connected");
                         if (request.path("action").asText().equals("execute")) {
                             if (!sql.isArray() || sql.isEmpty()) throw new IllegalArgumentException("SQL statements are required");
@@ -132,6 +132,11 @@ public final class JdbcWorker {
                                         } catch (SQLFeatureNotSupportedException unsupported) {
                                             // Hive never implements this call, and one --command is one
                                             // statement here, so the result that just ended is the last.
+                                            break;
+                                        } catch (SQLException unsupported) {
+                                            // GBase 8s reports the same gap as a plain SQLException, so only
+                                            // a driver that says so ends the loop early.
+                                            if (!String.valueOf(unsupported.getMessage()).contains("not supported")) throw unsupported;
                                             break;
                                         }
                                     }
@@ -182,6 +187,18 @@ public final class JdbcWorker {
         for (int i=current==null ? 0 : current+1; i<statements; i++) emit("skipped", "index", i);
         emit("complete", "success", false);
         return false;
+    }
+    /**
+     * A driver that does not implement the validation call is taken at its word. GBase 8s reports it
+     * as a plain SQLException with "Method not supported", so any failure here is inconclusive: the
+     * connection was already opened, and the first statement is what reports a real problem.
+     */
+    static boolean connectionIsValid(Connection connection) {
+        try {
+            return connection.isValid(15);
+        } catch (Exception unsupported) {
+            return true;
+        }
     }
     /**
      * H2 runs every statement in one string but reports only the first result, so a command that
@@ -272,10 +289,29 @@ public final class JdbcWorker {
             // spells that parameter its own way.
             case "informix" -> "jdbc:informix-sqli://" + authority + "/" + c.path("database").asText()
                     + informixParameters(c, "INFORMIXSERVER");
+            // The GBase 8s driver fails inside its own parser without a client locale, so every URL
+            // carries one; --property DB_LOCALE or CLIENT_LOCALE replaces the default.
             case "gbase8s" -> "jdbc:gbasedbt-sqli://" + authority + "/" + c.path("database").asText()
-                    + informixParameters(c, "GBASEDBTSERVER");
+                    + gbaseParameters(c);
             default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine, opengauss, dameng, kingbase, h2, presto, hive, kylin, xugu, db2, informix, sundb and gbase8s");
         };
+    }
+    /** The parameter block a GBase 8s URL appends: the server instance and the client locales. */
+    static String gbaseParameters(JsonNode c) {
+        String instance = informixParameters(c, "GBASEDBTSERVER");
+        StringBuilder parameters = new StringBuilder(instance.isEmpty() ? ":" : instance);
+        parameters.append("DB_LOCALE=").append(locale(c, "DB_LOCALE")).append(';');
+        parameters.append("CLIENT_LOCALE=").append(locale(c, "CLIENT_LOCALE")).append(';');
+        return parameters.toString();
+    }
+    /** A caller-supplied locale, or the locale the GBase 8s driver expects by default. */
+    static String locale(JsonNode c, String key) {
+        JsonNode properties = c.path("properties");
+        for (String name : List.of(key, key.toLowerCase(java.util.Locale.ROOT))) {
+            String value = properties.path(name).asText();
+            if (!value.isEmpty()) return value;
+        }
+        return "en_US.819";
     }
     /** The parameter block an Informix-derived URL appends after the database name. */
     static String informixParameters(JsonNode c, String serverKey) {

@@ -44,7 +44,9 @@ class JdbcWorkerTest {
         var informix=json.readTree("{\"database_type\":\"informix\",\"host\":\"localhost\",\"port\":9088,\"database\":\"sysmaster\",\"service\":\"informix\",\"tls\":\"disable\"}");
         assertEquals("jdbc:informix-sqli://localhost:9088/sysmaster:INFORMIXSERVER=informix;",JdbcWorker.url(informix));
         var gbase=json.readTree("{\"database_type\":\"gbase8s\",\"host\":\"localhost\",\"port\":9088,\"database\":\"sysmaster\",\"service\":\"gbase01\",\"tls\":\"disable\"}");
-        assertEquals("jdbc:gbasedbt-sqli://localhost:9088/sysmaster:GBASEDBTSERVER=gbase01;",JdbcWorker.url(gbase));
+        assertEquals("jdbc:gbasedbt-sqli://localhost:9088/sysmaster:GBASEDBTSERVER=gbase01;DB_LOCALE=en_US.819;CLIENT_LOCALE=en_US.819;",JdbcWorker.url(gbase));
+        var gbaseLocale=json.readTree("{\"database_type\":\"gbase8s\",\"host\":\"localhost\",\"port\":9088,\"database\":\"sysmaster\",\"service\":\"gbase01\",\"tls\":\"disable\",\"properties\":{\"DB_LOCALE\":\"zh_CN.GB18030-2000\"}}");
+        assertEquals("jdbc:gbasedbt-sqli://localhost:9088/sysmaster:GBASEDBTSERVER=gbase01;DB_LOCALE=zh_CN.GB18030-2000;CLIENT_LOCALE=en_US.819;",JdbcWorker.url(gbaseLocale));
         var informixTls=json.readTree("{\"database_type\":\"informix\",\"host\":\"localhost\",\"port\":9088,\"database\":\"sysmaster\",\"tls\":\"verify-full\"}");
         assertEquals("jdbc:informix-sqli://localhost:9088/sysmaster:sslConnection=true;",JdbcWorker.url(informixTls));
     }

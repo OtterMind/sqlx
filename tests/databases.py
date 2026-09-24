@@ -57,7 +57,7 @@ FIXTURES = {
     # Informix and GBase 8s name a server instance, which the connection carries as --service.
     "informix": {"port": 29088, "database": "sysmaster", "service": "informix",
                  "username": "informix", "password": PASSWORD},
-    "gbase8s": {"port": os.environ.get("SQLX_TEST_GBASE8S_PORT", 19088), "database": "sysmaster",
+    "gbase8s": {"port": os.environ.get("SQLX_TEST_GBASE8S_PORT", 19088), "database": "gbasedbt",
                 "service": os.environ.get("SQLX_TEST_GBASE8S_SERVER", "gbase01"),
                 "username": "gbasedbt", "password": os.environ.get("SQLX_TEST_GBASE8S_PASSWORD", "GBase1234")},
     # Db2 is a normal fixture; SUNDB needs a licensed installation, so both expect their instance.
@@ -74,6 +74,8 @@ PREPARE = {
     "doris": "CREATE DATABASE IF NOT EXISTS sqlx_test",
     "tdengine": "CREATE DATABASE IF NOT EXISTS sqlx_probe",
 }
+# Executing DROP TABLE on a missing table is an error for these engines, which have no IF EXISTS form.
+TOLERANT_DROP = {"informix", "gbase8s"}
 # Engines that answer a query before a storage backend can serve DDL. Wait on an idempotent write,
 # not on a status column: an OLAP frontend reports a live backend, and even accepts `CREATE TABLE`,
 # before that backend can allocate the table's tablets, and only the insert tells those apart. Every
@@ -94,12 +96,16 @@ BACKEND_CLEANUP = {
     "starrocks": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
     "doris": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
 }
-# TDengine, H2, Presto and Db2 reserve "value", so their probes alias the column differently.
-ALIASES = {"tdengine": "ok", "h2": "ok", "presto": "ok", "db2": "ok"}
+# TDengine, H2, Presto, Db2 and GBase 8s reserve "value", so their probes alias it differently.
+ALIASES = {"tdengine": "ok", "h2": "ok", "presto": "ok", "db2": "ok", "gbase8s": "ok"}
 
 
-# Db2 has no FROM-less SELECT, so its one-row probe reads the dummy table.
-SELECT_ONE = {"db2": "SELECT {value} AS {alias} FROM SYSIBM.SYSDUMMY1"}
+# Db2, Informix and GBase 8s have no FROM-less SELECT, so their probe reads a catalog table.
+SELECT_ONE = {
+    "db2": "SELECT {value} AS {alias} FROM SYSIBM.SYSDUMMY1",
+    "informix": "SELECT {value} AS {alias} FROM systables WHERE tabid = 1",
+    "gbase8s": "SELECT {value} AS {alias} FROM systables WHERE tabid = 1",
+}
 
 
 def alias(kind):
@@ -136,9 +142,9 @@ DROP_IF_EXISTS = {
     "kylin": "DROP TABLE IF EXISTS sqlx_values",
     "xugu": "DROP TABLE IF EXISTS sqlx_values",
     "db2": "DROP TABLE IF EXISTS sqlx_values",
-    "informix": "DROP TABLE IF EXISTS sqlx_values",
+    "informix": "DROP TABLE sqlx_values",
     "sundb": "DROP TABLE IF EXISTS sqlx_values",
-    "gbase8s": "DROP TABLE IF EXISTS sqlx_values",
+    "gbase8s": "DROP TABLE sqlx_values",
 }
 CREATE = {
     "mariadb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
@@ -167,7 +173,9 @@ CREATE = {
     "db2": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     # Informix and GBase 8s have no BIGINT, so the wide integer uses DECIMAL(20,0).
     "informix": "CREATE TABLE sqlx_values (id DECIMAL(20,0), amount DECIMAL(30,4), label VARCHAR(100))",
-    "gbase8s": "CREATE TABLE sqlx_values (id DECIMAL(20,0), amount DECIMAL(30,4), label VARCHAR(100))",
+    # The GBase 8s driver 3.70.1.61 reads a VARCHAR column back empty; LVARCHAR is the varying type
+    # its own documentation recommends, and it round-trips.
+    "gbase8s": "CREATE TABLE sqlx_values (id DECIMAL(20,0), amount DECIMAL(30,4), label LVARCHAR(100))",
     "sundb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
 }
 INSERT = {
@@ -298,8 +306,13 @@ def exercise(cli, bin_dir, kind):
                 if attempt == 59:
                     raise AssertionError(result)
                 time.sleep(5)
-        # Writes are submitted once: replaying this batch could apply them twice.
+        # Writes are submitted once: replaying this batch could apply them twice. An engine without
+        # DROP TABLE IF EXISTS gets its drop first, where a missing table is allowed to fail.
         writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
+        if kind in TOLERANT_DROP:
+            dropped = call("sql", "execute", "--datasource", "fixture",
+                           "--command", DROP_IF_EXISTS[kind], ok=False)
+            writes = writes[1:]
         call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--command", statement)])
         _, result = retry(kind, "the read-only query", lambda: call(
             "sql", "execute", "--datasource", "fixture", "--command", SELECT[kind]))
@@ -326,7 +339,8 @@ def exercise(cli, bin_dir, kind):
         retry(kind, "the first-error batch", first_error_batch)
         # The cleanup is idempotent, so an interrupted drop can be repeated safely.
         retry(kind, "the idempotent cleanup", lambda: call(
-            "sql", "execute", "--datasource", "fixture", "--command", DROP_IF_EXISTS[kind]))
+            "sql", "execute", "--datasource", "fixture", "--command", DROP_IF_EXISTS[kind],
+            ok=kind not in TOLERANT_DROP))
         print(f"{kind}: connection, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed")
 
 
