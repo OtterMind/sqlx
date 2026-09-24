@@ -8,8 +8,8 @@ repository cannot fetch, so each fixture reads its own environment variables:
 * GBase 8s needs a vendor driver and a running instance: SQLX_TEST_GBASE8S_DRIVER (the jar the vendor
   ships, which may wrap the real ifxjdbc.jar), SQLX_TEST_GBASE8S_PORT, SQLX_TEST_GBASE8S_SERVER and
   SQLX_TEST_GBASE8S_PASSWORD. Driver 3.70.1.61 reads a VARCHAR column back empty; use LVARCHAR.
-* Informix needs an instance whose authentication accepts the client host: the IBM developer image
-  answers "user <name>@<host> is not known on the database server" for any network client.
+* Informix uses the developer image's documented default password unless SQLX_TEST_INFORMIX_PASSWORD
+  says otherwise; its other identity attempts all answer "is not known on the database server".
 * SUNDB needs a licensed installation, since the public vendor image's license expired in 2022:
   SQLX_TEST_SUNDB_PORT and SQLX_TEST_SUNDB_PASSWORD.
 * XuguDB ships a trial image whose SYSDBA password is not published, and the driver has no trust mode:
@@ -58,8 +58,9 @@ FIXTURES = {
     "xugu": {"port": 25138, "database": "SYSTEM", "username": "SYSDBA",
              "password": os.environ.get("SQLX_TEST_XUGU_PASSWORD", "SYSDBA")},
     # Informix and GBase 8s name a server instance, which the connection carries as --service.
+    # The developer image keeps its documented default password; DB_INFORMIX_PASSWORD is ignored.
     "informix": {"port": 29088, "database": "sysmaster", "service": "informix",
-                 "username": "informix", "password": PASSWORD},
+                 "username": "informix", "password": os.environ.get("SQLX_TEST_INFORMIX_PASSWORD", "in4mix")},
     "gbase8s": {"port": os.environ.get("SQLX_TEST_GBASE8S_PORT", 19088), "database": "gbasedbt",
                 "service": os.environ.get("SQLX_TEST_GBASE8S_SERVER", "gbase01"),
                 "username": "gbasedbt", "password": os.environ.get("SQLX_TEST_GBASE8S_PASSWORD", "GBase1234")},
