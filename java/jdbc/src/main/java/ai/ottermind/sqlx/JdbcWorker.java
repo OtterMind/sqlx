@@ -194,14 +194,18 @@ public final class JdbcWorker {
         return false;
     }
     /**
-     * A driver that does not implement the validation call is taken at its word. GBase 8s reports it
-     * as a plain SQLException with "Method not supported", so any failure here is inconclusive: the
-     * connection was already opened, and the first statement is what reports a real problem.
+     * A driver that does not implement the validation call is taken at its word: GBase 8s reports it
+     * as a plain SQLException saying the method is not supported, and the connection was already
+     * opened. Any other failure is a real one, because a connection test runs no statement that could
+     * report it later.
      */
-    static boolean connectionIsValid(Connection connection) {
+    static boolean connectionIsValid(Connection connection) throws SQLException {
         try {
             return connection.isValid(15);
-        } catch (Exception unsupported) {
+        } catch (SQLFeatureNotSupportedException unsupported) {
+            return true;
+        } catch (SQLException unsupported) {
+            if (!String.valueOf(unsupported.getMessage()).contains("not supported")) throw unsupported;
             return true;
         }
     }

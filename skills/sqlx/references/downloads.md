@@ -9,4 +9,4 @@ The CLI does not embed database drivers, the JDBC runtime or the browser UI. The
 
 Each download prints `Downloading …`, a progress line with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr. An interrupted transfer is retried up to three times. Tell the user that a first command can wait for a download instead of reporting it as a hang, and re-run the same command after a failure: components that are already installed are reused.
 
-When the network is slow, prefetch ahead of time with `sqlx prefetch <component>`. The accepted names are `mysql`, `mariadb`, `tidb`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `ui`, `skill` and `all`; a name that shares a protocol fetches the same worker, and `all` includes the JDBC runtime and the JRE.
+Run `sqlx prefetch <component>`; the accepted names are the engine names `sqlx prefetch --help` lists, plus `ui`, `skill` and `all`. An engine whose vendor does not allow redistribution, such as `db2`, prefetches the shared Java runtime and the JDBC runner; its driver comes from `sqlx driver add` instead.

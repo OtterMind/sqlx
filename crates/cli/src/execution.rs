@@ -89,7 +89,7 @@ pub fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
         ),
         Database::Hive => driver(
             "hive",
-            &["hive-jdbc.jar"],
+            &["hive-jdbc.jar", "slf4j-nop.jar"],
             "org.apache.hive.jdbc.HiveDriver",
         ),
         // Kylin's driver uses JAXB, which the JDK dropped in Java 11, and an slf4j 1.7 binding.
@@ -172,14 +172,29 @@ pub fn prepare(
                 "-jar".to_owned(),
                 dir.join("sqlx-jdbc.jar").to_string_lossy().into_owned(),
             ]);
+            // A driver installed with `sqlx driver add` is loaded here too, so a development run and a
+            // release run use the same classpath.
+            let mut jars = drivers::provided(&root, driver.component)?;
             for jar in driver.jars {
                 let path = dir
                     .join(jar)
                     .canonicalize()
                     .with_context(|| format!("development JDBC driver {jar} is missing"))?;
+                if jars
+                    .iter()
+                    .any(|provided| provided.file_name() == path.file_name())
+                {
+                    continue;
+                }
+                jars.push(path);
+            }
+            if jars.is_empty() {
+                bail!("no JDBC driver is available for {}", kind.name());
+            }
+            for jar in jars {
                 request
                     .driver_jars
-                    .push(path.to_string_lossy().into_owned());
+                    .push(jar.canonicalize()?.to_string_lossy().into_owned());
             }
             PathBuf::from(std::env::var_os("SQLX_JAVA_BIN").unwrap_or_else(|| "java".into()))
         }
@@ -445,7 +460,10 @@ impl PreparedExecution {
                     // -- and that line is not part of the protocol. Report it where diagnostics go and
                     // keep reading: the events that matter are still well formed, and a missing
                     // completion stays an error below.
-                    eprintln!("sqlx: ignoring unexpected worker output: {line}");
+                    eprintln!(
+                        "sqlx: ignoring unexpected worker output: {}",
+                        sqlx_protocol::redact(&line, &request.connection)
+                    );
                     continue;
                 }
             };

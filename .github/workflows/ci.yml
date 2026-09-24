@@ -132,6 +132,10 @@ jobs:
       - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 db2
       - run: bash scripts/jdbc-fixture.sh db2
       - run: python3 tests/databases.py db2
+      # The release path, where the CLI resolves the JRE and the JDBC runner from the published
+      # manifest and loads the driver the user installed, is checked by scripts/release-driver-check.sh
+      # against a release that already carries the engine; the fixtures above run it from the
+      # development directory instead.
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
       # XuguDB and Informix need credentials or host entries their images do not publish, and SUNDB

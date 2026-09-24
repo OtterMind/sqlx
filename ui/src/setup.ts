@@ -161,9 +161,11 @@ export async function setupPage(
     if (hostLabel && engine === "h2") hostLabel.textContent = "Host (empty for a local file)";
     context.textContent = file
       ? `${kind.input.selectedOptions[0].text} · ${database.input.value}`
-      : `${kind.input.selectedOptions[0].text} · ${host.input.value}:${port.input.value} · ${engine === "oracle" ? service.input.value : database.input.value}`;
-    service.wrapper.hidden = engine !== "oracle";
-    service.input.required = engine === "oracle";
+      : `${kind.input.selectedOptions[0].text} · ${host.input.value}:${port.input.value} · ${service.input.value || database.input.value}`;
+    // Oracle names a service, and the Informix-derived engines name their server instance here.
+    const needsService = engine === "oracle" || engine === "informix" || engine === "gbase8s";
+    service.wrapper.hidden = !needsService;
+    service.input.required = needsService;
     database.wrapper.hidden = engine === "oracle";
     password.wrapper.hidden = passwordAction.input.value !== "replace";
     password.input.required = passwordAction.input.value === "replace";

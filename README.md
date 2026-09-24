@@ -272,7 +272,7 @@ Each `connection` is the same object `--connection-stdin` accepts. `merge` (the 
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --command "SELECT 1" --command "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `presto`, `hive`, `kylin`, `xugu`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `sqlite`, `duckdb`, `h2`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `presto`, `hive`, `kylin`, `xugu`, `db2`, `informix`, `sundb`, `gbase8s`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `sqlite`, `duckdb`, `h2`, `skill` or `all`; the four engines whose driver you provide fetch the shared runtime only) |
 | Install a driver the release cannot ship | `sqlx driver add --type db2 --jar <path>`, `sqlx driver list`, `sqlx driver remove --type db2` |
 | Execute and open a result page | `sqlx sql execute --datasource dev --command "SELECT 1" --view` |
 | Read a stored result | `sqlx results list`, `sqlx results rows --id <result-id> --offset 100 --limit 50` |
@@ -486,6 +486,11 @@ statement for one of these engines without a driver explains the exact command t
 sqlx sql execute --datasource <id> --command "SELECT 1 FROM SYSIBM.SYSDUMMY1"
 # SQLX does not redistribute the db2 driver; run `sqlx driver add --type db2 --jar <path>` with the vendor driver jar first
 ```
+
+`scripts/release-driver-check.sh <engine> <jar> <data-dir> <connection-json> <statement>` runs the same
+path a release user takes — install the jar, then execute with no development overrides, so the CLI
+resolves the JRE and the JDBC runner from the published manifest. It needs a release whose JDBC runner
+already knows the engine, so run it against a published version rather than from a feature branch.
 
 Where the drivers come from:
 

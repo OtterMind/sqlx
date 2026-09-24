@@ -108,8 +108,12 @@ export async function datasourcePage(
         ["Host", c.host],
         ["Port", String(c.port)],
         [
-          c.database_type === "oracle" ? "Service name" : "Database",
-          c.database_type === "oracle" ? c.service : c.database || "Not specified",
+          c.database_type === "oracle" || c.database_type === "informix" || c.database_type === "gbase8s"
+            ? "Service name"
+            : "Database",
+          c.database_type === "oracle" || c.database_type === "informix" || c.database_type === "gbase8s"
+            ? c.service
+            : c.database || "Not specified",
         ],
         [
           "Connection security",

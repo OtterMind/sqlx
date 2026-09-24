@@ -80,6 +80,14 @@ PREPARE = {
 }
 # Executing DROP TABLE on a missing table is an error for these engines, which have no IF EXISTS form.
 TOLERANT_DROP = {"informix", "gbase8s"}
+# Engines whose driver the release may not ship: the fixture installs the staged jar through the CLI,
+# which is the path a user takes, instead of relying only on the development directory.
+DRIVER = {
+    "db2": "db2-jcc.jar",
+    "informix": "informix-jdbc.jar",
+    "sundb": "goldilocks8.jar",
+    "gbase8s": "gbasedbt-jdbc.jar",
+}
 # Kylin answers SQL over pre-built cubes: it takes SELECT but no DDL or DML, and the tables a project
 # exposes depend on its cubes, so this fixture verifies the connection and two queries it can always
 # answer. The cube tables a deployment serves are documented in references/kylin.md instead.
@@ -273,6 +281,10 @@ def exercise(cli, bin_dir, kind):
             return result.returncode, value
 
         call("datasource", "add", "--name", "fixture", "--connection-stdin", payload=connection)
+        if kind in DRIVER:
+            call("driver", "add", "--type", kind, "--jar", str(Path(bin_dir) / DRIVER[kind]))
+            _, listed = call("driver", "list", "--type", kind)
+            assert listed["data"]["drivers"][0]["source"] == "provided", listed
         # A heavy engine can take minutes to accept the first connection.
         for attempt in range(1 if fixture.get("local") else 60):
             code, result = call("datasource", "test", "--id", "fixture", ok=False)

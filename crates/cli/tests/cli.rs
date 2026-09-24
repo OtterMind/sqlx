@@ -333,6 +333,11 @@ fn provided_drivers_are_validated_installed_and_removed() {
         "{engines:?}"
     );
 
+    assert!(
+        !root.join("drivers/db2/wrong.jar").exists(),
+        "a rejected jar must not be installed"
+    );
+
     // A file that is not named as a jar would be stored and then never loaded, so it is refused.
     let misnamed = temp.path().join("driver.jar.bak");
     write_jar(&misnamed, &["com/ibm/db2/jcc/DB2Driver.class"]);

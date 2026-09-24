@@ -248,6 +248,16 @@ mod tests {
         ] {
             assert!(all.iter().any(|(entry, _)| entry == name), "missing {name}");
         }
+        // Every documented component other than `all` must be reachable through `all`, so adding an
+        // engine to the choices cannot leave it out of the batch download.
+        for choice in CHOICES.iter().filter(|choice| **choice != "all") {
+            for entry in expand(choice, "macos-arm64").unwrap() {
+                assert!(
+                    all.contains(&entry),
+                    "{choice} expands to {entry:?}, which `all` does not download"
+                );
+            }
+        }
         let mut unique = all.clone();
         unique.sort();
         unique.dedup();

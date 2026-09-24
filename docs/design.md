@@ -67,7 +67,7 @@ The table below lists the capabilities planned for the first release and the pro
 | Help | Show command and argument documentation | `sqlx --help`, `sqlx <subcommand> --help` |
 | Version | Show the main program version so users and the Skill can judge compatibility | `sqlx --version` |
 
-Datasource and SQL responses are structured; help text stays human-readable. The release manifest controls the exact driver and runtime versions, so no command asks a user to pick a version. `sqlx driver add` exists for the engines whose vendor does not allow redistribution: it installs a driver the user obtained from that vendor, checks that the jar really carries the engine's driver class, and never changes which version the release uses for the engines it may ship.
+Datasource and SQL responses are structured; help text stays human-readable. The release manifest controls the exact driver and runtime versions, so no command asks a user to pick a version. `sqlx driver add` exists for the engines whose vendor does not allow redistribution: it installs a driver the user obtained from that vendor, checks that the jar really carries the engine's driver class, and loads it before the released one, so a user can override any engine's driver without changing the version the release installs.
 
 The first release excludes SQL file input, cross-call sessions, parameters for transaction mode and failure strategy, result pagination or writing the full result to a file, automatic main-program updates, and device information reporting and daily-active statistics services. Device identity is generated locally first and the related networked features come later; explicit Skill installation and update are part of the first release.
 
