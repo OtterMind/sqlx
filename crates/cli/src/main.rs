@@ -1100,3 +1100,31 @@ impl ConnectionArgs {
         Ok(c)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// Every component the prefetch command documents must be accepted by the parser: the help text,
+    /// the MCP tool schema and the clap list are three copies of the same set.
+    #[test]
+    fn prefetch_accepts_every_documented_component() {
+        use clap::CommandFactory;
+        for component in sqlx_core::prefetch::CHOICES {
+            assert!(
+                Cli::try_parse_from(["sqlx", "prefetch", component]).is_ok(),
+                "prefetch {component} is documented but rejected by the parser"
+            );
+        }
+        let help = Cli::command()
+            .find_subcommand_mut("prefetch")
+            .expect("the prefetch subcommand exists")
+            .render_long_help()
+            .to_string();
+        for component in sqlx_core::prefetch::CHOICES {
+            assert!(
+                help.contains(component),
+                "the help text does not name {component}"
+            );
+        }
+    }
+}
