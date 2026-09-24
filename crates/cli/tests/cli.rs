@@ -395,3 +395,74 @@ fn write_jar(path: &std::path::Path, entries: &[&str]) {
     }
     zip.finish().unwrap();
 }
+
+/// A worker that prints an unrelated line must not break the protocol: Kylin's Avatica client does.
+#[cfg(unix)]
+#[test]
+fn unrelated_worker_output_is_ignored() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("data");
+    let worker_dir = temp.path().join("workers");
+    std::fs::create_dir_all(&worker_dir).unwrap();
+    let worker = worker_dir.join("sqlx-driver-mysql");
+    std::fs::write(
+        &worker,
+        concat!(
+            "#!/bin/sh\n",
+            "printf '%s\\n' '{\"event\":\"ready\",\"protocol_version\":1}'\n",
+            "printf '%s\\n' 'Avatica: connection established'\n",
+            "printf '%s\\n' '{\"event\":\"connected\"}'\n",
+            "printf '%s\\n' '{\"event\":\"statement_start\",\"index\":0}'\n",
+            "printf '%s\\n' '{\"event\":\"columns\",\"index\":0,\"result\":0,\"columns\":[{\"name\":\"ok\",\"database_type\":\"INTEGER\",\"encoding\":\"string\"}]}'\n",
+            "printf '%s\\n' '{\"event\":\"row\",\"index\":0,\"result\":0,\"values\":[\"1\"]}'\n",
+            "printf '%s\\n' '{\"event\":\"result_end\",\"index\":0,\"result\":0,\"rows\":\"1\",\"affected_rows\":null}'\n",
+            "printf '%s\\n' '{\"event\":\"statement_end\",\"index\":0}'\n",
+            "printf '%s\\n' '{\"event\":\"complete\",\"success\":true}'\n",
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&worker, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let connection = json!({"database_type":"mysql","host":"127.0.0.1","port":3306,"database":"fixture","username":"u","password":"p","tls":"disable"});
+    let workers = worker_dir.to_str().unwrap();
+    let added = call(
+        &root,
+        &[
+            "--worker-dir",
+            workers,
+            "datasource",
+            "add",
+            "--name",
+            "chatty",
+            "--connection-stdin",
+        ],
+        Some(&connection),
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let out = call(
+        &root,
+        &[
+            "--worker-dir",
+            workers,
+            "sql",
+            "execute",
+            "--datasource",
+            "chatty",
+            "--command",
+            "SELECT 1 AS ok",
+        ],
+        None,
+    );
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(value["success"], true, "{value}");
+    assert_eq!(value["results"][0]["rows"][0][0], "1", "{value}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("Avatica: connection established"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

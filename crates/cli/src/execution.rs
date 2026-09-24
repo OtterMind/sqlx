@@ -424,8 +424,12 @@ impl PreparedExecution {
             let mut event: Event = match serde_json::from_str(&line) {
                 Ok(e) => e,
                 Err(_) => {
-                    stream_error = Some("worker emitted an invalid protocol event".into());
-                    break;
+                    // A driver may print to the stream the worker owns -- Kylin's Avatica client does
+                    // -- and that line is not part of the protocol. Report it where diagnostics go and
+                    // keep reading: the events that matter are still well formed, and a missing
+                    // completion stays an error below.
+                    eprintln!("sqlx: ignoring unexpected worker output: {line}");
+                    continue;
                 }
             };
             let validation: Result<()> = (|| {
