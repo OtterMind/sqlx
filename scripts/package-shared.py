@@ -68,7 +68,7 @@ def get(url):
             if attempt==2:raise
             time.sleep(attempt+1)
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.16');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+    p=argparse.ArgumentParser();p.add_argument('--version',default='0.1.17');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
     records={};base=f'https://github.com/OtterMind/sqlx/releases/download/v{a.version}/'
     def add(name,entries,entrypoint,version=None):
         # Every component must be declared above, so the release manifest gate stays in sync

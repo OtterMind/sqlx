@@ -10,7 +10,7 @@ def load_shared():
     return module
 package_shared=load_shared()
 PLATFORMS=['macos-arm64','macos-x64','windows-x64','linux-arm64','linux-x64']
-DEFAULT_VERSION='0.1.16'
+DEFAULT_VERSION='0.1.17'
 def required_components():
     """Exactly the components the packaging scripts emit: per-platform plus once-for-all."""
     per_platform=set(package.PLATFORM_KINDS)|set(package_shared.PLATFORM_KINDS)
