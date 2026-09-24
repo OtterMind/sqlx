@@ -35,7 +35,17 @@ VENDORS={
                  # The slf4j 1.7 binding carries no license file inside the jar, so its license is
                  # fetched from the project instead.
                  extra_licenses={'LICENSE-slf4j.txt':('https://www.slf4j.org/license.html',None)}),
-    'kylin':dict(files=[('https://repo.maven.apache.org/maven2/org/apache/kylin/kylin-jdbc/5.0.3/kylin-jdbc-5.0.3.jar','kylin-jdbc.jar')],entry='kylin-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/kylin/master/LICENSE'),
+    # Kylin's driver uses JAXB, which the JDK dropped in Java 11, and an slf4j 1.7 binding.
+    'kylin':dict(files=[('https://repo.maven.apache.org/maven2/org/apache/kylin/kylin-jdbc/5.0.3/kylin-jdbc-5.0.3.jar','kylin-jdbc.jar'),
+                        ('https://repo.maven.apache.org/maven2/jakarta/xml/bind/jakarta.xml.bind-api/2.3.3/jakarta.xml.bind-api-2.3.3.jar','jakarta.xml.bind-api.jar'),
+                        ('https://repo.maven.apache.org/maven2/org/glassfish/jaxb/jaxb-runtime/2.3.9/jaxb-runtime-2.3.9.jar','jaxb-runtime.jar'),
+                        ('https://repo.maven.apache.org/maven2/com/sun/istack/istack-commons-runtime/4.1.2/istack-commons-runtime-4.1.2.jar','istack-commons-runtime.jar'),
+                        ('https://repo.maven.apache.org/maven2/jakarta/activation/jakarta.activation-api/1.2.2/jakarta.activation-api-1.2.2.jar','jakarta.activation-api.jar'),
+                        ('https://repo.maven.apache.org/maven2/org/glassfish/jaxb/txw2/2.3.9/txw2-2.3.9.jar','txw2.jar'),
+                        ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar','slf4j-nop.jar')],
+                 entry='kylin-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/kylin/master/LICENSE',
+                 extra_licenses={'LICENSE-jaxb.txt':('https://raw.githubusercontent.com/eclipse-ee4j/jaxb-ri/2.3.9/LICENSE.md',None),
+                                 'LICENSE-slf4j.txt':('https://www.slf4j.org/license.html',None)}),
     'xugu':dict(files=[('https://repo.maven.apache.org/maven2/com/xugudb/xugu-jdbc/12.3.4/xugu-jdbc-12.3.4.jar','xugu-jdbc.jar')],entry='xugu-jdbc.jar',license_url='https://www.apache.org/licenses/LICENSE-2.0.txt'),
     # The TDengine RESTful driver ships as one bundled jar (its own dependencies included) and
     # needs an slf4j binding, because the bundle carries the slf4j API without a provider.

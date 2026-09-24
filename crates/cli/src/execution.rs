@@ -92,7 +92,20 @@ pub fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
             &["hive-jdbc.jar"],
             "org.apache.hive.jdbc.HiveDriver",
         ),
-        Database::Kylin => driver("kylin", &["kylin-jdbc.jar"], "org.apache.kylin.jdbc.Driver"),
+        // Kylin's driver uses JAXB, which the JDK dropped in Java 11, and an slf4j 1.7 binding.
+        Database::Kylin => driver(
+            "kylin",
+            &[
+                "kylin-jdbc.jar",
+                "jakarta.xml.bind-api.jar",
+                "jaxb-runtime.jar",
+                "istack-commons-runtime.jar",
+                "jakarta.activation-api.jar",
+                "txw2.jar",
+                "slf4j-nop.jar",
+            ],
+            "org.apache.kylin.jdbc.Driver",
+        ),
         Database::Xugu => driver("xugu", &["xugu-jdbc.jar"], "com.xugu.cloudjdbc.Driver"),
         // The vendors below do not allow redistribution, so SQLX publishes no driver for them and
         // the user drops the vendor jar into `sqlx driver add`.

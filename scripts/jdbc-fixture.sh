@@ -51,7 +51,14 @@ case "$kind" in
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar' -o target/debug/slf4j-nop.jar
     ;;
   kylin)
+    # The driver needs JAXB, which the JDK dropped in Java 11, and an slf4j 1.7 binding.
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/apache/kylin/kylin-jdbc/5.0.3/kylin-jdbc-5.0.3.jar' -o target/debug/kylin-jdbc.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/jakarta/xml/bind/jakarta.xml.bind-api/2.3.3/jakarta.xml.bind-api-2.3.3.jar' -o target/debug/jakarta.xml.bind-api.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/glassfish/jaxb/jaxb-runtime/2.3.9/jaxb-runtime-2.3.9.jar' -o target/debug/jaxb-runtime.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/sun/istack/istack-commons-runtime/4.1.2/istack-commons-runtime-4.1.2.jar' -o target/debug/istack-commons-runtime.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/jakarta/activation/jakarta.activation-api/1.2.2/jakarta.activation-api-1.2.2.jar' -o target/debug/jakarta.activation-api.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/glassfish/jaxb/txw2/2.3.9/txw2-2.3.9.jar' -o target/debug/txw2.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar' -o target/debug/slf4j-nop.jar
     ;;
   xugu)
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/xugudb/xugu-jdbc/12.3.4/xugu-jdbc-12.3.4.jar' -o target/debug/xugu-jdbc.jar
