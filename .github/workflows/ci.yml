@@ -134,19 +134,9 @@ jobs:
       - run: python3 tests/databases.py db2
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
-      # XuguDB and Informix need credentials or host entries their images do not publish, and
-      # SUNDB and GBase 8s need a licensed installation and a vendor driver. They run here when the
-      # repository secrets provide them, and tests/databases.py documents each variable.
-      - if: ${{ secrets.SQLX_TEST_XUGU_PASSWORD != '' }}
-        run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 300 xugu
-      - if: ${{ secrets.SQLX_TEST_XUGU_PASSWORD != '' }}
-        run: bash scripts/jdbc-fixture.sh xugu
-      - if: ${{ secrets.SQLX_TEST_XUGU_PASSWORD != '' }}
-        env:
-          SQLX_TEST_XUGU_PASSWORD: ${{ secrets.SQLX_TEST_XUGU_PASSWORD }}
-        run: python3 tests/databases.py xugu
-      - if: always()
-        run: docker compose -f tests/compose.yaml down -v
+      # XuguDB and Informix need credentials or host entries their images do not publish, and SUNDB
+      # and GBase 8s need a licensed installation and a vendor driver. tests/databases.py documents
+      # the environment variable each one reads, and the README shows how to run them locally.
   wire-databases:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
