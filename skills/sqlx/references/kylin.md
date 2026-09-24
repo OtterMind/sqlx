@@ -26,7 +26,7 @@ SELECT 1 AS connected;
 SHOW TABLES;
 ```
 
-**Result:** One table name per row from the project's data source and internal tables. A table that appears here is not guaranteed to be answerable from a cube; a query that matches no cube falls back to the data source or is refused.
+**Result:** One table name per row from the project's data source and internal tables. A table that appears here is not guaranteed to be answerable from a cube; a query that matches no cube falls back to the data source or is refused. Not every Kylin build answers this: a 5.0.2 image rejects it with "This SQL is not supported at the moment", and the tables to query then come from the cube's model in the Kylin interface.
 
 **Official documentation:** [Internal table](https://kylin.apache.org/docs/internaltable/intro) · [Datasource](https://kylin.apache.org/docs/datasource/intro)
 
