@@ -456,10 +456,10 @@ docker compose -f tests/compose.yaml up -d --wait kylin
 bash scripts/jdbc-fixture.sh kylin
 python3 tests/databases.py kylin
 docker compose -f tests/compose.yaml down -v
-# SUNDB needs a licensed installation, and GBase 8s a vendor driver:
-# export SQLX_TEST_SUNDB_PORT or SQLX_TEST_SUNDB_PASSWORD for the former, and
-# SQLX_TEST_GBASE8S_DRIVER, SQLX_TEST_GBASE8S_PORT or SQLX_TEST_GBASE8S_PASSWORD for the latter
-python3 tests/databases.py sundb gbase8s
+# GBase 8s takes the vendor driver and its own instance; SUNDB needs a licensed installation
+# and XuguDB a trial image whose password is known. tests/databases.py lists every variable.
+export SQLX_TEST_GBASE8S_DRIVER=~/gbasedbt-jdbc.jar
+python3 tests/databases.py gbase8s
 ```
 
 For local native workers, set `SQLX_WORKER_DIR` to the absolute `target/debug` directory. For JDBC development, that directory also contains `sqlx-jdbc.jar` and `ojdbc.jar` or `mssql-jdbc.jar`; `SQLX_JAVA_BIN` can select Java 17 explicitly. These overrides are for development, not prerequisites for release users. The fixture scripts use dedicated test containers and test-only credentials.

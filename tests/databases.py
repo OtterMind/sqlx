@@ -2,15 +2,18 @@
 """Exercise every additional database through the CLI against the compose fixtures.
 
 Presto, Hive, Apache Kylin, XuguDB, Db2 and Informix run from tests/compose.yaml after
-scripts/jdbc-fixture.sh stages their driver. Four of them carry a fixture that depends on assets the
-repository cannot fetch, and each one reads its own environment variables:
+scripts/jdbc-fixture.sh stages their driver. GBase 8s, Informix, SUNDB and XuguDB depend on assets the
+repository cannot fetch, so each fixture reads its own environment variables:
 
-* Informix additionally needs the client host to be known to the server instance.
-* XuguDB ships a trial image whose SYSDBA password is not published: SQLX_TEST_XUGU_PASSWORD.
+* GBase 8s needs a vendor driver and a running instance: SQLX_TEST_GBASE8S_DRIVER (the jar the vendor
+  ships, which may wrap the real ifxjdbc.jar), SQLX_TEST_GBASE8S_PORT, SQLX_TEST_GBASE8S_SERVER and
+  SQLX_TEST_GBASE8S_PASSWORD. Driver 3.70.1.61 reads a VARCHAR column back empty; use LVARCHAR.
+* Informix needs an instance whose authentication accepts the client host: the IBM developer image
+  answers "user <name>@<host> is not known on the database server" for any network client.
 * SUNDB needs a licensed installation, since the public vendor image's license expired in 2022:
   SQLX_TEST_SUNDB_PORT and SQLX_TEST_SUNDB_PASSWORD.
-* GBase 8s needs a vendor driver and a running instance: SQLX_TEST_GBASE8S_DRIVER,
-  SQLX_TEST_GBASE8S_PORT, SQLX_TEST_GBASE8S_SERVER and SQLX_TEST_GBASE8S_PASSWORD.
+* XuguDB ships a trial image whose SYSDBA password is not published, and the driver has no trust mode:
+  SQLX_TEST_XUGU_PASSWORD.
 """
 import argparse, json, os, subprocess, sys, tempfile, time
 from decimal import Decimal
