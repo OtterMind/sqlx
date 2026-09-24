@@ -1,4 +1,5 @@
 pub mod components;
+pub mod drivers;
 pub mod execution;
 pub mod mcp;
 pub mod output;

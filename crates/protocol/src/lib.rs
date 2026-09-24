@@ -35,12 +35,93 @@ pub enum Database {
     Sqlite,
     Duckdb,
     H2,
+    Presto,
+    Hive,
+    Kylin,
+    Xugu,
+    Db2,
+    Informix,
+    Sundb,
+    Gbase8s,
 }
 
 impl Database {
     /// Engines that open a local file instead of a network endpoint.
     pub fn is_file_based(self) -> bool {
         matches!(self, Database::Sqlite | Database::Duckdb)
+    }
+
+    /// Every engine, in the order the documentation lists them.
+    pub const ALL: [Database; 31] = [
+        Database::Mysql,
+        Database::Mariadb,
+        Database::Tidb,
+        Database::Greatsql,
+        Database::Oceanbase,
+        Database::Postgresql,
+        Database::Cockroachdb,
+        Database::Yugabytedb,
+        Database::Opengauss,
+        Database::Oracle,
+        Database::Sqlserver,
+        Database::Clickhouse,
+        Database::Trino,
+        Database::Starrocks,
+        Database::Doris,
+        Database::Tdengine,
+        Database::Dameng,
+        Database::Kingbase,
+        Database::Redis,
+        Database::Mongodb,
+        Database::Sqlite,
+        Database::Duckdb,
+        Database::H2,
+        Database::Presto,
+        Database::Hive,
+        Database::Kylin,
+        Database::Xugu,
+        Database::Db2,
+        Database::Informix,
+        Database::Sundb,
+        Database::Gbase8s,
+    ];
+
+    /// The name every other component uses for this engine: `--type`, driver components and
+    /// prefetch arguments all spell it the same way.
+    pub fn name(self) -> &'static str {
+        match self {
+            Database::Mysql => "mysql",
+            Database::Mariadb => "mariadb",
+            Database::Tidb => "tidb",
+            Database::Greatsql => "greatsql",
+            Database::Oceanbase => "oceanbase",
+            Database::Postgresql => "postgresql",
+            Database::Cockroachdb => "cockroachdb",
+            Database::Yugabytedb => "yugabytedb",
+            Database::Opengauss => "opengauss",
+            Database::Oracle => "oracle",
+            Database::Sqlserver => "sqlserver",
+            Database::Clickhouse => "clickhouse",
+            Database::Trino => "trino",
+            Database::Starrocks => "starrocks",
+            Database::Doris => "doris",
+            Database::Tdengine => "tdengine",
+            Database::Dameng => "dameng",
+            Database::Kingbase => "kingbase",
+            Database::Redis => "redis",
+            Database::Mongodb => "mongodb",
+            Database::Sqlite => "sqlite",
+            Database::Duckdb => "duckdb",
+            Database::H2 => "h2",
+            Database::Presto => "presto",
+            Database::Hive => "hive",
+            Database::Kylin => "kylin",
+            Database::Xugu => "xugu",
+            Database::Db2 => "db2",
+            Database::Informix => "informix",
+            Database::Sundb => "sundb",
+            Database::Gbase8s => "gbase8s",
+        }
     }
 }
 
@@ -71,8 +152,16 @@ impl std::str::FromStr for Database {
             "sqlite" | "sqlite3" => Ok(Self::Sqlite),
             "duckdb" => Ok(Self::Duckdb),
             "h2" => Ok(Self::H2),
+            "presto" | "prestodb" => Ok(Self::Presto),
+            "hive" => Ok(Self::Hive),
+            "kylin" => Ok(Self::Kylin),
+            "xugu" | "xugudb" => Ok(Self::Xugu),
+            "db2" | "ibmdb2" => Ok(Self::Db2),
+            "informix" | "ifx" => Ok(Self::Informix),
+            "sundb" => Ok(Self::Sundb),
+            "gbase8s" | "gbasedbt" => Ok(Self::Gbase8s),
             _ => Err(
-                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, kingbase, redis, mongodb, sqlite, duckdb, or h2"
+                "expected mysql, mariadb, tidb, greatsql, oceanbase, postgresql, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, starrocks, doris, tdengine, dameng, kingbase, redis, mongodb, sqlite, duckdb, h2, presto, hive, kylin, xugu, db2, informix, sundb, or gbase8s"
                     .into(),
             ),
         }
@@ -335,6 +424,23 @@ mod tests {
             properties: std::collections::BTreeMap::new(),
         }
     }
+    #[test]
+    fn every_engine_name_round_trips() {
+        let mut names = std::collections::BTreeSet::new();
+        for kind in Database::ALL {
+            let name = kind.name();
+            assert!(names.insert(name), "{name} is declared twice");
+            assert_eq!(
+                name.parse::<Database>(),
+                Ok(kind),
+                "{name} does not parse back"
+            );
+            let serialized = serde_json::to_value(kind).expect("an engine serializes");
+            assert_eq!(serialized, serde_json::Value::String(name.into()));
+        }
+        assert_eq!(names.len(), Database::ALL.len());
+    }
+
     #[test]
     fn redaction_keeps_hostnames_and_words() {
         let connection = connection("app", "oracle");

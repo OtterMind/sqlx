@@ -91,6 +91,62 @@ jobs:
       - run: python3 tests/databases.py mariadb cockroachdb clickhouse trino
       - if: always()
         run: docker compose -f tests/compose.yaml down -v
+  jdbc-engines:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: java/jdbc/pom.xml
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui run build
+      - run: cargo build --workspace --locked
+      - run: mvn -B -f java/jdbc/pom.xml verify
+      # Presto and Hive start in seconds; each fixture stages its driver with jdbc-fixture.sh.
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 300 presto hive
+      - run: bash scripts/jdbc-fixture.sh presto
+      - run: bash scripts/jdbc-fixture.sh hive
+      - run: python3 tests/databases.py presto hive
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
+      # Kylin loads a sample cube on first boot, so it needs a longer budget on its own.
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 kylin
+      - run: bash scripts/jdbc-fixture.sh kylin
+      - run: python3 tests/databases.py kylin
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
+      # Db2 configures an instance and restarts it before it accepts the first connection.
+      - run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 900 db2
+      - run: bash scripts/jdbc-fixture.sh db2
+      - run: python3 tests/databases.py db2
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
+      # XuguDB and Informix need credentials or host entries their images do not publish, and
+      # SUNDB and GBase 8s need a licensed installation and a vendor driver. They run here when the
+      # repository secrets provide them, and tests/databases.py documents each variable.
+      - if: ${{ secrets.SQLX_TEST_XUGU_PASSWORD != '' }}
+        run: docker compose -f tests/compose.yaml up -d --wait --wait-timeout 300 xugu
+      - if: ${{ secrets.SQLX_TEST_XUGU_PASSWORD != '' }}
+        run: bash scripts/jdbc-fixture.sh xugu
+      - if: ${{ secrets.SQLX_TEST_XUGU_PASSWORD != '' }}
+        env:
+          SQLX_TEST_XUGU_PASSWORD: ${{ secrets.SQLX_TEST_XUGU_PASSWORD }}
+        run: python3 tests/databases.py xugu
+      - if: always()
+        run: docker compose -f tests/compose.yaml down -v
   wire-databases:
     runs-on: ubuntu-24.04
     timeout-minutes: 40

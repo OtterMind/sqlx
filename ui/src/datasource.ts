@@ -28,6 +28,14 @@ const databaseNames: Record<DatabaseType, string> = {
   sqlite: "SQLite",
   duckdb: "DuckDB",
   h2: "H2",
+  presto: "Presto",
+  hive: "Hive",
+  kylin: "Apache Kylin",
+  xugu: "XuguDB",
+  db2: "IBM Db2",
+  informix: "IBM Informix",
+  sundb: "SUNDB",
+  gbase8s: "GBase 8s",
 };
 /** Engines that open a local file, or a local file until a host is given. */
 export function isFileEngine(kind: string): boolean {

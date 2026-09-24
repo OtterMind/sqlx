@@ -130,7 +130,7 @@ fn import_merges_documents_reports_skips_and_keeps_credentials_secret() {
     let root = temp.path().join("data");
     let document = json!({"version":1,"mode":"merge","datasources":[
         {"name":"imported","connection":connection()},
-        {"name":"hive","connection":{"database_type":"hive","host":"h","port":10000}},
+        {"name":"unknown","connection":{"database_type":"snowflake","host":"h","port":10000}},
         {"name":"","connection":connection()}
     ]});
     let out = call(&root, &["datasource", "import", "--stdin"], Some(&document));
@@ -143,7 +143,7 @@ fn import_merges_documents_reports_skips_and_keeps_credentials_secret() {
     assert_eq!(value["success"], true);
     assert_eq!(value["data"]["added"], 1);
     assert_eq!(value["data"]["updated"], 0);
-    assert_eq!(value["data"]["skipped"][0]["name"], "hive");
+    assert_eq!(value["data"]["skipped"][0]["name"], "unknown");
     assert_eq!(value["data"]["skipped"][0]["reason"], "invalid_connection");
     assert_eq!(value["data"]["skipped"][1]["reason"], "invalid_name");
     // Credentials stay out of the report and off the disk in clear text.
@@ -253,4 +253,145 @@ fn documented_import_example_stays_valid() {
     let path = sqlite["connection"]["database"].as_str().unwrap();
     assert!(std::path::Path::new(path).is_absolute(), "{path}");
     assert!(path.ends_with("data/app.db"), "{path}");
+}
+
+/// A driver the release cannot redistribute has to be provided, checked and removed through the CLI.
+#[test]
+fn provided_drivers_are_validated_installed_and_removed() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("data");
+    let jar = temp.path().join("jcc-12.1.0.0.jar");
+    write_jar(&jar, &["com/ibm/db2/jcc/DB2Driver.class"]);
+
+    // The jar must carry the driver class the worker loads, not just any archive.
+    let wrong = temp.path().join("wrong.jar");
+    write_jar(&wrong, &["com/example/Other.class"]);
+    let rejected = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            wrong.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(!rejected.status.success());
+    assert!(
+        String::from_utf8_lossy(&rejected.stdout)
+            .contains("does not contain com.ibm.db2.jcc.DB2Driver"),
+        "{}",
+        String::from_utf8_lossy(&rejected.stdout)
+    );
+
+    let added = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            jar.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let value: Value = serde_json::from_slice(&added.stdout).unwrap();
+    assert_eq!(value["data"]["component"], "db2");
+    assert_eq!(value["data"]["jars"][0], "jcc-12.1.0.0.jar");
+    assert!(root.join("drivers/db2/jcc-12.1.0.0.jar").is_file());
+
+    // A provided driver is reported as the source, and an engine served by a native worker is not.
+    let listed = call(&root, &["driver", "list", "--type", "db2"], None);
+    let value: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(value["data"]["drivers"][0]["source"], "provided");
+    assert_eq!(value["data"]["drivers"][0]["bundled"], false);
+    assert_eq!(
+        value["data"]["drivers"][0]["driver_class"],
+        "com.ibm.db2.jcc.DB2Driver"
+    );
+    let every = call(&root, &["driver", "list"], None);
+    let value: Value = serde_json::from_slice(&every.stdout).unwrap();
+    let engines: Vec<&str> = value["data"]["drivers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|driver| driver["type"].as_str().unwrap())
+        .collect();
+    assert!(
+        engines.contains(&"presto") && engines.contains(&"gbase8s"),
+        "{engines:?}"
+    );
+    assert!(
+        !engines.contains(&"mysql") && !engines.contains(&"redis"),
+        "{engines:?}"
+    );
+
+    let removed = call(&root, &["driver", "remove", "--type", "db2"], None);
+    let value: Value = serde_json::from_slice(&removed.stdout).unwrap();
+    assert_eq!(value["data"]["removed"][0], "jcc-12.1.0.0.jar");
+    assert!(!root.join("drivers/db2/jcc-12.1.0.0.jar").exists());
+}
+/// An engine served by the JDBC worker that has no driver yet explains how to provide one.
+#[test]
+fn an_engine_without_a_driver_explains_how_to_provide_it() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("data");
+    // A connection whose driver is missing is rejected before anything is downloaded, so the message
+    // names the exact command instead of failing inside a worker.
+    let connection = json!({"database_type":"db2","host":"127.0.0.1","port":50000,"database":"sample","username":"","password":"","tls":"disable"});
+    let added = call(
+        &root,
+        &[
+            "datasource",
+            "add",
+            "--name",
+            "warehouse",
+            "--connection-stdin",
+        ],
+        Some(&connection),
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let out = call(
+        &root,
+        &[
+            "sql",
+            "execute",
+            "--datasource",
+            "warehouse",
+            "--command",
+            "SELECT 1",
+        ],
+        None,
+    );
+    assert!(!out.status.success());
+    let message = String::from_utf8_lossy(&out.stdout);
+    assert!(message.contains("sqlx driver add --type db2"), "{message}");
+    assert!(
+        !root.join("drivers").exists(),
+        "nothing was downloaded for a missing driver"
+    );
+}
+/// A minimal zip that carries the listed entries, so the driver checks can be exercised offline.
+fn write_jar(path: &std::path::Path, entries: &[&str]) {
+    use std::io::Write as _;
+    let file = std::fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default();
+    for entry in entries {
+        zip.start_file(*entry, options).unwrap();
+        zip.write_all(&[0u8; 8]).unwrap();
+    }
+    zip.finish().unwrap();
 }

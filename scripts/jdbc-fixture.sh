@@ -41,5 +41,45 @@ case "$kind" in
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar' -o target/debug/taos-jdbcdriver.jar
     curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/2.0.16/slf4j-nop-2.0.16.jar' -o target/debug/slf4j-nop.jar
     ;;
+  # Presto, Hive, Kylin and XuguDB run from tests/compose.yaml, so these cases stage their drivers.
+  presto)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/facebook/presto/presto-jdbc/0.293/presto-jdbc-0.293.jar' -o target/debug/presto-jdbc.jar
+    ;;
+  hive)
+    # The standalone jar is the only self-contained Hive driver; its slf4j 1.7 API needs a binding.
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/apache/hive/hive-jdbc/4.0.1/hive-jdbc-4.0.1-standalone.jar' -o target/debug/hive-jdbc.jar
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar' -o target/debug/slf4j-nop.jar
+    ;;
+  kylin)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/org/apache/kylin/kylin-jdbc/5.0.3/kylin-jdbc-5.0.3.jar' -o target/debug/kylin-jdbc.jar
+    ;;
+  xugu)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/xugudb/xugu-jdbc/12.3.4/xugu-jdbc-12.3.4.jar' -o target/debug/xugu-jdbc.jar
+    ;;
+  # The vendors below do not allow redistribution, so their driver has to come from the vendor.
+  # Db2 and Informix publish theirs on Maven Central, which is enough for a local fixture.
+  db2)
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/ibm/db2/jcc/12.1.0.0/jcc-12.1.0.0.jar' -o target/debug/db2-jcc.jar
+    ;;
+  informix)
+    # The 15.x driver fails inside its own ASF layer against an Informix 14.10 server (a null
+    # pointer, surfaced as "An unexpected error occurred"); the 4.50 line connects.
+    curl --fail --location --retry 3 'https://repo.maven.apache.org/maven2/com/ibm/informix/jdbc/4.50.14/jdbc-4.50.14.jar' -o target/debug/informix-jdbc.jar
+    ;;
+  sundb)
+    # SUNDB runs the Goldilocks engine; the driver lives in the vendor image.
+    docker cp "$(docker create sundb/sundb_standlone:01):/goldilocks_home/lib/goldilocks8.jar" target/debug/goldilocks8.jar
+    ;;
+  gbase8s)
+    # GBase 8s is commercial, so its driver comes from an installed instance rather than a registry.
+    # The vendor ships a wrapper jar whose inner ifxjdbc.jar is the file the JVM can load.
+    : "${SQLX_TEST_GBASE8S_DRIVER:?set SQLX_TEST_GBASE8S_DRIVER to the vendor jdbc jar or wrapper jar}"
+    cp "$SQLX_TEST_GBASE8S_DRIVER" target/debug/gbasedbt-provided.jar
+    if unzip -l target/debug/gbasedbt-provided.jar ifxjdbc.jar >/dev/null 2>&1; then
+      (cd target/debug && unzip -o -q gbasedbt-provided.jar ifxjdbc.jar && mv ifxjdbc.jar gbasedbt-jdbc.jar)
+    else
+      mv target/debug/gbasedbt-provided.jar target/debug/gbasedbt-jdbc.jar
+    fi
+    ;;
   *) echo 'Unsupported fixture' >&2; exit 1 ;;
 esac

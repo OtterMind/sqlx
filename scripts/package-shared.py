@@ -25,6 +25,18 @@ VENDORS={
     'dameng':dict(files=[('https://repo.maven.apache.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.jar','dm-jdbc.jar')],entry='dm-jdbc.jar',license_url='https://repo1.maven.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.pom'),
     'kingbase':dict(files=[('https://repo.maven.apache.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.jar','kingbase8-jdbc.jar')],entry='kingbase8-jdbc.jar',license_url='https://repo1.maven.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.pom'),
     'opengauss':dict(files=[('https://repo.maven.apache.org/maven2/org/opengauss/opengauss-jdbc/6.0.0-b041-og/opengauss-jdbc-6.0.0-b041-og.jar','opengauss-jdbc.jar')],entry='opengauss-jdbc.jar',license_url='https://raw.githubusercontent.com/opengauss-mirror/openGauss-connector-jdbc/master/LICENSE'),
+    'presto':dict(files=[('https://repo.maven.apache.org/maven2/com/facebook/presto/presto-jdbc/0.293/presto-jdbc-0.293.jar','presto-jdbc.jar')],entry='presto-jdbc.jar',license_url='https://raw.githubusercontent.com/prestodb/presto/master/LICENSE'),
+    # Hive needs its standalone jar: the plain artifact pulls the whole Hadoop dependency tree.
+    # 4.0.1 is the last release whose driver still targets Java 8; 4.2.x is compiled for Java 21 and
+    # cannot load in the pinned JRE 17.
+    'hive':dict(files=[('https://repo.maven.apache.org/maven2/org/apache/hive/hive-jdbc/4.0.1/hive-jdbc-4.0.1-standalone.jar','hive-jdbc.jar'),
+                       ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar','slf4j-nop.jar')],
+                 entry='hive-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/hive/rel/release-4.0.1/LICENSE',
+                 # The slf4j 1.7 binding carries no license file inside the jar, so its license is
+                 # fetched from the project instead.
+                 extra_licenses={'LICENSE-slf4j.txt':('https://www.slf4j.org/license.html',None)}),
+    'kylin':dict(files=[('https://repo.maven.apache.org/maven2/org/apache/kylin/kylin-jdbc/5.0.3/kylin-jdbc-5.0.3.jar','kylin-jdbc.jar')],entry='kylin-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/kylin/master/LICENSE'),
+    'xugu':dict(files=[('https://repo.maven.apache.org/maven2/com/xugudb/xugu-jdbc/12.3.4/xugu-jdbc-12.3.4.jar','xugu-jdbc.jar')],entry='xugu-jdbc.jar',license_url='https://www.apache.org/licenses/LICENSE-2.0.txt'),
     # The TDengine RESTful driver ships as one bundled jar (its own dependencies included) and
     # needs an slf4j binding, because the bundle carries the slf4j API without a provider.
     'tdengine':dict(files=[('https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar','taos-jdbcdriver.jar'),
@@ -65,13 +77,22 @@ def main():
         entries={};sources=[]
         for url,filename in spec['files']:
             entries[filename]=get(url);sources.append(url)
+        # Every driver runs in the pinned JRE 17, so a jar compiled for a newer Java would only fail
+        # on a user's machine. Check the driver class here, where the fix is a version bump.
+        with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:
+            driver=next((n for n in jar.namelist() if n.endswith('Driver.class') and '$' not in n),None)
+            if driver:
+                major=int.from_bytes(jar.read(driver)[6:8],'big')
+                if major>61:
+                    raise ValueError(f'{name} driver {driver} targets Java {major-44} but SQLX ships JRE 17')
         if 'license_from_jar' in spec:
             # Preserve the license shipped with this exact driver; the HTML page blocks automated downloads.
             with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:license_text=jar.read(spec['license_from_jar'])
         else:license_text=get(spec['license_url'])
         entries['LICENSE.txt']=license_text
         for target,(archive,member) in spec.get('extra_licenses',{}).items():
-            with zipfile.ZipFile(io.BytesIO(entries[archive])) as jar:entries[target]=jar.read(member)
+            # A URL source is fetched directly; a jar member is read from the driver already loaded.
+            entries[target]=get(archive) if member is None else zipfile.ZipFile(io.BytesIO(entries[archive])).read(member)
         entries['SOURCE.txt']=('\n'.join(sources+[spec['license_url']])+'\n').encode()
         add(name,entries,spec['entry'])
     for platform,os_name,arch in [('macos-arm64','mac','aarch64'),('macos-x64','mac','x64'),('windows-x64','windows','x64'),('linux-arm64','linux','aarch64'),('linux-x64','linux','x64')]:

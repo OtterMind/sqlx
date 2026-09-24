@@ -1,6 +1,6 @@
 mod import;
 mod skill;
-use sqlx_core::{components, execution, mcp, plugins, prefetch, storage, ui, updates};
+use sqlx_core::{components, drivers, execution, mcp, plugins, prefetch, storage, ui, updates};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -44,12 +44,12 @@ enum Commands {
     Mcp,
     /// Download database workers, the JDBC runtime and the browser UI before they are needed.
     Prefetch {
-        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, redis, mongodb, sqlite, duckdb, h2, ui, skill or all.
+        /// Components to download: mysql, mariadb, tidb, greatsql, oceanbase, starrocks, doris, postgres, cockroachdb, yugabytedb, opengauss, oracle, sqlserver, clickhouse, trino, tdengine, dameng, kingbase, redis, mongodb, sqlite, duckdb, h2, presto, hive, kylin, xugu, db2, informix, sundb, gbase8s, ui, skill or all.
         #[arg(
             value_name = "COMPONENT",
             required = true,
             num_args = 1..,
-            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "redis", "mongodb", "sqlite", "duckdb", "h2", "ui", "skill", "all"]
+            value_parser = ["mysql", "mariadb", "tidb", "greatsql", "oceanbase", "starrocks", "doris", "postgres", "cockroachdb", "yugabytedb", "opengauss", "oracle", "sqlserver", "clickhouse", "trino", "tdengine", "dameng", "kingbase", "redis", "mongodb", "sqlite", "duckdb", "h2", "presto", "hive", "kylin", "xugu", "db2", "informix", "sundb", "gbase8s", "ui", "skill", "all"]
         )]
         components: Vec<String>,
     },
@@ -84,6 +84,34 @@ enum Commands {
     Ui {
         #[command(subcommand)]
         command: Option<UiCommand>,
+    },
+    /// Provide or inspect the JDBC driver of an engine SQLX does not ship one for.
+    Driver {
+        #[command(subcommand)]
+        command: DriverCommand,
+    },
+}
+#[derive(Subcommand)]
+enum DriverCommand {
+    /// Copy a vendor driver jar into the SQLX driver directory for one engine.
+    Add {
+        /// Database type the driver belongs to, such as db2.
+        #[arg(long = "type", value_name = "DATABASE_TYPE")]
+        database_type: String,
+        /// Vendor driver jar; repeat when the driver needs companion jars.
+        #[arg(long = "jar", value_name = "PATH", required = true, num_args = 1..)]
+        jars: Vec<PathBuf>,
+    },
+    /// Show where each engine's driver comes from.
+    List {
+        /// Only report this database type.
+        #[arg(long = "type", value_name = "DATABASE_TYPE")]
+        database_type: Option<String>,
+    },
+    /// Remove the jars provided for one engine.
+    Remove {
+        #[arg(long = "type", value_name = "DATABASE_TYPE")]
+        database_type: String,
     },
 }
 #[derive(Subcommand)]
@@ -611,6 +639,9 @@ fn run(cli: Cli) -> Result<bool> {
             };
             print(value);
         }
+        Commands::Driver { command } => {
+            return driver_command(&root, command);
+        }
         Commands::Ui { command } => match command {
             Some(UiCommand::Plugin { command }) => {
                 {
@@ -815,6 +846,80 @@ fn setting_command(root: &Path, command: SettingCommand) -> Result<bool> {
     }
     Ok(true)
 }
+/// Manage the JDBC driver of an engine whose vendor does not allow redistribution.
+fn driver_command(root: &Path, command: DriverCommand) -> Result<bool> {
+    let describe = |kind: Database| -> Result<Value> {
+        let driver = execution::jdbc_driver(kind)?;
+        let provided = drivers::provided(root, driver.component)?;
+        let platform = components::platform()?;
+        let released = drivers::released(root, driver.component, &platform);
+        let source = if !provided.is_empty() {
+            "provided"
+        } else if driver.bundled {
+            "release"
+        } else {
+            "missing"
+        };
+        Ok(json!({
+            "type": kind.name(),
+            "component": driver.component,
+            "driver_class": driver.class,
+            "bundled": driver.bundled,
+            "installed": released,
+            "source": source,
+            "directory": drivers::directory(root, driver.component).to_string_lossy(),
+            "jars": provided
+                .iter()
+                .filter_map(|jar| jar.file_name().map(|name| name.to_string_lossy().into_owned()))
+                .collect::<Vec<_>>(),
+        }))
+    };
+    match command {
+        DriverCommand::Add {
+            database_type,
+            jars,
+        } => {
+            let kind = database_type
+                .parse::<Database>()
+                .map_err(|error| anyhow!(error))?;
+            let driver = execution::jdbc_driver(kind)?;
+            let stored = drivers::install(root, driver.component, driver.class, &jars)?;
+            print(json!({
+                "type": kind.name(),
+                "component": driver.component,
+                "directory": drivers::directory(root, driver.component).to_string_lossy(),
+                "jars": stored,
+                "next": format!("sqlx datasource add --type {} ... then run a statement", kind.name()),
+            }));
+        }
+        DriverCommand::List { database_type } => {
+            let reported = match database_type {
+                Some(name) => vec![describe(
+                    name.parse::<Database>().map_err(|error| anyhow!(error))?,
+                )?],
+                None => Database::ALL
+                    .iter()
+                    .filter(|kind| execution::uses_jdbc_driver(**kind))
+                    .map(|kind| describe(*kind))
+                    .collect::<Result<Vec<_>>>()?,
+            };
+            print(json!({"drivers": reported}));
+        }
+        DriverCommand::Remove { database_type } => {
+            let kind = database_type
+                .parse::<Database>()
+                .map_err(|error| anyhow!(error))?;
+            let driver = execution::jdbc_driver(kind)?;
+            let removed = drivers::remove(root, driver.component)?;
+            print(json!({
+                "type": kind.name(),
+                "component": driver.component,
+                "removed": removed,
+            }));
+        }
+    }
+    Ok(true)
+}
 fn print_line(value: &Value) {
     if let Err(error) = writeln!(io::stdout(), "{value}") {
         if error.kind() == io::ErrorKind::BrokenPipe {
@@ -911,6 +1016,14 @@ impl ConnectionArgs {
                     // A local engine has no port, and H2 uses its file mode until a host is given.
                     Database::Sqlite | Database::Duckdb => 0,
                     Database::H2 => 9092,
+                    Database::Presto => 8080,
+                    Database::Hive => 10000,
+                    Database::Kylin => 7070,
+                    Database::Xugu => 5138,
+                    Database::Db2 => 50000,
+                    Database::Informix => 9088,
+                    Database::Sundb => 22581,
+                    Database::Gbase8s => 9088,
                 },
                 database: String::new(),
                 service: String::new(),
