@@ -30,9 +30,14 @@ public final class JdbcWorker {
         LogManager.getLogManager().reset();
         Logger.getLogger("").setLevel(Level.OFF);
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws java.io.IOException {
         quietDriverLogging();
-        JdbcWorker worker = new JdbcWorker(System.out);
+        // The protocol owns standard output, so the worker keeps its own handle on it and sends
+        // anything a driver prints there to standard error instead: Kylin's Avatica client does that
+        // while answering a query, and a stray line would corrupt the event stream.
+        PrintStream protocol = new PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8");
+        System.setOut(new PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8"));
+        JdbcWorker worker = new JdbcWorker(protocol);
         try {
             worker.emit("ready", "protocol_version", 1);
             JsonNode request = JSON.readTree(System.in);

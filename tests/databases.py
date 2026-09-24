@@ -80,6 +80,9 @@ PREPARE = {
 }
 # Executing DROP TABLE on a missing table is an error for these engines, which have no IF EXISTS form.
 TOLERANT_DROP = {"informix", "gbase8s"}
+# Kylin answers SQL over pre-built cubes: it takes SELECT and SHOW but no DDL or DML, so its fixture
+# reads the sample project the image loads instead of creating and filling a table.
+READ_ONLY = {"kylin": "SELECT COUNT(*) AS order_count FROM SSB.LINEORDER"}
 # Engines that answer a query before a storage backend can serve DDL. Wait on an idempotent write,
 # not on a status column: an OLAP frontend reports a live backend, and even accepts `CREATE TABLE`,
 # before that backend can allocate the table's tablets, and only the insert tells those apart. Every
@@ -101,7 +104,7 @@ BACKEND_CLEANUP = {
     "doris": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
 }
 # TDengine, H2, Presto, Db2 and GBase 8s reserve "value", so their probes alias it differently.
-ALIASES = {"tdengine": "ok", "h2": "ok", "presto": "ok", "db2": "ok", "gbase8s": "ok"}
+ALIASES = {"tdengine": "ok", "h2": "ok", "presto": "ok", "db2": "ok", "gbase8s": "ok", "kylin": "ok"}
 
 
 # Db2, Informix and GBase 8s have no FROM-less SELECT, so their probe reads a catalog table.
@@ -143,7 +146,6 @@ DROP_IF_EXISTS = {
     # Presto, Hive, Kylin and XuguDB keep the table in the schema --database selects.
     "presto": "DROP TABLE IF EXISTS memory.default.sqlx_values",
     "hive": "DROP TABLE IF EXISTS sqlx_values",
-    "kylin": "DROP TABLE IF EXISTS sqlx_values",
     "xugu": "DROP TABLE IF EXISTS sqlx_values",
     "db2": "DROP TABLE IF EXISTS sqlx_values",
     "informix": "DROP TABLE sqlx_values",
@@ -172,7 +174,6 @@ CREATE = {
     "presto": "CREATE TABLE memory.default.sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     # Hive has no DECIMAL(30,4) default here, but it accepts the ANSI spelling.
     "hive": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
-    "kylin": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "xugu": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "db2": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     # Informix and GBase 8s have no BIGINT, so the wide integer uses DECIMAL(20,0).
@@ -202,7 +203,6 @@ INSERT = {
     "h2": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "presto": "INSERT INTO memory.default.sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "hive": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
-    "kylin": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "xugu": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "db2": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "informix": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
@@ -231,7 +231,6 @@ SELECT = {
     "presto": "SELECT id AS DUP, id AS DUP, amount, label FROM memory.default.sqlx_values",
     # HiveServer2 renames a repeated column label instead of returning both under one name.
     "hive": "SELECT id, amount, label FROM sqlx_values",
-    "kylin": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "xugu": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "db2": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     # The Informix-derived drivers reject a result set whose columns share a label.
@@ -310,6 +309,26 @@ def exercise(cli, bin_dir, kind):
                 if attempt == 59:
                     raise AssertionError(result)
                 time.sleep(5)
+        # A read-only engine is verified by querying what it serves and by the first-error stop below.
+        if kind in READ_ONLY:
+            _, result = retry(kind, "the read-only query", lambda: call(
+                "sql", "execute", "--datasource", "fixture", "--command", READ_ONLY[kind]))
+            rows = contract.rows(result)
+            assert len(rows) == 1, result
+            assert int(rows[0][0]) >= 1, result
+            assert contract.columns(result)[0][0].lower() == "order_count", result
+
+            def read_only_error_batch():
+                code, result = call("sql", "execute", "--datasource", "fixture",
+                                    "--command", select_one(kind),
+                                    "--command", "SELECT * FROM missing_table",
+                                    "--command", select_one(kind, 2), ok=False)
+                error = contract.error(result, 1)
+                assert error is not None and contract.rows(result, 0), result
+                assert code != 0 and contract.skipped(result) == [2], result
+            retry(kind, "the first-error batch", read_only_error_batch)
+            print(f"{kind}: connection, cube query and first-error stop passed (read-only engine)")
+            return
         # Writes are submitted once: replaying this batch could apply them twice. An engine without
         # DROP TABLE IF EXISTS gets its drop first, where a missing table is allowed to fail.
         writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
