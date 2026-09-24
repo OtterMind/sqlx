@@ -44,7 +44,10 @@ VENDORS={
                         ('https://repo.maven.apache.org/maven2/org/glassfish/jaxb/txw2/2.3.9/txw2-2.3.9.jar','txw2.jar'),
                         ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar','slf4j-nop.jar')],
                  entry='kylin-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/kylin/master/LICENSE',
-                 extra_licenses={'LICENSE-jaxb.txt':('https://raw.githubusercontent.com/eclipse-ee4j/jaxb-ri/2.3.9/LICENSE.md',None),
+                 # The JAXB runtime ships its own Eclipse Distribution License, so it is read from the
+                 # jar instead of a documentation URL.
+                 extra_licenses={'LICENSE-jaxb.txt':('jaxb-runtime.jar','META-INF/LICENSE.md'),
+                                 'NOTICE-jaxb.txt':('jaxb-runtime.jar','META-INF/NOTICE.md'),
                                  'LICENSE-slf4j.txt':('https://www.slf4j.org/license.html',None)}),
     'xugu':dict(files=[('https://repo.maven.apache.org/maven2/com/xugudb/xugu-jdbc/12.3.4/xugu-jdbc-12.3.4.jar','xugu-jdbc.jar')],entry='xugu-jdbc.jar',license_url='https://www.apache.org/licenses/LICENSE-2.0.txt'),
     # The TDengine RESTful driver ships as one bundled jar (its own dependencies included) and
