@@ -4,6 +4,8 @@ The repository is https://github.com/OtterMind/sqlx. The supported CLI range for
 
 `sqlx setting list` shows the settings in effect, and `sqlx setting set <key> <value>` changes the preview size, the result directory or the result retention; see [results](results.md).
 
+A few engines -- IBM Db2, IBM Informix, SUNDB and GBase 8s -- connect with a driver their vendor does not allow SQLX to redistribute. `sqlx driver list` shows where each engine's driver comes from, and `sqlx driver add --type <engine> --jar <path>` installs the jar the user obtained from the vendor after checking it carries that engine's driver class; `sqlx driver remove --type <engine>` takes it back. Running a statement for one of those engines without a driver fails before anything is downloaded and names the exact command to run, so relay that command to the user instead of guessing a URL.
+
 ## Install
 
 ```sh
