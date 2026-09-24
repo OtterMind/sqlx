@@ -410,6 +410,9 @@ fn unrelated_worker_output_is_ignored() {
         &worker,
         concat!(
             "#!/bin/sh\n",
+            // The request arrives on stdin; a worker that never reads it makes the writer see EPIPE,
+            // which is exactly what the CLI reports with "worker exited without a valid completion".
+            "cat > /dev/null\n",
             "printf '%s\\n' '{\"event\":\"ready\",\"protocol_version\":1}'\n",
             "printf '%s\\n' 'Avatica: connection established'\n",
             "printf '%s\\n' '{\"event\":\"connected\"}'\n",

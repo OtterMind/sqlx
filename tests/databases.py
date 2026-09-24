@@ -81,8 +81,8 @@ PREPARE = {
 # Executing DROP TABLE on a missing table is an error for these engines, which have no IF EXISTS form.
 TOLERANT_DROP = {"informix", "gbase8s"}
 # Kylin answers SQL over pre-built cubes: it takes SELECT and SHOW but no DDL or DML, so its fixture
-# reads the sample project the image loads instead of creating and filling a table.
-READ_ONLY = {"kylin": "SELECT COUNT(*) AS order_count FROM SSB.LINEORDER"}
+# counts whatever table the sample project exposes instead of creating and filling one.
+READ_ONLY = {"kylin": "SELECT COUNT(*) AS order_count FROM {table}"}
 # Engines that answer a query before a storage backend can serve DDL. Wait on an idempotent write,
 # not on a status column: an OLAP frontend reports a live backend, and even accepts `CREATE TABLE`,
 # before that backend can allocate the table's tablets, and only the insert tells those apart. Every
@@ -310,9 +310,14 @@ def exercise(cli, bin_dir, kind):
                     raise AssertionError(result)
                 time.sleep(5)
         # A read-only engine is verified by querying what it serves and by the first-error stop below.
+        # The table to count comes from the engine itself: a sample project names its tables its own way.
         if kind in READ_ONLY:
+            _, listed = call("sql", "execute", "--datasource", "fixture", "--command", "SHOW TABLES")
+            tables = [".".join(part for part in row if part) for row in contract.rows(listed)]
+            assert tables, listed
+            query = READ_ONLY[kind].format(table=tables[0])
             _, result = retry(kind, "the read-only query", lambda: call(
-                "sql", "execute", "--datasource", "fixture", "--command", READ_ONLY[kind]))
+                "sql", "execute", "--datasource", "fixture", "--command", query))
             rows = contract.rows(result)
             assert len(rows) == 1, result
             assert int(rows[0][0]) >= 1, result
