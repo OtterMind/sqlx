@@ -28,6 +28,14 @@ const databaseNames: Record<DatabaseType, string> = {
   sqlite: "SQLite",
   duckdb: "DuckDB",
   h2: "H2",
+  presto: "Presto",
+  hive: "Hive",
+  kylin: "Apache Kylin",
+  xugu: "XuguDB",
+  db2: "IBM Db2",
+  informix: "IBM Informix",
+  sundb: "SUNDB",
+  gbase8s: "GBase 8s",
 };
 /** Engines that open a local file, or a local file until a host is given. */
 export function isFileEngine(kind: string): boolean {
@@ -100,8 +108,12 @@ export async function datasourcePage(
         ["Host", c.host],
         ["Port", String(c.port)],
         [
-          c.database_type === "oracle" ? "Service name" : "Database",
-          c.database_type === "oracle" ? c.service : c.database || "Not specified",
+          c.database_type === "oracle" || c.database_type === "informix" || c.database_type === "gbase8s"
+            ? "Service name"
+            : "Database",
+          c.database_type === "oracle" || c.database_type === "informix" || c.database_type === "gbase8s"
+            ? c.service
+            : c.database || "Not specified",
         ],
         [
           "Connection security",

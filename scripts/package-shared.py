@@ -25,6 +25,31 @@ VENDORS={
     'dameng':dict(files=[('https://repo.maven.apache.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.jar','dm-jdbc.jar')],entry='dm-jdbc.jar',license_url='https://repo1.maven.org/maven2/com/dameng/DmJdbcDriver18/8.1.3.140/DmJdbcDriver18-8.1.3.140.pom'),
     'kingbase':dict(files=[('https://repo.maven.apache.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.jar','kingbase8-jdbc.jar')],entry='kingbase8-jdbc.jar',license_url='https://repo1.maven.org/maven2/cn/com/kingbase/kingbase8/9.0.1.jre7/kingbase8-9.0.1.jre7.pom'),
     'opengauss':dict(files=[('https://repo.maven.apache.org/maven2/org/opengauss/opengauss-jdbc/6.0.0-b041-og/opengauss-jdbc-6.0.0-b041-og.jar','opengauss-jdbc.jar')],entry='opengauss-jdbc.jar',license_url='https://raw.githubusercontent.com/opengauss-mirror/openGauss-connector-jdbc/master/LICENSE'),
+    'presto':dict(files=[('https://repo.maven.apache.org/maven2/com/facebook/presto/presto-jdbc/0.293/presto-jdbc-0.293.jar','presto-jdbc.jar')],entry='presto-jdbc.jar',license_url='https://raw.githubusercontent.com/prestodb/presto/master/LICENSE'),
+    # Hive needs its standalone jar: the plain artifact pulls the whole Hadoop dependency tree.
+    # 4.0.1 is the last release whose driver still targets Java 8; 4.2.x is compiled for Java 21 and
+    # cannot load in the pinned JRE 17.
+    'hive':dict(files=[('https://repo.maven.apache.org/maven2/org/apache/hive/hive-jdbc/4.0.1/hive-jdbc-4.0.1-standalone.jar','hive-jdbc.jar'),
+                       ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar','slf4j-nop.jar')],
+                 entry='hive-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/hive/rel/release-4.0.1/LICENSE',
+                 # The slf4j 1.7 binding carries no license file inside the jar, so its license is
+                 # fetched from the project instead.
+                 extra_licenses={'LICENSE-slf4j.txt':('https://www.slf4j.org/license.html',None)}),
+    # Kylin's driver uses JAXB, which the JDK dropped in Java 11, and an slf4j 1.7 binding.
+    'kylin':dict(files=[('https://repo.maven.apache.org/maven2/org/apache/kylin/kylin-jdbc/5.0.3/kylin-jdbc-5.0.3.jar','kylin-jdbc.jar'),
+                        ('https://repo.maven.apache.org/maven2/jakarta/xml/bind/jakarta.xml.bind-api/2.3.3/jakarta.xml.bind-api-2.3.3.jar','jakarta.xml.bind-api.jar'),
+                        ('https://repo.maven.apache.org/maven2/org/glassfish/jaxb/jaxb-runtime/2.3.9/jaxb-runtime-2.3.9.jar','jaxb-runtime.jar'),
+                        ('https://repo.maven.apache.org/maven2/com/sun/istack/istack-commons-runtime/4.1.2/istack-commons-runtime-4.1.2.jar','istack-commons-runtime.jar'),
+                        ('https://repo.maven.apache.org/maven2/jakarta/activation/jakarta.activation-api/1.2.2/jakarta.activation-api-1.2.2.jar','jakarta.activation-api.jar'),
+                        ('https://repo.maven.apache.org/maven2/org/glassfish/jaxb/txw2/2.3.9/txw2-2.3.9.jar','txw2.jar'),
+                        ('https://repo.maven.apache.org/maven2/org/slf4j/slf4j-nop/1.7.36/slf4j-nop-1.7.36.jar','slf4j-nop.jar')],
+                 entry='kylin-jdbc.jar',license_url='https://raw.githubusercontent.com/apache/kylin/master/LICENSE',
+                 # The JAXB runtime ships its own Eclipse Distribution License, so it is read from the
+                 # jar instead of a documentation URL.
+                 extra_licenses={'LICENSE-jaxb.txt':('jaxb-runtime.jar','META-INF/LICENSE.md'),
+                                 'NOTICE-jaxb.txt':('jaxb-runtime.jar','META-INF/NOTICE.md'),
+                                 'LICENSE-slf4j.txt':('https://www.slf4j.org/license.html',None)}),
+    'xugu':dict(files=[('https://repo.maven.apache.org/maven2/com/xugudb/xugu-jdbc/12.3.4/xugu-jdbc-12.3.4.jar','xugu-jdbc.jar')],entry='xugu-jdbc.jar',license_url='https://www.apache.org/licenses/LICENSE-2.0.txt'),
     # The TDengine RESTful driver ships as one bundled jar (its own dependencies included) and
     # needs an slf4j binding, because the bundle carries the slf4j API without a provider.
     'tdengine':dict(files=[('https://repo.maven.apache.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar','taos-jdbcdriver.jar'),
@@ -65,13 +90,24 @@ def main():
         entries={};sources=[]
         for url,filename in spec['files']:
             entries[filename]=get(url);sources.append(url)
+        # Every driver runs in the pinned JRE 17, so a class compiled for a newer Java would only
+        # fail on a user's machine. Check each driver entry point here, where the fix is a version
+        # bump: a bundled helper that loads eagerly would break the engine just the same.
+        with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:
+            too_new=[(entry,int.from_bytes(jar.read(entry)[6:8],'big'))
+                     for entry in jar.namelist() if entry.endswith('Driver.class') and '$' not in entry]
+            too_new=[(entry,major) for entry,major in too_new if major>61]
+            if too_new:
+                listed=', '.join(f'{entry} (Java {major-44})' for entry,major in too_new)
+                raise ValueError(f'{name} ships a driver class newer than the pinned JRE 17: {listed}')
         if 'license_from_jar' in spec:
             # Preserve the license shipped with this exact driver; the HTML page blocks automated downloads.
             with zipfile.ZipFile(io.BytesIO(entries[spec['entry']])) as jar:license_text=jar.read(spec['license_from_jar'])
         else:license_text=get(spec['license_url'])
         entries['LICENSE.txt']=license_text
         for target,(archive,member) in spec.get('extra_licenses',{}).items():
-            with zipfile.ZipFile(io.BytesIO(entries[archive])) as jar:entries[target]=jar.read(member)
+            # A URL source is fetched directly; a jar member is read from the driver already loaded.
+            entries[target]=get(archive) if member is None else zipfile.ZipFile(io.BytesIO(entries[archive])).read(member)
         entries['SOURCE.txt']=('\n'.join(sources+[spec['license_url']])+'\n').encode()
         add(name,entries,spec['entry'])
     for platform,os_name,arch in [('macos-arm64','mac','aarch64'),('macos-x64','mac','x64'),('windows-x64','windows','x64'),('linux-arm64','linux','aarch64'),('linux-x64','linux','x64')]:

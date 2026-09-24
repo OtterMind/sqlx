@@ -30,9 +30,14 @@ public final class JdbcWorker {
         LogManager.getLogManager().reset();
         Logger.getLogger("").setLevel(Level.OFF);
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws java.io.IOException {
         quietDriverLogging();
-        JdbcWorker worker = new JdbcWorker(System.out);
+        // The protocol owns standard output, so the worker keeps its own handle on it and sends
+        // anything a driver prints there to standard error instead: Kylin's Avatica client does that
+        // while answering a query, and a stray line would corrupt the event stream.
+        PrintStream protocol = new PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8");
+        System.setOut(new PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8"));
+        JdbcWorker worker = new JdbcWorker(protocol);
         try {
             worker.emit("ready", "protocol_version", 1);
             JsonNode request = JSON.readTree(System.in);
@@ -75,6 +80,8 @@ public final class JdbcWorker {
                 if (!Files.isRegularFile(p)) throw new IllegalArgumentException("driver JAR is missing");
                 jars[i] = p.toUri().toURL();
             }
+            // The failure is reported from inside this scope: reading a driver's own error message can
+            // load a class from the driver jar, which a closed loader refuses.
             try (URLClassLoader loader = new URLClassLoader(jars, ClassLoader.getPlatformClassLoader())) {
                 Class<?> type = Class.forName(request.path("driver_class").asText(), true, loader);
                 if (type.getClassLoader() != loader || !Driver.class.isAssignableFrom(type)) throw new IllegalArgumentException("invalid driver class");
@@ -94,67 +101,112 @@ public final class JdbcWorker {
                     properties.setProperty("trustServerCertificate", "false");
                     properties.setProperty("loginTimeout", "15");
                 }
+                // A failure is reported inside this scope: a driver renders its message lazily and
+                // loads one of its own classes while doing so, which a closed loader refuses.
                 Thread.currentThread().setContextClassLoader(loader);
-                try (Connection connection = driver.connect(url(config), properties)) {
-                    if (connection == null) throw new SQLException("driver rejected connection URL");
-                    connection.setAutoCommit(true);
-                    if (!connection.isValid(15)) throw new SQLException("connection validation failed");
-                    emit("connected");
-                    if (request.path("action").asText().equals("execute")) {
-                        if (!sql.isArray() || sql.isEmpty()) throw new IllegalArgumentException("SQL statements are required");
-                        for (int i=0; i<sql.size(); i++) {
-                            current = i;
-                            String statement = sql.get(i).asText();
-                            if (statement.isBlank()) throw new IllegalArgumentException("empty SQL statement");
-                            if (config.path("database_type").asText().equals("h2")) singleStatement(statement);
-                            emit("statement_start", "index", i);
-                            try (Statement st = connection.createStatement()) {
-                                dispatched = true;
-                                boolean hasRows = st.execute(statement);
-                                int result = 0;
-                                while (true) {
-                                    if (hasRows) {
-                                        try (ResultSet rs = st.getResultSet()) { rows(rs, i, result); }
-                                    } else {
-                                        long count = updateCount(st);
-                                        if (count == -1) break;
-                                        emit("columns", "index", i, "result", result, "columns", List.of());
-                                        emit("result_end", "index", i, "result", result, "rows", "0", "affected_rows", Long.toString(count));
+                try {
+                    try (Connection connection = driver.connect(url(config), properties)) {
+                        if (connection == null) throw new SQLException("driver rejected connection URL");
+                        connection.setAutoCommit(true);
+                        if (!connectionIsValid(connection)) throw new SQLException("connection validation failed");
+                        emit("connected");
+                        if (request.path("action").asText().equals("execute")) {
+                            if (!sql.isArray() || sql.isEmpty()) throw new IllegalArgumentException("SQL statements are required");
+                            for (int i=0; i<sql.size(); i++) {
+                                current = i;
+                                String statement = sql.get(i).asText();
+                                if (statement.isBlank()) throw new IllegalArgumentException("empty SQL statement");
+                                if (config.path("database_type").asText().equals("h2")) singleStatement(statement);
+                                emit("statement_start", "index", i);
+                                try (Statement st = connection.createStatement()) {
+                                    dispatched = true;
+                                    boolean hasRows = st.execute(statement);
+                                    int result = 0;
+                                    while (true) {
+                                        if (hasRows) {
+                                            try (ResultSet rs = st.getResultSet()) { rows(rs, i, result); }
+                                        } else {
+                                            long count = updateCount(st);
+                                            if (count == -1) break;
+                                            emit("columns", "index", i, "result", result, "columns", List.of());
+                                            emit("result_end", "index", i, "result", result, "rows", "0", "affected_rows", Long.toString(count));
+                                        }
+                                        result++;
+                                        try {
+                                            hasRows = st.getMoreResults(Statement.CLOSE_CURRENT_RESULT);
+                                        } catch (SQLFeatureNotSupportedException unsupported) {
+                                            // Hive never implements this call, and one --command is one
+                                            // statement here, so the result that just ended is the last.
+                                            break;
+                                        } catch (SQLException unsupported) {
+                                            // GBase 8s reports the same gap as a plain SQLException, so only
+                                            // a driver that says so ends the loop early.
+                                            if (!String.valueOf(unsupported.getMessage()).contains("not supported")) throw unsupported;
+                                            break;
+                                        }
                                     }
-                                    result++;
-                                    hasRows = st.getMoreResults(Statement.CLOSE_CURRENT_RESULT);
                                 }
+                                emit("statement_end", "index", i);
+                                dispatched = false;
                             }
-                            emit("statement_end", "index", i);
-                            dispatched = false;
                         }
+                        // A caller can issue explicit transaction SQL. Never implicitly commit it here.
+                        if (!connection.getAutoCommit()) connection.rollback();
                     }
-                    // A caller can issue explicit transaction SQL. Never implicitly commit it here.
-                    if (!connection.getAutoCommit()) connection.rollback();
-                } finally { Thread.currentThread().setContextClassLoader(ClassLoader.getPlatformClassLoader()); }
-            }
-            emit("complete", "success", true);
-            return true;
-        } catch (Exception failure) {
-            String code = "jdbc.execution_failed";
-            String outcome = dispatched ? "unknown" : "not_started";
-            if (failure instanceof SQLException e) {
-                code = "jdbc." + Objects.toString(e.getSQLState(), "unknown") + "." + e.getErrorCode();
-                if (e.getSQLState() != null && !e.getSQLState().startsWith("08") && !e.getSQLState().startsWith("HYT") && !(e instanceof SQLTimeoutException) && !(e instanceof SQLRecoverableException)) outcome = "failed";
-            }
-            String message = Objects.toString(failure.getMessage(), "");
-            if (message.isBlank()) {
-                // A driver may throw without a message; name the class, and its cause, so the failure stays readable.
-                message = failure.getClass().getName();
-                if (failure.getCause() != null && failure.getCause() != failure) {
-                    message += ": " + Objects.toString(failure.getCause().getMessage(), failure.getCause().getClass().getName());
+                    emit("complete", "success", true);
+                    return true;
+                } catch (Throwable failure) {
+                    return report(failure, config, dispatched, current, sql.size());
+                } finally {
+                    Thread.currentThread().setContextClassLoader(ClassLoader.getPlatformClassLoader());
                 }
             }
-            for (String key : List.of("username", "password")) { String secret=config.path(key).asText(); if (!secret.isEmpty()) message=redactSecret(message, secret); }
-            emit("error", "index", current, "code", code, "message", message, "outcome", outcome);
-            for (int i=current==null ? 0 : current+1; i<sql.size(); i++) emit("skipped", "index", i);
-            emit("complete", "success", false);
-            return false;
+        } catch (Throwable failure) {
+            // Only a failure raised before the driver was loaded reaches this point.
+            return report(failure, config, dispatched, current, sql.size());
+        }
+    }
+    /// Emit the structured failure for one request; the caller owns the surrounding scope.
+    boolean report(Throwable failure, JsonNode config, boolean dispatched, Integer current, int statements) throws IOException {
+        if (failure instanceof Error) {
+            // An Error comes from the driver itself, not from the statement: keep its stack trace on
+            // stderr so the cause is diagnosable while the event stream stays structured.
+            failure.printStackTrace(System.err);
+        }
+        String code = "jdbc.execution_failed";
+        String outcome = dispatched ? "unknown" : "not_started";
+        if (failure instanceof SQLException e) {
+            code = "jdbc." + Objects.toString(e.getSQLState(), "unknown") + "." + e.getErrorCode();
+            if (e.getSQLState() != null && !e.getSQLState().startsWith("08") && !e.getSQLState().startsWith("HYT") && !(e instanceof SQLTimeoutException) && !(e instanceof SQLRecoverableException)) outcome = "failed";
+        }
+        String message = Objects.toString(failure.getMessage(), "");
+        if (message.isBlank()) {
+            // A driver may throw without a message; name the class, and its cause, so the failure stays readable.
+            message = failure.getClass().getName();
+            if (failure.getCause() != null && failure.getCause() != failure) {
+                message += ": " + Objects.toString(failure.getCause().getMessage(), failure.getCause().getClass().getName());
+            }
+        }
+        for (String key : List.of("username", "password")) { String secret=config.path(key).asText(); if (!secret.isEmpty()) message=redactSecret(message, secret); }
+        emit("error", "index", current, "code", code, "message", message, "outcome", outcome);
+        for (int i=current==null ? 0 : current+1; i<statements; i++) emit("skipped", "index", i);
+        emit("complete", "success", false);
+        return false;
+    }
+    /**
+     * A driver that does not implement the validation call is taken at its word: GBase 8s reports it
+     * as a plain SQLException saying the method is not supported, and the connection was already
+     * opened. Any other failure is a real one, because a connection test runs no statement that could
+     * report it later.
+     */
+    static boolean connectionIsValid(Connection connection) throws SQLException {
+        try {
+            return connection.isValid(15);
+        } catch (SQLFeatureNotSupportedException unsupported) {
+            return true;
+        } catch (SQLException unsupported) {
+            if (!String.valueOf(unsupported.getMessage()).contains("not supported")) throw unsupported;
+            return true;
         }
     }
     /**
@@ -229,8 +281,56 @@ public final class JdbcWorker {
                 yield "jdbc:trino://" + authority + "/" + c.path("database").asText().replace('.', '/')
                     + (c.path("tls").asText().equals("disable") ? "" : "?SSL=true");
             }
-            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine, opengauss, dameng, kingbase and h2");
+            case "presto" -> {
+                // PrestoDB addresses a catalog and an optional schema; --database carries catalog[.schema].
+                yield "jdbc:presto://" + authority + "/" + c.path("database").asText().replace('.', '/')
+                    + (c.path("tls").asText().equals("disable") ? "" : "?SSL=true");
+            }
+            case "hive" -> "jdbc:hive2://" + authority + "/" + c.path("database").asText()
+                    + (c.path("tls").asText().equals("disable") ? "" : ";ssl=true");
+            case "kylin" -> "jdbc:kylin://" + authority + "/" + c.path("database").asText();
+            case "xugu" -> "jdbc:xugu://" + authority + "/" + c.path("database").asText();
+            case "db2" -> "jdbc:db2://" + authority + "/" + c.path("database").asText()
+                    + (c.path("tls").asText().equals("disable") ? "" : ":sslConnection=true;");
+            // SUNDB runs the Goldilocks engine and keeps its URL scheme.
+            case "sundb" -> "jdbc:goldilocks://" + authority + "/" + c.path("database").asText();
+            // Informix and its GBase 8s derivative name a server instance in the URL; each driver
+            // spells that parameter its own way.
+            case "informix" -> "jdbc:informix-sqli://" + authority + "/" + c.path("database").asText()
+                    + informixParameters(c, "INFORMIXSERVER");
+            // The GBase 8s driver fails inside its own parser without a client locale, so every URL
+            // carries one; --property DB_LOCALE or CLIENT_LOCALE replaces the default.
+            case "gbase8s" -> "jdbc:gbasedbt-sqli://" + authority + "/" + c.path("database").asText()
+                    + gbaseParameters(c);
+            default -> throw new IllegalArgumentException("JDBC worker supports oracle, sqlserver, clickhouse, trino, tdengine, opengauss, dameng, kingbase, h2, presto, hive, kylin, xugu, db2, informix, sundb and gbase8s");
         };
+    }
+    /** The parameter block a GBase 8s URL appends: the server instance and the client locales. */
+    static String gbaseParameters(JsonNode c) {
+        String instance = informixParameters(c, "GBASEDBTSERVER");
+        StringBuilder parameters = new StringBuilder(instance.isEmpty() ? ":" : instance);
+        parameters.append("DB_LOCALE=").append(locale(c, "DB_LOCALE")).append(';');
+        parameters.append("CLIENT_LOCALE=").append(locale(c, "CLIENT_LOCALE")).append(';');
+        return parameters.toString();
+    }
+    /** A caller-supplied locale, or the locale the GBase 8s driver expects by default. */
+    static String locale(JsonNode c, String key) {
+        JsonNode properties = c.path("properties");
+        for (String name : List.of(key, key.toLowerCase(java.util.Locale.ROOT))) {
+            String value = properties.path(name).asText();
+            if (!value.isEmpty()) return value;
+        }
+        return "en_US.819";
+    }
+    /** The parameter block an Informix-derived URL appends after the database name. */
+    static String informixParameters(JsonNode c, String serverKey) {
+        String service = c.path("service").asText();
+        boolean tls = !c.path("tls").asText().equals("disable");
+        if (service.isEmpty() && !tls) return "";
+        StringBuilder parameters = new StringBuilder(":");
+        if (!service.isEmpty()) parameters.append(serverKey).append('=').append(service).append(';');
+        if (tls) parameters.append("sslConnection=true;");
+        return parameters.toString();
     }
     /** Some drivers, such as the TDengine RESTful driver, only implement the JDBC 1 update count. */
     static long updateCount(Statement st) throws SQLException {

@@ -67,7 +67,7 @@ The table below lists the capabilities planned for the first release and the pro
 | Help | Show command and argument documentation | `sqlx --help`, `sqlx <subcommand> --help` |
 | Version | Show the main program version so users and the Skill can judge compatibility | `sqlx --version` |
 
-Datasource and SQL responses are structured; help text stays human-readable. The release manifest controls the exact driver and runtime versions, and the first release adds no driver command that makes users manage versions themselves.
+Datasource and SQL responses are structured; help text stays human-readable. The release manifest controls the exact driver and runtime versions, so no command asks a user to pick a version. `sqlx driver add` exists for the engines whose vendor does not allow redistribution: it installs a driver the user obtained from that vendor, checks that the jar really carries the engine's driver class, and loads it before the released one, so a user can override any engine's driver without changing the version the release installs.
 
 The first release excludes SQL file input, cross-call sessions, parameters for transaction mode and failure strategy, result pagination or writing the full result to a file, automatic main-program updates, and device information reporting and daily-active statistics services. Device identity is generated locally first and the related networked features come later; explicit Skill installation and update are part of the first release.
 
@@ -89,8 +89,12 @@ Native components and the JRE are published per operating system and CPU archite
 |---|---|---|
 | MySQL | Rust native execution component | Extract the `mysql_async` connection and execution logic from Chat2DB-Rust first and publish it with the component build |
 | PostgreSQL | Rust native execution component | Extract the `tokio-postgres` connection and execution logic from Chat2DB-Rust first and publish it with the component build |
+| MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Apache Doris | Rust native execution component | Speak the MySQL protocol, so they reuse the MySQL component |
+| CockroachDB, YugabyteDB | Rust native execution component | Speak the PostgreSQL protocol, so they reuse the PostgreSQL component |
+| Redis, MongoDB, SQLite, DuckDB | Rust native execution component | Their own component; SQLite and DuckDB open a local file |
 | Oracle | Official JDBC Thin driver | Runs in the private Java runtime, with no separate Oracle client installation |
-| SQL Server | Official Microsoft JDBC driver | Reuse the official driver and the shared JDBC runner |
+| SQL Server, ClickHouse, Trino, Presto, TDengine, openGauss, Dameng, KingbaseES, H2, Hive, Apache Kylin, XuguDB | Official or vendor JDBC driver | Reuse the official driver and the shared JDBC runner |
+| IBM Db2, IBM Informix, SUNDB, GBase 8s | Vendor JDBC driver the user provides | The vendor does not allow redistribution, so `sqlx driver add` installs the jar the user obtained and the JDBC runner loads it |
 
 The last two are designed for username and password connections first; whether connection methods such as integrated authentication bring extra local dependencies needs separate verification and cannot inherit the delivery conclusions of a pure-Java connection method directly.
 
@@ -99,8 +103,9 @@ flowchart LR
     A[Agent + Skill] --> C[Rust CLI]
     C --> N[Native execution component]
     C --> J[Private JRE + JDBC runner]
-    N --> M[MySQL / PostgreSQL]
-    J --> O[Oracle / SQL Server]
+    N --> M[MySQL / PostgreSQL / Redis / MongoDB / SQLite / DuckDB]
+    J --> O[Oracle / SQL Server / ClickHouse / Trino / Hive / Kylin / XuguDB ...]
+    V[Vendor driver jar] -.sqlx driver add.-> J
     R[GitHub Releases] -.download on demand.-> N
     R -.download on demand.-> J
 ```

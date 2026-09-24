@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::{path::Path, time::Instant};
 
 /// Components accepted on the command line, in the order `all` downloads them.
-pub(crate) const CHOICES: [&str; 26] = [
+pub const CHOICES: &[&str] = &[
     "mysql",
     "mariadb",
     "tidb",
@@ -29,6 +29,14 @@ pub(crate) const CHOICES: [&str; 26] = [
     "sqlite",
     "duckdb",
     "h2",
+    "presto",
+    "hive",
+    "kylin",
+    "xugu",
+    "db2",
+    "informix",
+    "sundb",
+    "gbase8s",
     "ui",
     "skill",
     "all",
@@ -47,10 +55,16 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
         "cockroachdb" | "yugabytedb" => vec![("postgres".to_owned(), platform.to_owned())],
         // The JDBC databases need the shared runner and the pinned JRE as well.
         "oracle" | "sqlserver" | "clickhouse" | "trino" | "tdengine" | "opengauss" | "dameng"
-        | "kingbase" | "h2" => vec![
+        | "kingbase" | "h2" | "presto" | "hive" | "kylin" | "xugu" => vec![
             ("java".to_owned(), platform.to_owned()),
             ("jdbc".to_owned(), "any".to_owned()),
             (name.to_owned(), "any".to_owned()),
+        ],
+        // These engines connect through the JDBC worker too, but their vendor does not allow the
+        // driver to be redistributed, so prefetch only prepares the shared runtime.
+        "db2" | "informix" | "sundb" | "gbase8s" => vec![
+            ("java".to_owned(), platform.to_owned()),
+            ("jdbc".to_owned(), "any".to_owned()),
         ],
         "ui" => vec![
             ("ui".to_owned(), platform.to_owned()),
@@ -85,6 +99,10 @@ fn expand(name: &str, platform: &str) -> Result<Vec<(String, String)>> {
                 "sqlite",
                 "duckdb",
                 "h2",
+                "presto",
+                "hive",
+                "kylin",
+                "xugu",
             ] {
                 all.extend(expand(target, platform)?);
             }
@@ -229,6 +247,16 @@ mod tests {
             "sqlserver",
         ] {
             assert!(all.iter().any(|(entry, _)| entry == name), "missing {name}");
+        }
+        // Every documented component other than `all` must be reachable through `all`, so adding an
+        // engine to the choices cannot leave it out of the batch download.
+        for choice in CHOICES.iter().filter(|choice| **choice != "all") {
+            for entry in expand(choice, "macos-arm64").unwrap() {
+                assert!(
+                    all.contains(&entry),
+                    "{choice} expands to {entry:?}, which `all` does not download"
+                );
+            }
         }
         let mut unique = all.clone();
         unique.sort();

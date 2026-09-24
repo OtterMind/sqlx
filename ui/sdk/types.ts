@@ -23,7 +23,15 @@ export type DatabaseType =
   | "mongodb"
   | "sqlite"
   | "duckdb"
-  | "h2";
+  | "h2"
+  | "presto"
+  | "hive"
+  | "kylin"
+  | "xugu"
+  | "db2"
+  | "informix"
+  | "sundb"
+  | "gbase8s";
 export interface ConnectionFields {
   database_type: DatabaseType;
   host: string;

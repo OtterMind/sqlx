@@ -1,6 +1,6 @@
 use crate::{
     components::{platform, Components},
-    output, settings,
+    drivers, output, settings,
     storage::Datasource,
 };
 use anyhow::{bail, Context, Result};
@@ -21,7 +21,7 @@ pub struct PreparedExecution {
 }
 
 /// Wire-compatible engines reuse the native workers.
-fn native_worker(kind: Database) -> Option<&'static str> {
+pub fn native_worker(kind: Database) -> Option<&'static str> {
     match kind {
         Database::Mysql
         | Database::Mariadb
@@ -38,50 +38,108 @@ fn native_worker(kind: Database) -> Option<&'static str> {
         _ => None,
     }
 }
-struct JdbcDriver {
-    component: &'static str,
-    jars: &'static [&'static str],
+/// One engine's JDBC driver: the release component, its jar names, the driver class and whether
+/// SQLX may ship it at all.
+pub struct JdbcDriver {
+    pub component: &'static str,
+    pub jars: &'static [&'static str],
+    /// Driver class the worker loads, and the entry a user-provided jar must carry.
+    pub class: &'static str,
+    /// A bundled driver arrives with the release; the rest must be provided by the user.
+    pub bundled: bool,
 }
-fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
+
+/// Whether the engine runs through the JDBC worker at all.
+pub fn uses_jdbc_driver(kind: Database) -> bool {
+    native_worker(kind).is_none()
+}
+pub fn jdbc_driver(kind: Database) -> Result<JdbcDriver> {
+    let driver = |component, jars, class| JdbcDriver {
+        component,
+        jars,
+        class,
+        bundled: true,
+    };
     Ok(match kind {
-        Database::Oracle => JdbcDriver {
-            component: "oracle",
-            jars: &["ojdbc.jar"],
-        },
-        Database::Sqlserver => JdbcDriver {
-            component: "sqlserver",
-            jars: &["mssql-jdbc.jar"],
-        },
-        Database::Clickhouse => JdbcDriver {
-            component: "clickhouse",
-            jars: &["clickhouse-jdbc.jar", "slf4j-api.jar", "slf4j-nop.jar"],
-        },
-        Database::Trino => JdbcDriver {
-            component: "trino",
-            jars: &["trino-jdbc.jar"],
-        },
-        Database::Opengauss => JdbcDriver {
-            component: "opengauss",
-            jars: &["opengauss-jdbc.jar"],
-        },
-        Database::Dameng => JdbcDriver {
-            component: "dameng",
-            jars: &["dm-jdbc.jar"],
-        },
-        Database::Kingbase => JdbcDriver {
-            component: "kingbase",
-            jars: &["kingbase8-jdbc.jar"],
-        },
-        Database::Tdengine => JdbcDriver {
-            component: "tdengine",
-            jars: &["taos-jdbcdriver.jar", "slf4j-nop.jar"],
-        },
-        Database::H2 => JdbcDriver {
-            component: "h2",
-            jars: &["h2.jar"],
-        },
+        Database::Oracle => driver("oracle", &["ojdbc.jar"], "oracle.jdbc.OracleDriver"),
+        Database::Sqlserver => driver(
+            "sqlserver",
+            &["mssql-jdbc.jar"],
+            "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+        ),
+        Database::Clickhouse => driver(
+            "clickhouse",
+            &["clickhouse-jdbc.jar", "slf4j-api.jar", "slf4j-nop.jar"],
+            "com.clickhouse.jdbc.ClickHouseDriver",
+        ),
+        Database::Trino => driver("trino", &["trino-jdbc.jar"], "io.trino.jdbc.TrinoDriver"),
+        Database::Opengauss => driver("opengauss", &["opengauss-jdbc.jar"], "org.opengauss.Driver"),
+        Database::Dameng => driver("dameng", &["dm-jdbc.jar"], "dm.jdbc.driver.DmDriver"),
+        Database::Kingbase => driver("kingbase", &["kingbase8-jdbc.jar"], "com.kingbase8.Driver"),
+        Database::Tdengine => driver(
+            "tdengine",
+            &["taos-jdbcdriver.jar", "slf4j-nop.jar"],
+            "com.taosdata.jdbc.ws.WebSocketDriver",
+        ),
+        Database::H2 => driver("h2", &["h2.jar"], "org.h2.Driver"),
+        Database::Presto => driver(
+            "presto",
+            &["presto-jdbc.jar"],
+            "com.facebook.presto.jdbc.PrestoDriver",
+        ),
+        Database::Hive => driver(
+            "hive",
+            &["hive-jdbc.jar", "slf4j-nop.jar"],
+            "org.apache.hive.jdbc.HiveDriver",
+        ),
+        // Kylin's driver uses JAXB, which the JDK dropped in Java 11, and an slf4j 1.7 binding.
+        Database::Kylin => driver(
+            "kylin",
+            &[
+                "kylin-jdbc.jar",
+                "jakarta.xml.bind-api.jar",
+                "jaxb-runtime.jar",
+                "istack-commons-runtime.jar",
+                "jakarta.activation-api.jar",
+                "txw2.jar",
+                "slf4j-nop.jar",
+            ],
+            "org.apache.kylin.jdbc.Driver",
+        ),
+        Database::Xugu => driver("xugu", &["xugu-jdbc.jar"], "com.xugu.cloudjdbc.Driver"),
+        // The vendors below do not allow redistribution, so SQLX publishes no driver for them and
+        // the user drops the vendor jar into `sqlx driver add`.
+        Database::Db2 => provided("db2", &["db2-jcc.jar"], "com.ibm.db2.jcc.DB2Driver"),
+        Database::Informix => provided(
+            "informix",
+            &["informix-jdbc.jar"],
+            "com.informix.jdbc.IfxDriver",
+        ),
+        Database::Sundb => provided(
+            "sundb",
+            &["goldilocks8.jar"],
+            "sunje.goldilocks.jdbc.GoldilocksDriver",
+        ),
+        Database::Gbase8s => provided(
+            "gbase8s",
+            &["gbasedbt-jdbc.jar"],
+            "com.gbasedbt.jdbc.IfxDriver",
+        ),
         other => bail!("{other:?} is not a JDBC database"),
     })
+}
+/// A driver the release does not carry, because its vendor does not allow redistribution.
+fn provided(
+    component: &'static str,
+    jars: &'static [&'static str],
+    class: &'static str,
+) -> JdbcDriver {
+    JdbcDriver {
+        component,
+        jars,
+        class,
+        bundled: false,
+    }
 }
 pub fn prepare(
     root: PathBuf,
@@ -114,42 +172,76 @@ pub fn prepare(
                 "-jar".to_owned(),
                 dir.join("sqlx-jdbc.jar").to_string_lossy().into_owned(),
             ]);
+            // A driver installed with `sqlx driver add` is loaded here too, so a development run and a
+            // release run use the same classpath.
+            let mut jars = drivers::provided(&root, driver.component)?;
             for jar in driver.jars {
                 let path = dir
                     .join(jar)
                     .canonicalize()
                     .with_context(|| format!("development JDBC driver {jar} is missing"))?;
+                if jars
+                    .iter()
+                    .any(|provided| provided.file_name() == path.file_name())
+                {
+                    continue;
+                }
+                jars.push(path);
+            }
+            if jars.is_empty() {
+                bail!("no JDBC driver is available for {}", kind.name());
+            }
+            for jar in jars {
                 request
                     .driver_jars
-                    .push(path.to_string_lossy().into_owned());
+                    .push(jar.canonicalize()?.to_string_lossy().into_owned());
             }
             PathBuf::from(std::env::var_os("SQLX_JAVA_BIN").unwrap_or_else(|| "java".into()))
         }
     } else {
         let manager = Components::new(root, manifest);
-        let m = manager.manifest(false)?;
         let platform = platform()?;
         if let Some(name) = native {
+            let m = manager.manifest(false)?;
             manager.ensure(name, &platform, manager.asset(&m, name, &platform)?)?
         } else {
             let driver = jdbc_driver(kind)?;
+            // A driver the user provides is resolved before anything is downloaded: an engine whose
+            // vendor allows no redistribution must not fetch a JRE only to report that the driver is
+            // missing.
+            let provided = drivers::provided(&manager.root, driver.component)?;
+            if provided.is_empty() && !driver.bundled {
+                bail!(
+                    "SQLX does not redistribute the {} driver; run `sqlx driver add --type {} --jar <path>` with the vendor driver jar first",
+                    driver.component,
+                    kind.name()
+                );
+            }
+            let m = manager.manifest(false)?;
             let java = manager.ensure("java", &platform, manager.asset(&m, "java", &platform)?)?;
             let runner = manager.ensure("jdbc", "any", manager.asset(&m, "jdbc", "any")?)?;
-            let entry = manager.ensure(
-                driver.component,
-                "any",
-                manager.asset(&m, driver.component, "any")?,
-            )?;
             args.extend(["-jar".into(), runner.to_string_lossy().into_owned()]);
-            // A JDBC component can ship more than the driver itself, such as a logging API.
-            let directory = entry.parent().context("JDBC component has no directory")?;
-            let mut jars: Vec<PathBuf> = fs::read_dir(directory)?
-                .filter_map(|item| item.ok().map(|item| item.path()))
-                .filter(|path| path.extension().is_some_and(|extension| extension == "jar"))
-                .collect();
-            jars.sort();
-            if jars.is_empty() {
-                bail!("JDBC component {} contains no jar", driver.component);
+            // A provided jar is loaded before the released one it replaces, and the rest of the
+            // component keeps supplying what the driver needs, such as a logging API or JAXB. An
+            // engine the release does not carry loads only what the user provided.
+            let mut jars = provided;
+            if driver.bundled {
+                let entry = manager.ensure(
+                    driver.component,
+                    "any",
+                    manager.asset(&m, driver.component, "any")?,
+                )?;
+                let directory = entry.parent().context("JDBC component has no directory")?;
+                let mut released: Vec<PathBuf> = fs::read_dir(directory)?
+                    .filter_map(|item| item.ok().map(|item| item.path()))
+                    .filter(|path| path.extension().is_some_and(|extension| extension == "jar"))
+                    .filter(|path| !jars.iter().any(|jar| jar.file_name() == path.file_name()))
+                    .collect();
+                released.sort();
+                jars.extend(released);
+                if jars.is_empty() {
+                    bail!("JDBC component {} contains no jar", driver.component);
+                }
             }
             for jar in jars {
                 request
@@ -159,19 +251,10 @@ pub fn prepare(
             java
         }
     };
-    request.driver_class = match kind {
-        Database::Oracle => "oracle.jdbc.OracleDriver",
-        Database::Sqlserver => "com.microsoft.sqlserver.jdbc.SQLServerDriver",
-        Database::Clickhouse => "com.clickhouse.jdbc.ClickHouseDriver",
-        Database::Trino => "io.trino.jdbc.TrinoDriver",
-        Database::Tdengine => "com.taosdata.jdbc.ws.WebSocketDriver",
-        Database::Opengauss => "org.opengauss.Driver",
-        Database::Dameng => "dm.jdbc.driver.DmDriver",
-        Database::Kingbase => "com.kingbase8.Driver",
-        Database::H2 => "org.h2.Driver",
-        _ => "",
-    }
-    .into();
+    request.driver_class = match native {
+        Some(_) => String::new(),
+        None => jdbc_driver(kind)?.class.to_owned(),
+    };
     Ok(PreparedExecution {
         binary,
         args,
@@ -373,8 +456,15 @@ impl PreparedExecution {
             let mut event: Event = match serde_json::from_str(&line) {
                 Ok(e) => e,
                 Err(_) => {
-                    stream_error = Some("worker emitted an invalid protocol event".into());
-                    break;
+                    // A driver may print to the stream the worker owns -- Kylin's Avatica client does
+                    // -- and that line is not part of the protocol. Report it where diagnostics go and
+                    // keep reading: the events that matter are still well formed, and a missing
+                    // completion stays an error below.
+                    eprintln!(
+                        "sqlx: ignoring unexpected worker output: {}",
+                        sqlx_protocol::redact(&line, &request.connection)
+                    );
+                    continue;
                 }
             };
             let validation: Result<()> = (|| {

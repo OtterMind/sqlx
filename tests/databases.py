@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""Exercise every additional database through the CLI against the compose fixtures."""
+"""Exercise every additional database through the CLI against the compose fixtures.
+
+Presto, Hive, Apache Kylin, XuguDB, Db2 and Informix run from tests/compose.yaml after
+scripts/jdbc-fixture.sh stages their driver. GBase 8s, Informix, SUNDB and XuguDB depend on assets the
+repository cannot fetch, so each fixture reads its own environment variables:
+
+* GBase 8s needs a vendor driver and a running instance: SQLX_TEST_GBASE8S_DRIVER (the jar the vendor
+  ships, which may wrap the real ifxjdbc.jar), SQLX_TEST_GBASE8S_PORT, SQLX_TEST_GBASE8S_SERVER and
+  SQLX_TEST_GBASE8S_PASSWORD. Driver 3.70.1.61 reads a VARCHAR column back empty; use LVARCHAR.
+* Informix uses the developer image's documented default password unless SQLX_TEST_INFORMIX_PASSWORD
+  says otherwise; its other identity attempts all answer "is not known on the database server".
+* SUNDB needs a licensed installation, since the public vendor image's license expired in 2022:
+  SQLX_TEST_SUNDB_PORT and SQLX_TEST_SUNDB_PASSWORD.
+* XuguDB ships a trial image whose SYSDBA password is not published, and the driver has no trust mode:
+  SQLX_TEST_XUGU_PASSWORD.
+"""
 import argparse, json, os, subprocess, sys, tempfile, time
 from decimal import Decimal
 from pathlib import Path
@@ -36,6 +51,23 @@ FIXTURES = {
     "sqlite": {"local": True},
     "duckdb": {"local": True},
     "h2": {"local": True},
+    # Presto and Hive need a user but no password; Kylin authenticates with its default ADMIN user.
+    "presto": {"port": 28083, "database": "memory.default", "username": "sqlx", "password": ""},
+    "hive": {"port": 21000, "database": "default", "username": "hive", "password": ""},
+    "kylin": {"port": 37070, "database": "learn_kylin", "username": "ADMIN", "password": "KYLIN"},
+    "xugu": {"port": 25138, "database": "SYSTEM", "username": "SYSDBA",
+             "password": os.environ.get("SQLX_TEST_XUGU_PASSWORD", "SYSDBA")},
+    # Informix and GBase 8s name a server instance, which the connection carries as --service.
+    # The developer image keeps its documented default password; DB_INFORMIX_PASSWORD is ignored.
+    "informix": {"port": 29088, "database": "sysmaster", "service": "informix",
+                 "username": "informix", "password": os.environ.get("SQLX_TEST_INFORMIX_PASSWORD", "in4mix")},
+    "gbase8s": {"port": os.environ.get("SQLX_TEST_GBASE8S_PORT", 19088), "database": "gbasedbt",
+                "service": os.environ.get("SQLX_TEST_GBASE8S_SERVER", "gbase01"),
+                "username": "gbasedbt", "password": os.environ.get("SQLX_TEST_GBASE8S_PASSWORD", "GBase1234")},
+    # Db2 is a normal fixture; SUNDB needs a licensed installation, so both expect their instance.
+    "db2": {"port": 25000, "database": "sqlxtest", "username": "db2inst1", "password": PASSWORD},
+    "sundb": {"port": os.environ.get("SQLX_TEST_SUNDB_PORT", 22581), "database": "goldilocks",
+              "username": "sys", "password": os.environ.get("SQLX_TEST_SUNDB_PASSWORD", "gliese")},
 }
 # Engines that open a local file instead of a server, and the file extension they use.
 # H2 appends its own .mv.db suffix to the file name it is given.
@@ -46,6 +78,20 @@ PREPARE = {
     "doris": "CREATE DATABASE IF NOT EXISTS sqlx_test",
     "tdengine": "CREATE DATABASE IF NOT EXISTS sqlx_probe",
 }
+# Executing DROP TABLE on a missing table is an error for these engines, which have no IF EXISTS form.
+TOLERANT_DROP = {"informix", "gbase8s"}
+# Engines whose driver the release may not ship: the fixture installs the staged jar through the CLI,
+# which is the path a user takes, instead of relying only on the development directory.
+DRIVER = {
+    "db2": "db2-jcc.jar",
+    "informix": "informix-jdbc.jar",
+    "sundb": "goldilocks8.jar",
+    "gbase8s": "gbasedbt-jdbc.jar",
+}
+# Kylin answers SQL over pre-built cubes: it takes SELECT but no DDL or DML, and the tables a project
+# exposes depend on its cubes, so this fixture verifies the connection and two queries it can always
+# answer. The cube tables a deployment serves are documented in references/kylin.md instead.
+READ_ONLY = {"kylin": "SELECT 1 + 1 AS two"}
 # Engines that answer a query before a storage backend can serve DDL. Wait on an idempotent write,
 # not on a status column: an OLAP frontend reports a live backend, and even accepts `CREATE TABLE`,
 # before that backend can allocate the table's tablets, and only the insert tells those apart. Every
@@ -66,12 +112,26 @@ BACKEND_CLEANUP = {
     "starrocks": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
     "doris": "DROP TABLE IF EXISTS sqlx_test.sqlx_ready",
 }
-# TDengine and H2 reserve "value", so their readiness and error probes alias the column differently.
-ALIASES = {"tdengine": "ok", "h2": "ok"}
+# TDengine, H2, Presto, Db2 and GBase 8s reserve "value", so their probes alias it differently.
+ALIASES = {"tdengine": "ok", "h2": "ok", "presto": "ok", "db2": "ok", "gbase8s": "ok", "kylin": "ok"}
+
+
+# Db2, Informix and GBase 8s have no FROM-less SELECT, so their probe reads a catalog table.
+SELECT_ONE = {
+    "db2": "SELECT {value} AS {alias} FROM SYSIBM.SYSDUMMY1",
+    "informix": "SELECT {value} AS {alias} FROM systables WHERE tabid = 1",
+    "gbase8s": "SELECT {value} AS {alias} FROM systables WHERE tabid = 1",
+}
 
 
 def alias(kind):
     return ALIASES.get(kind, "value")
+
+
+def select_one(kind, value=1):
+    """The one-row probe every engine answers, spelled the way that engine accepts it."""
+    template = SELECT_ONE.get(kind, "SELECT {value} AS {alias}")
+    return template.format(value=value, alias=alias(kind))
 
 
 DROP_IF_EXISTS = {
@@ -92,6 +152,14 @@ DROP_IF_EXISTS = {
     "sqlite": "DROP TABLE IF EXISTS sqlx_values",
     "duckdb": "DROP TABLE IF EXISTS sqlx_values",
     "h2": "DROP TABLE IF EXISTS sqlx_values",
+    # Presto, Hive, Kylin and XuguDB keep the table in the schema --database selects.
+    "presto": "DROP TABLE IF EXISTS memory.default.sqlx_values",
+    "hive": "DROP TABLE IF EXISTS sqlx_values",
+    "xugu": "DROP TABLE IF EXISTS sqlx_values",
+    "db2": "DROP TABLE IF EXISTS sqlx_values",
+    "informix": "DROP TABLE sqlx_values",
+    "sundb": "DROP TABLE IF EXISTS sqlx_values",
+    "gbase8s": "DROP TABLE sqlx_values",
 }
 CREATE = {
     "mariadb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
@@ -111,6 +179,18 @@ CREATE = {
     "sqlite": "CREATE TABLE sqlx_values (id INTEGER, amount NUMERIC, label TEXT)",
     "duckdb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
     "h2": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    # PrestoDB persists tables through a connector, so the fixture uses the memory connector.
+    "presto": "CREATE TABLE memory.default.sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    # Hive has no DECIMAL(30,4) default here, but it accepts the ANSI spelling.
+    "hive": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "xugu": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    "db2": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
+    # Informix and GBase 8s have no BIGINT, so the wide integer uses DECIMAL(20,0).
+    "informix": "CREATE TABLE sqlx_values (id DECIMAL(20,0), amount DECIMAL(30,4), label VARCHAR(100))",
+    # The GBase 8s driver 3.70.1.61 reads a VARCHAR column back empty; LVARCHAR is the varying type
+    # its own documentation recommends, and it round-trips.
+    "gbase8s": "CREATE TABLE sqlx_values (id DECIMAL(20,0), amount DECIMAL(30,4), label LVARCHAR(100))",
+    "sundb": "CREATE TABLE sqlx_values (id BIGINT, amount DECIMAL(30,4), label VARCHAR(100))",
 }
 INSERT = {
     "mariadb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
@@ -130,6 +210,13 @@ INSERT = {
     "sqlite": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "duckdb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
     "h2": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "presto": "INSERT INTO memory.default.sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "hive": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "xugu": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "db2": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "informix": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "gbase8s": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
+    "sundb": "INSERT INTO sqlx_values VALUES (9007199254740993, 123.4500, 'hello')",
 }
 SELECT = {
     "mariadb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
@@ -150,6 +237,15 @@ SELECT = {
     "sqlite": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "duckdb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
     "h2": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "presto": "SELECT id AS DUP, id AS DUP, amount, label FROM memory.default.sqlx_values",
+    # HiveServer2 renames a repeated column label instead of returning both under one name.
+    "hive": "SELECT id, amount, label FROM sqlx_values",
+    "xugu": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    "db2": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
+    # The Informix-derived drivers reject a result set whose columns share a label.
+    "informix": "SELECT id, amount, label FROM sqlx_values",
+    "gbase8s": "SELECT id, amount, label FROM sqlx_values",
+    "sundb": "SELECT id AS DUP, id AS DUP, amount, label FROM sqlx_values",
 }
 
 
@@ -173,7 +269,8 @@ def exercise(cli, bin_dir, kind):
                               service="", username="", password="", tls="disable")
         else:
             connection = dict(database_type=kind, host="127.0.0.1", port=fixture["port"], database=fixture["database"],
-                              service="", username=fixture["username"], password=fixture["password"], tls="disable")
+                              service=fixture.get("service", ""), username=fixture["username"],
+                              password=fixture["password"], tls="disable")
         def call(*args, ok=True, payload=None):
             result = subprocess.run([str(cli), "--data-dir", tmp, "--worker-dir", str(bin_dir), *args],
                                     input=json.dumps(payload) if payload else None, text=True, capture_output=True,
@@ -184,6 +281,10 @@ def exercise(cli, bin_dir, kind):
             return result.returncode, value
 
         call("datasource", "add", "--name", "fixture", "--connection-stdin", payload=connection)
+        if kind in DRIVER:
+            call("driver", "add", "--type", kind, "--jar", str(Path(bin_dir) / DRIVER[kind]))
+            _, listed = call("driver", "list", "--type", kind)
+            assert listed["data"]["drivers"][0]["source"] == "provided", listed
         # A heavy engine can take minutes to accept the first connection.
         for attempt in range(1 if fixture.get("local") else 60):
             code, result = call("datasource", "test", "--id", "fixture", ok=False)
@@ -195,7 +296,7 @@ def exercise(cli, bin_dir, kind):
         # A reachable endpoint can still refuse queries while the engine registers its worker.
         for attempt in range(1 if fixture.get("local") else 40):
             code, result = call("sql", "execute", "--datasource", "fixture",
-                                "--command", f"SELECT 1 AS {alias(kind)}", ok=False)
+                                "--command", select_one(kind), ok=False)
             if code == 0:
                 break
             if attempt == 39:
@@ -221,15 +322,41 @@ def exercise(cli, bin_dir, kind):
                 if attempt == 59:
                     raise AssertionError(result)
                 time.sleep(5)
-        # Writes are submitted once: replaying this batch could apply them twice.
+        # A read-only engine is verified by a query it can always answer and by the first-error stop
+        # below; a cube query needs the deployment's own project, which the fixture cannot know.
+        if kind in READ_ONLY:
+            _, result = retry(kind, "the read-only query", lambda: call(
+                "sql", "execute", "--datasource", "fixture", "--command", READ_ONLY[kind]))
+            rows = contract.rows(result)
+            assert len(rows) == 1, result
+            assert rows[0][0] == "2", result
+            assert contract.columns(result)[0][0].lower() == "two", result
+
+            def read_only_error_batch():
+                code, result = call("sql", "execute", "--datasource", "fixture",
+                                    "--command", select_one(kind),
+                                    "--command", "SELECT * FROM missing_table",
+                                    "--command", select_one(kind, 2), ok=False)
+                error = contract.error(result, 1)
+                assert error is not None and contract.rows(result, 0), result
+                assert code != 0 and contract.skipped(result) == [2], result
+            retry(kind, "the first-error batch", read_only_error_batch)
+            print(f"{kind}: connection, a literal query and the first-error stop passed (read-only engine)")
+            return
+        # Writes are submitted once: replaying this batch could apply them twice. An engine without
+        # DROP TABLE IF EXISTS gets its drop first, where a missing table is allowed to fail.
         writes = [DROP_IF_EXISTS[kind], CREATE[kind], INSERT[kind]]
+        if kind in TOLERANT_DROP:
+            call("sql", "execute", "--datasource", "fixture",
+                 "--command", DROP_IF_EXISTS[kind], ok=False)
+            writes = writes[1:]
         call("sql", "execute", "--datasource", "fixture", *[arg for statement in writes for arg in ("--command", statement)])
-        _, result = retry(kind, "the read-only query", lambda: call(
+        _, result = retry(kind, "the row query", lambda: call(
             "sql", "execute", "--datasource", "fixture", "--command", SELECT[kind]))
         rows = contract.rows(result)
         assert len(rows) == 1, result
         row = rows[0]
-        if kind == "clickhouse":
+        if kind in ("clickhouse", "hive", "informix", "gbase8s"):
             assert row == ["9007199254740993", "123.4500", "hello"], row
         else:
             assert row[:2] == ["9007199254740993", "9007199254740993"], row
@@ -240,16 +367,17 @@ def exercise(cli, bin_dir, kind):
             assert columns[0][0].lower() == "dup", columns
         def first_error_batch():
             code, result = call("sql", "execute", "--datasource", "fixture",
-                                "--command", f"SELECT 1 AS {alias(kind)}",
+                                "--command", select_one(kind),
                                 "--command", "SELECT * FROM sqlx_missing_table",
-                                "--command", f"SELECT 2 AS {alias(kind)}", ok=False)
+                                "--command", select_one(kind, 2), ok=False)
             error = contract.error(result, 1)
             assert error is not None and contract.rows(result, 0), result
             assert code != 0 and contract.skipped(result) == [2], result
         retry(kind, "the first-error batch", first_error_batch)
         # The cleanup is idempotent, so an interrupted drop can be repeated safely.
         retry(kind, "the idempotent cleanup", lambda: call(
-            "sql", "execute", "--datasource", "fixture", "--command", DROP_IF_EXISTS[kind]))
+            "sql", "execute", "--datasource", "fixture", "--command", DROP_IF_EXISTS[kind],
+            ok=kind not in TOLERANT_DROP))
         print(f"{kind}: connection, DDL/DML/query, numeric precision, duplicate columns and first-error stop passed")
 
 

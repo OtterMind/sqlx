@@ -1,6 +1,6 @@
 # SQLX
 
-Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis and MongoDB, or open a local SQLite, DuckDB or H2 file, from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more statements or commands, and the results come back complete and structured.
+Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, Presto, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Apache Kylin, XuguDB, IBM Db2, IBM Informix, SUNDB, GBase 8s, Redis and MongoDB, or open a local SQLite, DuckDB or H2 file, from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more statements or commands, and the results come back complete and structured.
 
 ## Quick start
 
@@ -170,6 +170,14 @@ sqlx sql execute --datasource dev --command "SELECT current_database()" --comman
 | SQLite | `sqlite`, `sqlite3` | native worker | `--path <file>` (or `--database`) opens or creates a local file; no host, port or credentials; `--property mode=ro` and `--property busy_timeout=<ms>` |
 | DuckDB | `duckdb` | native worker | `--path <file>` opens or creates a local file, `:memory:` keeps one for the invocation; `--property read_only=true` and `--property threads=<n>` |
 | H2 | `h2` | JDBC worker | `--path <file>` opens a local file, or `--host` and `--port` (9092 by default) reach a TCP server |
+| Presto | `presto`, `prestodb` | JDBC worker | port 8080 by default; `--database <catalog>[.<schema>]` is required; `--username` is required and a password is only sent over TLS |
+| Hive | `hive` | JDBC worker | port 10000 by default; `--database` selects the Hive database, `default` when unset |
+| Apache Kylin | `kylin` | JDBC worker | port 7070 by default; `--database` carries the Kylin project, and the default account is `ADMIN`/`KYLIN` |
+| XuguDB | `xugu`, `xugudb` | JDBC worker | port 5138 by default; `SYSTEM` is the system database |
+| IBM Db2 | `db2`, `ibmdb2` | JDBC worker | port 50000 by default; needs a driver you provide, see [Drivers you provide](#drivers-you-provide) |
+| IBM Informix | `informix`, `ifx` | JDBC worker | port 9088 by default; `--service <server-instance>` is required and the driver must be provided |
+| SUNDB | `sundb` | JDBC worker | port 22581 by default; runs the Goldilocks engine and needs the driver from the vendor image |
+| GBase 8s | `gbase8s`, `gbasedbt` | JDBC worker | port 9088 by default; `--service <server-instance>` is required and the driver must be provided |
 
 `--id` and `--datasource` accept a stable datasource UUID or its unique name.
 
@@ -264,7 +272,8 @@ Each `connection` is the same object `--connection-stdin` accepts. `merge` (the 
 | Remove a saved connection | `sqlx datasource remove --id dev` |
 | Test connectivity | `sqlx datasource test --id dev` |
 | Execute SQL | `sqlx sql execute --datasource dev --command "SELECT 1" --command "SELECT 2"` |
-| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `sqlite`, `duckdb`, `h2`, `skill` or `all`) |
+| Download workers, the JDBC runtime and the UI ahead of time | `sqlx prefetch mysql ui` (`mariadb`, `tidb`, `greatsql`, `oceanbase`, `starrocks`, `doris`, `postgres`, `cockroachdb`, `yugabytedb`, `opengauss`, `oracle`, `sqlserver`, `clickhouse`, `trino`, `presto`, `hive`, `kylin`, `xugu`, `db2`, `informix`, `sundb`, `gbase8s`, `tdengine`, `dameng`, `kingbase`, `redis`, `mongodb`, `sqlite`, `duckdb`, `h2`, `skill` or `all`; the four engines whose driver you provide fetch the shared runtime only) |
+| Install a driver the release cannot ship | `sqlx driver add --type db2 --jar <path>`, `sqlx driver list`, `sqlx driver remove --type db2` |
 | Execute and open a result page | `sqlx sql execute --datasource dev --command "SELECT 1" --view` |
 | Read a stored result | `sqlx results list`, `sqlx results rows --id <result-id> --offset 100 --limit 50` |
 | Show or change settings | `sqlx setting list`, `sqlx setting set preview-rows 20`, `sqlx setting set results-dir ~/sqlx-results` |
@@ -324,13 +333,13 @@ To build your own interface, see the [UI plugin guide](docs/ui-plugins.md), the 
 
 User data lives in `~/.sqlx/`; use `--data-dir` or `SQLX_DATA_DIR` for another location. Settings are stored in `~/.sqlx/settings.json` and managed with `sqlx setting list|get|set|unset`; `SQLX_PREVIEW_ROWS`, `SQLX_RESULTS_DIR`, `SQLX_RESULTS_RETENTION_HOURS` and `SQLX_RESULT_MODE` override the file for one environment, and a command line flag overrides both. Stored results live in the result directory described above, keep 24 hours by default and stay under 1 GiB in total; older results are removed before the next command runs, and page results from `--view` are managed by the local service. Saved connections use AES-256-GCM with an independently generated local key: back up the key together with the encrypted data, because losing the key prevents decryption. Device identity is generated locally and this version uploads no device information.
 
-The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, Redis, MongoDB, SQLite and DuckDB run in their own native workers, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, TDengine, openGauss, Dameng, KingbaseES and H2 use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
+The main executable contains no database drivers; each database's worker is downloaded on first use. MySQL, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks and Apache Doris share the MySQL worker, Redis, MongoDB, SQLite and DuckDB run in their own native workers, PostgreSQL, CockroachDB and YugabyteDB share the PostgreSQL worker, and Oracle, SQL Server, ClickHouse, Trino, Presto, TDengine, openGauss, Dameng, KingbaseES, H2, Hive, Apache Kylin, XuguDB, IBM Db2, IBM Informix, SUNDB and GBase 8s use the JDBC worker (the [database table](#create-a-connection) lists which worker serves which database). Downloaded resources come from the fixed release manifest of the running CLI version and are verified before use; `--manifest <https-url>` selects another manifest or a local test server.
 
 Downloads happen on first use and are cached afterwards. Each one prints `Downloading …` with speed and estimated time, and a final `Downloaded … in 12.3s (390 KB/s)` line on stderr; the progress line is refreshed only when stderr is a terminal, so piped JSON stays clean. An interrupted transfer is retried up to three times, and rerunning a failed command reuses every component that is already installed. To avoid waiting inside the first query or page:
 
 ```sh
 sqlx prefetch mysql ui      # MySQL worker and the local browser UI
-sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, TDengine, Dameng, KingbaseES, Redis, MongoDB, SQLite, DuckDB and H2 components, the JDBC runtime and the JRE
+sqlx prefetch all           # adds the PostgreSQL, CockroachDB, YugabyteDB, openGauss, MariaDB, TiDB, GreatSQL, OceanBase, StarRocks, Doris, Oracle, SQL Server, ClickHouse, Trino, Presto, Hive, Kylin, XuguDB, TDengine, Dameng, KingbaseES, Redis, MongoDB, SQLite, DuckDB and H2 components, the JDBC runtime and the JRE
 ```
 
 The [database references](skills/sqlx/references/) explain each SQL operation's purpose, parameters, result and official documentation link.
@@ -438,9 +447,59 @@ docker compose -f tests/compose.yaml down -v
 # Dameng and KingbaseES have no public image; point the fixtures at a local instance
 # and export SQLX_TEST_DAMENG_PASSWORD or SQLX_TEST_KINGBASE_PASSWORD when they differ
 python3 tests/databases.py dameng kingbase
+docker compose -f tests/compose.yaml up -d --wait presto hive
+bash scripts/jdbc-fixture.sh presto
+bash scripts/jdbc-fixture.sh hive
+python3 tests/databases.py presto hive
+docker compose -f tests/compose.yaml down -v
+# Kylin, XuguDB, Db2 and Informix take turns because each needs several gigabytes
+docker compose -f tests/compose.yaml up -d --wait kylin
+bash scripts/jdbc-fixture.sh kylin
+python3 tests/databases.py kylin
+docker compose -f tests/compose.yaml down -v
+# GBase 8s takes the vendor driver and its own instance; SUNDB needs a licensed installation
+# and XuguDB a trial image whose password is known. tests/databases.py lists every variable.
+export SQLX_TEST_GBASE8S_DRIVER=~/gbasedbt-jdbc.jar
+python3 tests/databases.py gbase8s
 ```
 
 For local native workers, set `SQLX_WORKER_DIR` to the absolute `target/debug` directory. For JDBC development, that directory also contains `sqlx-jdbc.jar` and `ojdbc.jar` or `mssql-jdbc.jar`; `SQLX_JAVA_BIN` can select Java 17 explicitly. These overrides are for development, not prerequisites for release users. The fixture scripts use dedicated test containers and test-only credentials.
+
+## Drivers you provide
+
+Most JDBC drivers ship with the release and are downloaded on first use. Vendors that do not allow
+their driver to be redistributed are not packaged: IBM Db2, IBM Informix, SUNDB and GBase 8s connect
+with a driver you install once from the vendor.
+
+```sh
+sqlx driver add --type db2 --jar ~/Downloads/jcc-12.1.0.0.jar
+sqlx driver list
+sqlx driver remove --type db2
+```
+
+`sqlx driver add` copies the jar into `<data-dir>/drivers/<engine>/`, checks that it really carries the
+engine's driver class, and every later command loads it from there. A jar you provide also wins over a
+released component, which is how a newer vendor driver is used before the release catches up. Running a
+statement for one of these engines without a driver explains the exact command to run:
+
+```sh
+sqlx sql execute --datasource <id> --command "SELECT 1 FROM SYSIBM.SYSDUMMY1"
+# SQLX does not redistribute the db2 driver; run `sqlx driver add --type db2 --jar <path>` with the vendor driver jar first
+```
+
+`scripts/release-driver-check.sh <engine> <jar> <data-dir> <connection-json> <statement>` runs the same
+path a release user takes — install the jar, then execute with no development overrides, so the CLI
+resolves the JRE and the JDBC runner from the published manifest. It needs a release whose JDBC runner
+already knows the engine, so run it against a published version rather than from a feature branch.
+
+Where the drivers come from:
+
+| Engine | File to provide | Driver class |
+| --- | --- | --- |
+| IBM Db2 | `jcc-<version>.jar` from IBM or Maven Central (`com.ibm.db2:jcc`) | `com.ibm.db2.jcc.DB2Driver` |
+| IBM Informix | the Informix JDBC driver, 4.50 line (`com.ibm.informix:jdbc`); the 15.x line fails against an Informix 14.10 server | `com.informix.jdbc.IfxDriver` |
+| SUNDB | `goldilocks8.jar` from the vendor image at `/goldilocks_home/lib/` | `sunje.goldilocks.jdbc.GoldilocksDriver` |
+| GBase 8s | the vendor's `ifxjdbc.jar`; a wrapper jar that contains it must be unpacked first | `com.gbasedbt.jdbc.IfxDriver` |
 
 ## Releases and documentation
 

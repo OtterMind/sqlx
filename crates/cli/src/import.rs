@@ -289,7 +289,7 @@ mod tests {
             {"name":"6f1d0f0e-8c58-4a5f-9d34-6a5a4f3b2c11","connection":connection()},
             item("twin"),
             item("twin"),
-            {"name":"hive","connection":{"database_type":"hive","host":"h","port":10000}},
+            {"name":"unknown","connection":{"database_type":"snowflake","host":"h","port":10000}},
             {"name":"nohost","connection":{"database_type":"postgresql","port":5432}},
         ]));
         let (_temp, store) = temp_store();
@@ -304,7 +304,7 @@ mod tests {
                     "invalid_name".to_string()
                 ),
                 ("twin".to_string(), "duplicate_name".to_string()),
-                ("hive".to_string(), "invalid_connection".to_string()),
+                ("unknown".to_string(), "invalid_connection".to_string()),
                 ("nohost".to_string(), "invalid_connection".to_string()),
             ]
         );
@@ -319,7 +319,7 @@ mod tests {
         let (_temp, store) = temp_store();
         let input = document(json!([
             item("ok"),
-            {"name":"hive","connection":{"database_type":"hive","host":"h","port":1}}
+            {"name":"unknown","connection":{"database_type":"snowflake","host":"h","port":1}}
         ]));
         let error = run(&store, &input, false, true).unwrap_err().to_string();
         assert!(error.contains("cannot be imported"), "{error}");

@@ -130,7 +130,7 @@ fn import_merges_documents_reports_skips_and_keeps_credentials_secret() {
     let root = temp.path().join("data");
     let document = json!({"version":1,"mode":"merge","datasources":[
         {"name":"imported","connection":connection()},
-        {"name":"hive","connection":{"database_type":"hive","host":"h","port":10000}},
+        {"name":"unknown","connection":{"database_type":"snowflake","host":"h","port":10000}},
         {"name":"","connection":connection()}
     ]});
     let out = call(&root, &["datasource", "import", "--stdin"], Some(&document));
@@ -143,7 +143,7 @@ fn import_merges_documents_reports_skips_and_keeps_credentials_secret() {
     assert_eq!(value["success"], true);
     assert_eq!(value["data"]["added"], 1);
     assert_eq!(value["data"]["updated"], 0);
-    assert_eq!(value["data"]["skipped"][0]["name"], "hive");
+    assert_eq!(value["data"]["skipped"][0]["name"], "unknown");
     assert_eq!(value["data"]["skipped"][0]["reason"], "invalid_connection");
     assert_eq!(value["data"]["skipped"][1]["reason"], "invalid_name");
     // Credentials stay out of the report and off the disk in clear text.
@@ -253,4 +253,276 @@ fn documented_import_example_stays_valid() {
     let path = sqlite["connection"]["database"].as_str().unwrap();
     assert!(std::path::Path::new(path).is_absolute(), "{path}");
     assert!(path.ends_with("data/app.db"), "{path}");
+}
+
+/// A driver the release cannot redistribute has to be provided, checked and removed through the CLI.
+#[test]
+fn provided_drivers_are_validated_installed_and_removed() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("data");
+    let jar = temp.path().join("jcc-12.1.0.0.jar");
+    write_jar(&jar, &["com/ibm/db2/jcc/DB2Driver.class"]);
+
+    // One of the jars must carry the driver class the worker loads, not just any archive.
+    let wrong = temp.path().join("wrong.jar");
+    write_jar(&wrong, &["com/example/Other.class"]);
+    let rejected = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            wrong.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(!rejected.status.success());
+    assert!(
+        String::from_utf8_lossy(&rejected.stdout).contains("contains com.ibm.db2.jcc.DB2Driver"),
+        "{}",
+        String::from_utf8_lossy(&rejected.stdout)
+    );
+
+    let added = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            jar.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let value: Value = serde_json::from_slice(&added.stdout).unwrap();
+    assert_eq!(value["data"]["component"], "db2");
+    assert_eq!(value["data"]["jars"][0], "jcc-12.1.0.0.jar");
+    assert!(root.join("drivers/db2/jcc-12.1.0.0.jar").is_file());
+
+    // A provided driver is reported as the source, and an engine served by a native worker is not.
+    let listed = call(&root, &["driver", "list", "--type", "db2"], None);
+    let value: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(value["data"]["drivers"][0]["source"], "provided");
+    assert_eq!(value["data"]["drivers"][0]["bundled"], false);
+    assert_eq!(
+        value["data"]["drivers"][0]["driver_class"],
+        "com.ibm.db2.jcc.DB2Driver"
+    );
+    let every = call(&root, &["driver", "list"], None);
+    let value: Value = serde_json::from_slice(&every.stdout).unwrap();
+    let engines: Vec<&str> = value["data"]["drivers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|driver| driver["type"].as_str().unwrap())
+        .collect();
+    assert!(
+        engines.contains(&"presto") && engines.contains(&"gbase8s"),
+        "{engines:?}"
+    );
+    assert!(
+        !engines.contains(&"mysql") && !engines.contains(&"redis"),
+        "{engines:?}"
+    );
+
+    assert!(
+        !root.join("drivers/db2/wrong.jar").exists(),
+        "a rejected jar must not be installed"
+    );
+
+    // A file that is not named as a jar would be stored and then never loaded, so it is refused.
+    let misnamed = temp.path().join("driver.jar.bak");
+    write_jar(&misnamed, &["com/ibm/db2/jcc/DB2Driver.class"]);
+    let refused = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            misnamed.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8_lossy(&refused.stdout).contains("is not named as a jar"),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+
+    // Driver components are platform independent, so an installed one lives under `any`.
+    std::fs::create_dir_all(root.join("drivers/oracle/any/1.0.0")).unwrap();
+    let installed = call(&root, &["driver", "list", "--type", "oracle"], None);
+    let value: Value = serde_json::from_slice(&installed.stdout).unwrap();
+    assert_eq!(value["data"]["drivers"][0]["installed"], true, "{value}");
+    assert_eq!(value["data"]["drivers"][0]["source"], "release", "{value}");
+
+    let removed = call(&root, &["driver", "remove", "--type", "db2"], None);
+    let value: Value = serde_json::from_slice(&removed.stdout).unwrap();
+    assert_eq!(value["data"]["removed"][0], "jcc-12.1.0.0.jar");
+    assert!(!root.join("drivers/db2/jcc-12.1.0.0.jar").exists());
+
+    // A driver that needs dependencies is accepted with them, as long as the driver is among them.
+    let helper = temp.path().join("helper.jar");
+    write_jar(&helper, &["com/example/Helper.class"]);
+    let with_helper = call(
+        &root,
+        &[
+            "driver",
+            "add",
+            "--type",
+            "db2",
+            "--jar",
+            jar.to_str().unwrap(),
+            "--jar",
+            helper.to_str().unwrap(),
+        ],
+        None,
+    );
+    assert!(
+        with_helper.status.success(),
+        "{}",
+        String::from_utf8_lossy(&with_helper.stdout)
+    );
+    assert!(root.join("drivers/db2/helper.jar").is_file());
+}
+/// An engine served by the JDBC worker that has no driver yet explains how to provide one.
+#[test]
+fn an_engine_without_a_driver_explains_how_to_provide_it() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("data");
+    // A connection whose driver is missing is rejected before anything is downloaded, so the message
+    // names the exact command instead of failing inside a worker.
+    let connection = json!({"database_type":"db2","host":"127.0.0.1","port":50000,"database":"sample","username":"","password":"","tls":"disable"});
+    let added = call(
+        &root,
+        &[
+            "datasource",
+            "add",
+            "--name",
+            "warehouse",
+            "--connection-stdin",
+        ],
+        Some(&connection),
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let out = call(
+        &root,
+        &[
+            "sql",
+            "execute",
+            "--datasource",
+            "warehouse",
+            "--command",
+            "SELECT 1",
+        ],
+        None,
+    );
+    assert!(!out.status.success());
+    let message = String::from_utf8_lossy(&out.stdout);
+    assert!(message.contains("sqlx driver add --type db2"), "{message}");
+    assert!(
+        !root.join("drivers").exists(),
+        "nothing was downloaded for a missing driver"
+    );
+}
+/// A minimal zip that carries the listed entries, so the driver checks can be exercised offline.
+fn write_jar(path: &std::path::Path, entries: &[&str]) {
+    use std::io::Write as _;
+    let file = std::fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default();
+    for entry in entries {
+        zip.start_file(*entry, options).unwrap();
+        zip.write_all(&[0u8; 8]).unwrap();
+    }
+    zip.finish().unwrap();
+}
+
+/// A worker that prints an unrelated line must not break the protocol: Kylin's Avatica client does.
+#[cfg(unix)]
+#[test]
+fn unrelated_worker_output_is_ignored() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("data");
+    let worker_dir = temp.path().join("workers");
+    std::fs::create_dir_all(&worker_dir).unwrap();
+    let worker = worker_dir.join("sqlx-driver-mysql");
+    std::fs::write(
+        &worker,
+        concat!(
+            "#!/bin/sh\n",
+            // The request arrives on stdin; a worker that never reads it makes the writer see EPIPE,
+            // which is exactly what the CLI reports with "worker exited without a valid completion".
+            "cat > /dev/null\n",
+            "printf '%s\\n' '{\"event\":\"ready\",\"protocol_version\":1}'\n",
+            "printf '%s\\n' 'Avatica: connection established'\n",
+            "printf '%s\\n' '{\"event\":\"connected\"}'\n",
+            "printf '%s\\n' '{\"event\":\"statement_start\",\"index\":0}'\n",
+            "printf '%s\\n' '{\"event\":\"columns\",\"index\":0,\"result\":0,\"columns\":[{\"name\":\"ok\",\"database_type\":\"INTEGER\",\"encoding\":\"string\"}]}'\n",
+            "printf '%s\\n' '{\"event\":\"row\",\"index\":0,\"result\":0,\"values\":[\"1\"]}'\n",
+            "printf '%s\\n' '{\"event\":\"result_end\",\"index\":0,\"result\":0,\"rows\":\"1\",\"affected_rows\":null}'\n",
+            "printf '%s\\n' '{\"event\":\"statement_end\",\"index\":0}'\n",
+            "printf '%s\\n' '{\"event\":\"complete\",\"success\":true}'\n",
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&worker, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let connection = json!({"database_type":"mysql","host":"127.0.0.1","port":3306,"database":"fixture","username":"u","password":"p","tls":"disable"});
+    let workers = worker_dir.to_str().unwrap();
+    let added = call(
+        &root,
+        &[
+            "--worker-dir",
+            workers,
+            "datasource",
+            "add",
+            "--name",
+            "chatty",
+            "--connection-stdin",
+        ],
+        Some(&connection),
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let out = call(
+        &root,
+        &[
+            "--worker-dir",
+            workers,
+            "sql",
+            "execute",
+            "--datasource",
+            "chatty",
+            "--command",
+            "SELECT 1 AS ok",
+        ],
+        None,
+    );
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(value["success"], true, "{value}");
+    assert_eq!(value["results"][0]["rows"][0][0], "1", "{value}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("Avatica: connection established"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
