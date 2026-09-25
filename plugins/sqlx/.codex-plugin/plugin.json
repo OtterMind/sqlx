@@ -1,0 +1,61 @@
+{
+  "name": "sqlx",
+  "version": "0.1.17",
+  "description": "List saved OtterMind SQLX datasources, test connections, run SQL against MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Presto, Hive, Apache Kylin, XuguDB, Db2, Informix, SUNDB and GBase 8s, run Redis commands and MongoDB command documents, and open local result pages. Credentials stay in the SQLX data directory. Requires the sqlx CLI (0.1.17+) through the plugin launcher.",
+  "author": {
+    "name": "OtterMind"
+  },
+  "homepage": "https://github.com/OtterMind/sqlx",
+  "repository": "https://github.com/OtterMind/sqlx",
+  "license": "LicenseRef-Chat2DB",
+  "keywords": [
+    "database",
+    "sql",
+    "mysql",
+    "mariadb",
+    "tidb",
+    "greatsql",
+    "oceanbase",
+    "postgresql",
+    "cockroachdb",
+    "yugabytedb",
+    "opengauss",
+    "oracle",
+    "sqlserver",
+    "clickhouse",
+    "trino",
+    "starrocks",
+    "doris",
+    "tdengine",
+    "dameng",
+    "kingbase",
+    "redis",
+    "mongodb",
+    "presto",
+    "hive",
+    "kylin",
+    "xugu",
+    "db2",
+    "informix",
+    "sundb",
+    "gbase8s",
+    "mcp"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "OtterMind SQLX",
+    "shortDescription": "Run SQL through saved encrypted connections",
+    "longDescription": "List saved OtterMind SQLX datasources, test connections, run SQL against MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng and KingbaseES, run Redis commands and MongoDB command documents, and open local result pages. Credentials stay in the SQLX data directory.",
+    "developerName": "OtterMind",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/OtterMind/sqlx",
+    "defaultPrompt": [
+      "List my SQLX datasources.",
+      "Test the SQLX connection I name and run a read-only query on it."
+    ]
+  }
+}
