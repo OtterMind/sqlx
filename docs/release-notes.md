@@ -1,26 +1,26 @@
-SQLX 0.1.16 imports saved connections from another tool in one call, and keeps every credential off the command line.
+SQLX 0.1.17 connects to eight more databases, four of them with a driver you install once from the vendor.
 
-## New
+## New engines
 
-- `sqlx datasource import` reads a versioned JSON document from `--stdin` or `--file <path>` and stores every connection in one write. Entries merge by name: an unknown name is added, a known name is updated in place and keeps its datasource ID, and nothing is ever removed.
-- Each entry is validated on its own, so an engine SQLX does not speak, or a connection missing the fields its engine needs, is reported in `skipped` with a reason instead of failing the whole document. Every entry carries the same connection object `--connection-stdin` accepts.
-- `--dry-run` validates and reports without storing anything, and `--strict` refuses the entire document when any entry is invalid, so a scripted migration never half-applies. Catalogues arrive on standard input, or from a file for callers that cannot pipe.
-- `examples/import-connections.json` is a runnable starting point — PostgreSQL, MySQL and a local SQLite file — and a contract test imports it on every build, so the document format cannot drift unnoticed.
-- The Skill gained a bulk-import recipe in `references/connections.md`, for agents that are handed a connection list instead of entering connections one by one.
+- Presto, Hive, Apache Kylin and XuguDB join the engines whose driver ships with the release. Their JDBC components download like Oracle's or SQL Server's, and each one carries what its driver needs: Presto and Kylin their own dependencies, Hive its standalone driver and logging binding.
+- IBM Db2, IBM Informix, SUNDB and GBase 8s connect with a driver their vendor does not allow SQLX to redistribute. `sqlx driver add --type <engine> --jar <path>` installs the jar you obtained: it checks that the jar really carries the engine's driver class, stores it in `<data-dir>/drivers/<engine>/`, and every later command loads it. `sqlx driver list` shows where each engine's driver comes from and `sqlx driver remove --type <engine>` takes it back. Running a statement without a driver fails before anything is downloaded and names the command to run.
+- A jar you provide is loaded before the released one it replaces, so a newer vendor driver works for any engine without waiting for a release.
+
+## New in the JDBC worker
+
+- A driver that does not implement `isValid` or `getMoreResults` no longer turns a working statement into an error: GBase 8s reports both as a plain `SQLException`, and only a driver that says the method is unsupported ends the call early.
+- A driver that prints to standard output while answering a query no longer corrupts the event stream, which is how Kylin's Avatica client behaved; the CLI reports such a line on standard error, with credentials redacted, and keeps reading.
+- The Informix-derived engines receive their server instance and client locale in the URL, and the Kylin component carries the JAXB runtime that Java 11 removed from the JDK.
 
 ## Availability
 
-- The DeepSeek Harness and Pi packages are published on npm: `dsh plugin --profile <profile> add @ottermind/sqlx-dsh` and `pi install npm:@ottermind/sqlx-pi`. Both install the `sqlx` CLI themselves when it is missing, so adding the plugin is the only setup step.
-- The Codex and Claude Code plugins install from the `plugins` branch: `codex plugin marketplace add OtterMind/sqlx@plugins` and `claude plugin marketplace add OtterMind/sqlx@plugins`, then add `sqlx@ottermind`.
+- The DeepSeek Harness and Pi packages are published on npm: `dsh plugin --profile <profile> add @ottermind/sqlx-dsh` and `pi install npm:@ottermind/sqlx-pi`. Both install the `sqlx` CLI themselves when it is missing.
+- The Codex and Claude Code plugins install from the `plugins` branch: `codex plugin marketplace add OtterMind/sqlx@plugins` and `claude plugin marketplace add OtterMind/sqlx@plugins`, then add `sqlx@ottermind`. Their task description now names the new engines.
 
 ## Upgrading
 
 From SQLX 0.1.2 or later, run `sqlx update check`, `sqlx update install`, and `sqlx update status`. Versions 0.1.0 and 0.1.1 need the [README installer](https://github.com/OtterMind/sqlx#install-the-cli) first.
 
-CLI updates preserve running UI services and the selected plugin, saved datasources and stored results; downloaded components are cached per version and reused, so an upgrade only fetches components that changed. Update managed Skills separately with `sqlx skill update`. The 0.1.16 Skill still requires CLI 0.1.15 or newer, and only the bulk import needs 0.1.16.
+CLI updates preserve running UI services and the selected plugin, saved datasources and stored results; downloaded components are cached per version and reused, so an upgrade only fetches components that changed. Update managed Skills separately with `sqlx skill update`. The 0.1.17 Skill is published with a `>=0.1.17, <0.2.0` CLI requirement, so update the CLI before the Skill; an older Skill keeps working with the older CLI it was installed with.
 
-The Skill's approval rule constrains the Agent workflow only. SQLX itself still executes the supplied command unchanged, and an explicit result refresh still reruns the complete original batch, including any writes.
-
-Prebuilt packages are available for macOS ARM64/x64, Linux ARM64/x64, and Windows x64. macOS executables are Developer ID signed and notarized. See LICENSE and NOTICE for license conditions.
-
-**Full Changelog**: https://github.com/OtterMind/sqlx/compare/v0.1.15...v0.1.16
+**Full Changelog**: https://github.com/OtterMind/sqlx/compare/v0.1.16...v0.1.17
