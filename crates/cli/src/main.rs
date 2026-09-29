@@ -332,13 +332,19 @@ enum SkillCommand {
 }
 fn main() {
     let cli = Cli::parse();
-    let automatic = io::stdin().is_terminal()
-        && io::stdout().is_terminal()
-        && !matches!(
-            &cli.command,
-            Commands::Update { .. } | Commands::Init | Commands::Prefetch { .. } | Commands::Mcp
-        )
-        && cli.worker_dir.is_none()
+    // The opportunistic check is on by default, including piped and agent invocations: it runs detached
+    // with its streams closed, so it cannot disturb the caller. Only the stderr notice needs a terminal.
+    let interactive = io::stdin().is_terminal() && io::stdout().is_terminal();
+    // A CI machine is not a user who installs updates: skip the check there so the usage sample
+    // describes real installations.
+    let continuous_integration = std::env::var("CI")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty() && value.trim() != "false");
+    let automatic = !matches!(
+        &cli.command,
+        Commands::Update { .. } | Commands::Init | Commands::Prefetch { .. } | Commands::Mcp
+    ) && cli.worker_dir.is_none()
+        && !continuous_integration
         && std::env::var("SQLX_NO_UPDATE_CHECK").ok().as_deref() != Some("1");
     let updater = if automatic {
         updates::Updater::new(cli.update_dir.clone(), cli.update_release_base.clone()).ok()
@@ -347,7 +353,7 @@ fn main() {
     };
     let outcome = run(cli);
     if let Some(updater) = updater {
-        updater.notify_and_schedule();
+        updater.notify_and_schedule(interactive);
     }
     match outcome {
         Ok(true) => {}

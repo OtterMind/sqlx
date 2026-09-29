@@ -160,15 +160,35 @@ def main():
             call(target, env, "update", "background-check")
             assert len(requests) > count
 
+            # The opportunistic check is on by default, so a piped invocation schedules it too, without
+            # writing anything into the caller's streams. A CI environment stays silent.
             ordinary, ordinary_cli, ordinary_env = installation("noninteractive")
             ordinary_env.pop("SQLX_NO_UPDATE_CHECK")
+            ordinary_env.pop("CI", None)
             count = len(requests)
-            call(ordinary_cli, ordinary_env, "datasource", "list")
-            assert len(requests) == count and not (ordinary / "update-state").exists()
+            value = call(ordinary_cli, ordinary_env, "datasource", "list")
+            assert value == {"datasources": []}, value  # stdout stays pure JSON, no update notice
+            for _ in range(100):
+                observed = list((ordinary / "update-state").glob("*/check.json"))
+                if observed and json.loads(observed[0].read_text())["status"] == "update_available":
+                    break
+                time.sleep(.05)
+            else:
+                raise AssertionError("piped background check did not finish")
+
+            ci_case, ci_cli, ci_env = installation("ci")
+            ci_env.pop("SQLX_NO_UPDATE_CHECK")
+            ci_env["CI"] = "true"
+            count = len(requests)
+            call(ci_cli, ci_env, "datasource", "list")
+            time.sleep(.5)
+            assert len(requests) == count and not (ci_case / "update-state").exists()
+
             if os.name != "nt":
                 import pty
                 automatic, auto_cli, auto_env = installation("interactive")
                 auto_env.pop("SQLX_NO_UPDATE_CHECK")
+                auto_env.pop("CI", None)
                 master, slave = pty.openpty()
                 try:
                     process = subprocess.Popen([str(auto_cli), "datasource", "list"], env=auto_env, stdin=slave, stdout=slave, stderr=slave)
