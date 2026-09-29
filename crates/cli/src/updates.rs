@@ -20,8 +20,19 @@ use std::{
 };
 
 pub const RELEASE_BASE: &str = "https://github.com/OtterMind/sqlx/releases";
-const CHECK_INTERVAL: u64 = 24 * 60 * 60;
+/// Gap before the next opportunistic check, in minutes, per completed check. The list repeats, so a
+/// long-lived installation checks every 30 minutes, 1, 2, 4 and 6 hours and then starts over, the same
+/// schedule the desktop application follows in a long-running session.
+const CHECK_INTERVALS_MINUTES: [u64; 5] = [30, 60, 120, 240, 360];
+/// A failed check retries sooner than a successful one.
 const FAILURE_BACKOFF: u64 = 15 * 60;
+/// The same available version is announced on stderr at most once per day.
+const NOTIFY_INTERVAL: u64 = 24 * 60 * 60;
+
+/// Seconds to wait after `round` completed checks.
+fn check_interval(round: u64) -> u64 {
+    CHECK_INTERVALS_MINUTES[(round.saturating_sub(1) as usize) % CHECK_INTERVALS_MINUTES.len()] * 60
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateError {
@@ -70,6 +81,9 @@ struct CheckRecord {
     notified_at: Option<u64>,
     #[serde(default)]
     notified_version: Option<String>,
+    /// Completed checks, including this one; drives the repeating check interval.
+    #[serde(default)]
+    check_round: u64,
 }
 #[derive(Serialize, Deserialize)]
 struct InstallRecord {
@@ -207,6 +221,13 @@ impl Updater {
             .ok()
             .flatten()
             .filter(|record| record.source == self.base);
+        // The round only continues while the same version keeps checking, so a fresh installation or a
+        // replaced CLI starts the schedule again.
+        let check_round = previous
+            .as_ref()
+            .filter(|record| record.current_version == self.current.to_string())
+            .map_or(0, |record| record.check_round)
+            .saturating_add(1);
         let mut record = CheckRecord {
             source: self.base.clone(),
             current_version: self.current.to_string(),
@@ -217,6 +238,7 @@ impl Updater {
             error: None,
             notified_at: previous.as_ref().and_then(|record| record.notified_at),
             notified_version: previous.and_then(|record| record.notified_version),
+            check_round,
         };
         atomic_write(&self.dir.join("check.json"), &serde_json::to_vec(&record)?)?;
         let outcome = self.release(None, background);
@@ -238,6 +260,16 @@ impl Updater {
         }
         record.checked_at = now();
         atomic_write(&self.dir.join("check.json"), &serde_json::to_vec(&record)?)?;
+        // Usage reporting describes real users of the official channel; an integration override such as
+        // the one the update test suite uses never reports.
+        if self.base == RELEASE_BASE {
+            crate::usage::report_check(
+                &self.state_root,
+                crate::usage::trigger(background),
+                crate::usage::result(&record.status),
+                record.latest_version.as_deref(),
+            );
+        }
         outcome?;
         Ok(serde_json::to_value(record)?)
     }
@@ -250,15 +282,18 @@ impl Updater {
                 && r.current_version == self.current.to_string()
                 && now().saturating_sub(r.checked_at)
                     < if matches!(r.status.as_str(), "update_available" | "up_to_date") {
-                        CHECK_INTERVAL
+                        check_interval(r.check_round)
                     } else {
                         FAILURE_BACKOFF
                     }
         })
     }
-    /// Called only for interactive invocations. Errors must not change the command outcome.
-    pub fn notify_and_schedule(&self) {
-        let _ = self.notify_cached();
+    /// Schedules the detached check. The stderr notice stays interactive: a piped or agent invocation
+    /// checks silently rather than writing to a stream another program is parsing.
+    pub fn notify_and_schedule(&self, interactive: bool) {
+        if interactive {
+            let _ = self.notify_cached();
+        }
         if !self.check_due() {
             return;
         }
@@ -289,7 +324,7 @@ impl Updater {
                 && (record.notified_version != record.latest_version
                     || record
                         .notified_at
-                        .is_none_or(|at| now().saturating_sub(at) >= CHECK_INTERVAL))
+                        .is_none_or(|at| now().saturating_sub(at) >= NOTIFY_INTERVAL))
             {
                 eprintln!(
                     "SQLX {} is available. Run: sqlx update install",
@@ -623,4 +658,32 @@ fn restore(backup: &Path, target: &Path, expected: &str) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_intervals_follow_the_repeating_desktop_schedule() {
+        // The desktop application checks 30 minutes after start, then 1, 2, 4 and 6 hours, and repeats.
+        assert_eq!(check_interval(0), 30 * 60);
+        assert_eq!(check_interval(1), 30 * 60);
+        assert_eq!(check_interval(2), 60 * 60);
+        assert_eq!(check_interval(3), 120 * 60);
+        assert_eq!(check_interval(4), 240 * 60);
+        assert_eq!(check_interval(5), 360 * 60);
+        assert_eq!(check_interval(6), 30 * 60);
+        assert_eq!(check_interval(31), 30 * 60);
+    }
+
+    #[test]
+    fn older_check_records_still_deserialize() {
+        let record: CheckRecord = serde_json::from_str(
+            r#"{"source":"https://example.test/releases","current_version":"0.1.17","checked_at":1,
+                "status":"up_to_date","latest_version":null,"release_url":null,"error":null}"#,
+        )
+        .expect("a record written before the round existed");
+        assert_eq!(record.check_round, 0);
+    }
 }

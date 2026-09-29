@@ -9,6 +9,7 @@ pub mod results;
 pub mod settings;
 pub mod storage;
 pub mod ui;
+pub mod usage;
 
 mod process;
 pub mod updates;
