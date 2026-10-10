@@ -16,9 +16,11 @@ row to the profile's bundle stack; no profile file edits are needed. Remove it w
 
 ## Requirements
 
-- DeepSeek Harness 0.1.5 or later.
+- DeepSeek Harness 0.1.5 or later, including the 0.2.0 release candidates.
 - `@deepseek-ai/dsh-tools` (peer dependency) — bundled with dsh, and the profile installer runs
-  pnpm with `autoInstallPeers: false`, so nothing extra is installed.
+  pnpm with `autoInstallPeers: false`, so nothing extra is installed. The peer range covers
+  `>=0.1.5-rc.1 <0.2.0`, `>=0.1.6-alpha.1 <0.2.0-0` and `>=0.2.0-rc.1 <0.3.0-0`; the plugin
+  uses only `defineTool` and `ctx.tools.register`, which are unchanged in 0.2.
 - The [`sqlx` CLI](https://www.npmjs.com/package/@ottermind/sqlx) 0.1.15 or later. The plugin looks
   for `SQLX_BIN`, then `sqlx` on `PATH`, then the official user-level installation
   (`~/.local/bin/sqlx`, `%LOCALAPPDATA%\Programs\SQLX\sqlx.exe`, or `SQLX_INSTALL_DIR`), and when
