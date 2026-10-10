@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sqlx": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/sqlx-mcp",
+      "args": []
+    }
+  }
+}

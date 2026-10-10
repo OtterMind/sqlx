@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "sqlx": {
+      "command": "./bin/sqlx-mcp",
+      "args": [],
+      "cwd": ".",
+      "env_vars": [
+        "SQLX_BIN",
+        "SQLX_DATA_DIR",
+        "SQLX_INSTALL_DIR",
+        "SQLX_MANIFEST",
+        "SQLX_NO_UPDATE_CHECK",
+        "HOME",
+        "LOCALAPPDATA",
+        "PATH"
+      ]
+    }
+  }
+}
