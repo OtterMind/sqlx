@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 type Theme = "light" | "dark";
 const storageKey = "sqlx.ui.theme";
 
@@ -31,9 +33,9 @@ export function initializeTheme(): void {
   let preference = restoreTheme();
   const apply = (theme: Theme) => {
     applyTheme(theme);
-    const label = theme === "dark" ? "Light mode" : "Dark mode";
-    toggle.setAttribute("aria-label", `Switch to ${label.toLowerCase()}`);
-    toggle.title = `Switch to ${label.toLowerCase()}`;
+    const label = theme === "dark" ? t("theme.switchToLight") : t("theme.switchToDark");
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
   };
   const followSystem = () => apply(system.matches ? "dark" : "light");
   if (preference) apply(preference);

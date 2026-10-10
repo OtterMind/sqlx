@@ -1,3 +1,5 @@
+#[path = "analytics_api.rs"]
+mod analytics_api;
 use anyhow::Result;
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, Request, State},
@@ -39,6 +41,8 @@ type Local = Arc<App>;
 
 pub struct App {
     pub state: UiState,
+    analytics_runs: Mutex<HashMap<String, analytics_api::ChartRun>>,
+    analytics_slots: tokio::sync::Semaphore,
     plugin_cache: Mutex<HashMap<String, Arc<Plugin>>>,
     pub root: PathBuf,
     manifest: String,
@@ -161,6 +165,8 @@ impl App {
         );
         Ok(Self {
             plugin_cache: Mutex::new(plugin_cache),
+            analytics_runs: Mutex::new(HashMap::new()),
+            analytics_slots: tokio::sync::Semaphore::new(3),
             state,
             root,
             manifest,
@@ -246,7 +252,14 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
         && (path == "/"
             || path.starts_with("/setup/")
             || path.starts_with("/result/")
-            || path.starts_with("/datasource/"));
+            || path.starts_with("/datasource/")
+            || path == "/dashboards"
+            || path.starts_with("/dashboard/")
+            || path == "/datasources"
+            || path == "/results"
+            || path == "/setups"
+            || path == "/datasets"
+            || path.starts_with("/dataset/"));
     let forbidden = || {
         ApiError(
             StatusCode::FORBIDDEN,
@@ -332,6 +345,30 @@ async fn protect(State(app): State<Local>, request: Request, next: Next) -> Resp
 }
 pub fn router(app: Local) -> Router {
     Router::new()
+        .route("/dashboards", get(index))
+        .route("/dashboard/{id}", get(index))
+        // Overview pages: every sidebar label owns one.
+        .route("/datasources", get(index))
+        .route("/results", get(index))
+        .route("/setups", get(index))
+        .route("/datasets", get(index))
+        .route("/dataset/{id}", get(index))
+        .route("/api/analytics", get(analytics_api::catalog))
+        .route("/api/analytics/charts", post(analytics_api::save_chart))
+        .route(
+            "/api/analytics/dashboards",
+            post(analytics_api::save_dashboard),
+        )
+        .route("/api/analytics/delete", post(analytics_api::delete))
+        .route("/api/analytics/charts/{id}/run", post(analytics_api::run))
+        .route(
+            "/api/analytics/snapshots/{id}",
+            get(analytics_api::metadata),
+        )
+        .route(
+            "/api/analytics/snapshots/{id}/rows",
+            get(analytics_api::rows),
+        )
         .route("/favicon.ico", get(|| async { StatusCode::NO_CONTENT }))
         .route("/", get(index))
         .route("/setup/{id}", get(index))
@@ -440,10 +477,36 @@ async fn home(State(app): State<Local>) -> ApiResult {
             json!({"id":s.id,"name":s.request.name,"status":s.status})
         })
         .collect::<Vec<_>>();
-    let results=app.results.lock().unwrap().values().filter_map(|r|{let r=r.lock().unwrap();(!r.expired()).then(||json!({"id":r.metadata.result_id,"name":r.metadata.datasource_name,"status":r.metadata.status,"created_at":r.metadata.created_at}))}).collect::<Vec<_>>();
+    // A result is named after the SQL it ran: several queries against one database must not all
+    // read as the datasource name in the history list.
+    let results=app.results.lock().unwrap().values().filter_map(|r|{let r=r.lock().unwrap();(!r.expired()).then(||json!({"id":r.metadata.result_id,"name":result_title(&r.metadata),"datasource":r.metadata.datasource_name,"status":r.metadata.status,"created_at":r.metadata.created_at}))}).collect::<Vec<_>>();
     Ok(Json(
         json!({"datasources":datasources,"setups":setups,"results":results}),
     ))
+}
+/// One line that identifies a stored result: the name the caller gave it, else its SQL.
+fn result_title(metadata: &Metadata) -> String {
+    if let Some(description) = metadata
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return description.to_string();
+    }
+    let statement = metadata
+        .statements
+        .first()
+        .map(|sql| sql.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default();
+    if statement.is_empty() {
+        return metadata.datasource_name.clone();
+    }
+    let mut title: String = statement.chars().take(58).collect();
+    if statement.chars().count() > 58 {
+        title.push('…');
+    }
+    title
 }
 
 async fn load_datasource(app: &App, id: &str) -> std::result::Result<Datasource, ApiError> {
@@ -764,13 +827,14 @@ async fn create_result(State(app): State<Local>, Json(request): Json<ViewRequest
             ));
         }
         let result = Arc::new(Mutex::new(
-            ResultStore::create(
+            ResultStore::create_described(
                 &app.root.join("results"),
                 &id,
                 source.id.clone(),
                 source.name.clone(),
                 request.statements.clone(),
                 sqlx_core::results::PAGE_ORIGIN,
+                request.description.clone(),
             )
             .map_err(internal)?,
         ));

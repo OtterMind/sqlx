@@ -10,6 +10,7 @@ import {
   selectField,
   statusBadge,
 } from "./components";
+import { t } from "./i18n";
 
 import type { SetupView as Setup } from "../sdk/types";
 
@@ -23,7 +24,7 @@ export async function setupPage(
   signal.throwIfAborted();
   root.className = "setup-page";
   root.replaceChildren(
-    heading(setup.editing ? "Edit connection" : "Connect datasource"),
+    heading(setup.editing ? t("setup.edit") : t("setup.connect")),
   );
   const card = element("section", "card setup-card");
   const form = element("form");
@@ -37,9 +38,9 @@ export async function setupPage(
   intro.append(identity, status);
   const fields = element("fieldset");
   const grid = element("div", "field-grid");
-  const name = field("Connection name", "name", setup.name);
+  const name = field(t("setup.nameField"), "name", setup.name);
   const kind = selectField(
-    "Database type",
+    t("setup.databaseType"),
     "database_type",
     [
       ["mysql", "MySQL"],
@@ -76,26 +77,26 @@ export async function setupPage(
     ],
     setup.connection.database_type,
   );
-  const host = field("Host", "host", setup.connection.host);
-  const port = field("Port", "port", String(setup.connection.port), "number");
+  const host = field(t("setup.host"), "host", setup.connection.host);
+  const port = field(t("setup.port"), "port", String(setup.connection.port), "number");
   port.input.min = "1";
   port.input.max = "65535";
-  const database = field("Database", "database", setup.connection.database);
+  const database = field(t("setup.database"), "database", setup.connection.database);
   const databaseLabel = database.wrapper.querySelector("label");
   const hostLabel = host.wrapper.querySelector("label");
-  const service = field("Service name", "service", setup.connection.service);
+  const service = field(t("setup.service"), "service", setup.connection.service);
   const tls = selectField(
-    "Connection security",
+    t("setup.security"),
     "tls",
     [
-      ["verify-full", "TLS · verify certificate"],
-      ["disable", "Unencrypted connection"],
+      ["disable", t("setup.security.plain")],
+      ["verify-full", t("setup.security.tlsVerify")],
     ],
     setup.connection.tls,
   );
-  const username = field("Username", "username", setup.connection.username);
+  const username = field(t("setup.username"), "username", setup.connection.username);
   username.input.autocomplete = "username";
-  const password = field("Password", "password", "", "password");
+  const password = field(t("setup.password"), "password", "", "password");
   password.input.autocomplete = "current-password";
   signal.addEventListener(
     "abort",
@@ -105,17 +106,17 @@ export async function setupPage(
     { once: true },
   );
   const passwordAction = selectField(
-    "Password handling",
+    t("setup.passwordMode"),
     "password_action",
     setup.editing
       ? [
-          ["keep", "Keep saved password"],
-          ["replace", "Enter a new password"],
-          ["clear", "Use an empty password"],
+          ["keep", t("setup.password.keep")],
+          ["replace", t("setup.password.replace")],
+          ["clear", t("setup.password.clear")],
         ]
       : [
-          ["replace", "Enter a password"],
-          ["clear", "Use an empty password"],
+          ["replace", t("setup.password.enter")],
+          ["clear", t("setup.password.clear")],
         ],
     setup.editing ? "keep" : "replace",
   );
@@ -139,7 +140,7 @@ export async function setupPage(
     password.wrapper,
   );
   const details = element("details", "connection-details");
-  details.append(element("summary", "", "Connection settings"), grid);
+  details.append(element("summary", "", t("setup.title")), grid);
   const adjust = () => {
     const engine = kind.input.value;
     // SQLite and DuckDB open a file; H2 does too until a host is given.
@@ -154,11 +155,11 @@ export async function setupPage(
     username.input.required = !embedded;
     if (databaseLabel)
       databaseLabel.textContent = file
-        ? "Database file"
+        ? t("setup.databaseFile")
         : engine === "h2"
-          ? "Database or file"
-          : "Database";
-    if (hostLabel && engine === "h2") hostLabel.textContent = "Host (empty for a local file)";
+          ? t("setup.databaseOrFile")
+          : t("setup.database");
+    if (hostLabel && engine === "h2") hostLabel.textContent = t("setup.hostHint");
     context.textContent = file
       ? `${kind.input.selectedOptions[0].text} · ${database.input.value}`
       : `${kind.input.selectedOptions[0].text} · ${host.input.value}:${port.input.value} · ${service.input.value || database.input.value}`;
@@ -186,14 +187,14 @@ export async function setupPage(
   const notice = element(
     "p",
     "privacy-note",
-    "Your password is saved locally and is not sent to your agent.",
+    t("setup.privacy"),
   );
   const feedback = element("div", "feedback");
   feedback.setAttribute("role", "status");
   const actions = element("div", "actions");
-  const save = button("Save & connect");
+  const save = button(t("setup.save"));
   save.type = "submit";
-  const cancel = button("Cancel", "button secondary");
+  const cancel = button(t("setup.cancel"), "button secondary");
   actions.append(cancel, save);
   fields.append(credentials, notice, details, actions);
   form.append(fields, feedback);
@@ -208,16 +209,16 @@ export async function setupPage(
     feedback.textContent =
       next.error ??
       (next.status === "saving"
-        ? "Checking the connection… Required drivers may download on the first connection."
+        ? t("setup.checkingDrivers")
         : next.status === "completed"
-          ? "Connected and saved. Return to your agent to continue."
+          ? t("setup.connected")
           : next.status === "cancelled"
-            ? "Setup cancelled. Nothing was saved."
+            ? t("setup.cancelled")
             : next.status === "expired"
-              ? "This request expired. Ask your agent to open a new setup page."
+              ? t("setup.expired")
               : "");
     if (next.status === "completed" && next.datasource_id) {
-      const link = element("a", "saved-datasource-link", "View datasource");
+      const link = element("a", "saved-datasource-link", t("setup.view"));
       link.href = `/datasource/${next.datasource_id}`;
       feedback.append(" ", link);
     }
@@ -251,7 +252,7 @@ export async function setupPage(
     };
     fields.disabled = true;
     feedback.className = "feedback";
-    feedback.textContent = "Checking the connection…";
+    feedback.textContent = t("setup.checking");
     try {
       const next = await api<Setup>(`/setups/${id}`, {
         name: name.input.value,

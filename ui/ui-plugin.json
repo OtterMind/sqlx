@@ -2,14 +2,15 @@
   "schema_version": 1,
   "id": "default",
   "name": "SQLX Default",
-  "version": "0.1.6",
+  "version": "0.1.19",
   "api_version": 1,
-  "cli_compat": ">=0.1.4, <0.2.0",
+  "cli_compat": ">=0.1.19, <0.2.0",
   "entrypoint": "index.html",
   "capabilities": [
     "workspace",
     "datasource-setup",
-    "query-results"
+    "query-results",
+    "analytics"
   ],
-  "description": "The default SQLX connection forms and query results interface."
+  "description": "The SQLX workspace with connection forms, query results, charts and dashboards."
 }

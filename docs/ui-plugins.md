@@ -119,7 +119,7 @@ SQL runs once when the CLI submits `sql execute --view`. The browser can explici
 
 Statement and result indexes are zero-based. Rows are positional arrays so duplicate column labels remain separate. SQL NULL is JSON `null`; integer/decimal values are strings, and binary values use Base64 according to column encoding. Do not coerce exact strings to JavaScript numbers. Render values, SQL and errors as text, never HTML.
 
-Limits are 1–200 rows (default 100); pages may contain fewer rows to keep responses near 2 MiB, while one large row remains complete. Advance using `next_offset`, not the requested limit; store prior offsets for backwards paging when rows are large. `total_rows` can grow during execution. A result may include several tables and an error/skipped statement event. Display update counts from `affected_rows` as well as row data.
+A page limit is any value from 1 upwards (default 100); pages contain fewer rows when the data ends or when the response would exceed roughly 2 MiB, while one large row remains complete. Advance using `next_offset`, not the requested limit; store prior offsets for backwards paging when rows are large. `total_rows` can grow during execution. A result may include several tables and an error/skipped statement event. Display update counts from `affected_rows` as well as row data.
 
 Poll queued/running results without overlapping requests, stop polling at a terminal state, and clean up timers when leaving a route. Cancellation can leave an unknown write outcome; never infer rollback. Results survive restarts for 24 hours; unfinished runs recover as interrupted without replay.
 

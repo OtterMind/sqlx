@@ -16,6 +16,7 @@ sqlx-protocol.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sqlparser = { version = "0.61", features = ["visitor"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tokio.workspace = true
 tokio-util = { version = "0.7", features = ["rt"] }

@@ -1,10 +1,11 @@
 import { api } from "./api";
 import { editDatasource, testDatasource } from "../sdk/client";
-import type { DatabaseType, Datasource } from "../sdk/types";
+import type { ConnectionTest, DatabaseType, Datasource, SetupStatus } from "../sdk/types";
 import { button, element, heading, message } from "./components";
+import { t } from "./i18n";
 import { navigate } from "./navigation";
 
-const databaseNames: Record<DatabaseType, string> = {
+export const databaseNames: Record<DatabaseType, string> = {
   mysql: "MySQL",
   mariadb: "MariaDB",
   tidb: "TiDB",
@@ -50,14 +51,17 @@ export function datasourceList(
     "section",
     compact ? "sidebar-section" : "card home-section",
   );
-  const header = element("div", "section-heading");
+  // The heading is the way into the datasource overview, matching how the Dashboards entry works.
+  const header = element("a", compact ? "section-heading sidebar-overview" : "section-heading");
+  header.href = "/datasources";
+  if (location.pathname === header.pathname) header.setAttribute("aria-current", "page");
   header.append(
-    element("h2", "", "Datasources"),
+    element("h2", "", t("app.nav.datasources")),
     element("span", "entry-count", String(sources.length)),
   );
   section.append(header);
   if (!sources.length)
-    section.append(element("p", "muted", "No saved datasources"));
+    section.append(element("p", "muted", t("app.empty.datasources")));
   for (const source of [...sources].sort((a, b) =>
     a.name.localeCompare(b.name),
   )) {
@@ -82,6 +86,14 @@ export function datasourceList(
   return section;
 }
 
+/** Opens the connection form for a saved datasource; the caller navigates to the returned setup request. */
+export function openConnectionSettings(id: string): Promise<SetupStatus> {
+  return editDatasource(id);
+}
+/** Tests a saved datasource without touching stored credentials. */
+export function testDatasourceConnection(id: string): Promise<ConnectionTest> {
+  return testDatasource(id);
+}
 export async function datasourcePage(
   root: HTMLElement,
   id: string,
@@ -100,36 +112,36 @@ export async function datasourcePage(
   const file = isFileEngine(c.database_type) || (c.database_type === "h2" && !c.host);
   const values: [string, string][] = file
     ? [
-        ["Database type", databaseNames[c.database_type]],
-        ["Database file", c.database],
+        [t("setup.databaseType"), databaseNames[c.database_type]],
+        [t("setup.databaseFile"), c.database],
       ]
     : [
-        ["Database type", databaseNames[c.database_type]],
-        ["Host", c.host],
-        ["Port", String(c.port)],
+        [t("setup.databaseType"), databaseNames[c.database_type]],
+        [t("setup.host"), c.host],
+        [t("setup.port"), String(c.port)],
         [
           c.database_type === "oracle" || c.database_type === "informix" || c.database_type === "gbase8s"
-            ? "Service name"
-            : "Database",
+            ? t("setup.service")
+            : t("setup.database"),
           c.database_type === "oracle" || c.database_type === "informix" || c.database_type === "gbase8s"
             ? c.service
-            : c.database || "Not specified",
+            : c.database || t("datasource.notSpecified"),
         ],
         [
-          "Connection security",
-          c.tls === "disable" ? "TLS disabled" : "Verify server certificate",
+          t("setup.security"),
+          c.tls === "disable" ? t("setup.security.tlsOff") : t("setup.security.verify"),
         ],
       ];
   for (const [label, value] of values)
     details.append(element("dt", "", label), element("dd", "", value));
   const actions = element("div", "actions");
-  const test = button("Test connection", "button secondary");
-  const edit = button("Edit connection");
+  const test = button(t("datasource.test"), "button secondary");
+  const edit = button(t("datasource.edit"));
   const feedback = element("p", "feedback");
   feedback.setAttribute("role", "status");
   actions.append(test, edit);
   card.append(details, actions, feedback);
-  root.replaceChildren(heading(source.name, "Saved datasource"), card);
+  root.replaceChildren(heading(source.name, t("datasource.saved")), card);
 
   async function run(action: "test" | "edit") {
     if (signal.aborted || test.disabled) return;
@@ -137,15 +149,15 @@ export async function datasourcePage(
     feedback.className = "feedback";
     feedback.textContent =
       action === "test"
-        ? "Testing connection…"
-        : "Opening connection settings…";
+        ? t("datasource.testing")
+        : t("datasource.opening");
     try {
       if (action === "test") {
-        const result = await testDatasource(id);
+        const result = await testDatasourceConnection(id);
         if (!signal.aborted)
-          feedback.textContent = `Connected successfully (${result.duration_ms} ms).`;
+          feedback.textContent = t("datasource.test.ok", { ms: result.duration_ms });
       } else if (action === "edit") {
-        const setup = await editDatasource(id);
+        const setup = await openConnectionSettings(id);
         if (!signal.aborted) navigate(`/setup/${setup.request_id}`);
       }
     } catch (error) {

@@ -187,7 +187,8 @@ pub struct Connection {
     pub properties: BTreeMap<String, String>,
 }
 fn default_tls() -> String {
-    "verify-full".into()
+    // Local and internal databases usually serve no certificate; TLS is opt-in per datasource.
+    "disable".into()
 }
 impl Connection {
     /// A connection that opens a local file: a file-based engine, or embedded H2 without a host.

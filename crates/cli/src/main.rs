@@ -90,6 +90,11 @@ enum Commands {
         #[command(subcommand)]
         command: DriverCommand,
     },
+    /// Create the charts and dashboards the local UI renders, without the UI running.
+    Analytics {
+        #[command(subcommand)]
+        command: sqlx_core::analytics_command::AnalyticsCommand,
+    },
 }
 #[derive(Subcommand)]
 enum DriverCommand {
@@ -266,6 +271,9 @@ enum SqlCommand {
         /// Execute once in the local UI service and open a paginated result page.
         #[arg(long)]
         view: bool,
+        /// Label for this query, shown in the history list and on the result page.
+        #[arg(long, requires = "view")]
+        description: Option<String>,
         /// Rows printed per result set; more rows are stored and pointed at by `file`.
         #[arg(long, value_name = "ROWS")]
         preview: Option<u64>,
@@ -571,6 +579,7 @@ fn run(cli: Cli) -> Result<bool> {
                     datasource,
                     statements,
                     view,
+                    description,
                     preview,
                     full,
                     events,
@@ -591,6 +600,7 @@ fn run(cli: Cli) -> Result<bool> {
                         request_id: uuid::Uuid::new_v4().to_string(),
                         datasource: source.id,
                         statements,
+                        description,
                     },
                 )?;
                 result["url"] = client
@@ -647,6 +657,16 @@ fn run(cli: Cli) -> Result<bool> {
         }
         Commands::Driver { command } => {
             return driver_command(&root, command);
+        }
+        Commands::Analytics { command } => {
+            Store::open(root.clone())?;
+            let value = sqlx_core::analytics_command::command(
+                &root,
+                cli.manifest.clone(),
+                cli.worker_dir.clone(),
+                command,
+            )?;
+            print(value);
         }
         Commands::Ui { command } => match command {
             Some(UiCommand::Plugin { command }) => {
@@ -1034,7 +1054,7 @@ impl ConnectionArgs {
                 service: String::new(),
                 username: String::new(),
                 password: String::new(),
-                tls: "verify-full".into(),
+                tls: "disable".into(),
                 properties: BTreeMap::new(),
             }
         };

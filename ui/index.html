@@ -4,15 +4,16 @@
     <base href="__SQLX_UI_BASE__/" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SQLX · Local workspace</title>
+    <title data-i18n="shell.title">SQLX · Local workspace</title>
     <meta name="color-scheme" content="light dark" />
     <script src="theme.js"></script>
+    <link rel="stylesheet" href="gridstack.css" />
     <link rel="stylesheet" href="app.css" />
     <script type="module" src="app.js"></script>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/" aria-label="SQLX home">
+      <a class="brand" href="/" aria-label="SQLX home" data-i18n="shell.brandHome" data-i18n-attr="aria-label">
         <svg
           class="mark"
           viewBox="0 0 24 24"
@@ -28,12 +29,13 @@
         </svg>
         SQLX
       </a>
-      <a class="workspace-link" href="/">Workspace</a>
       <button
         id="theme-toggle"
         class="theme-toggle"
         type="button"
         aria-label="Switch color theme"
+        data-i18n="shell.themeSwitch"
+        data-i18n-attr="aria-label"
       >
         <svg
           class="theme-sun"
@@ -61,15 +63,23 @@
           <path d="M20.5 13.4A8.5 8.5 0 0 1 10.6 3.5a8.5 8.5 0 1 0 9.9 9.9Z" />
         </svg>
       </button>
+      <button id="language-toggle" type="button" aria-label="Switch language" aria-haspopup="menu" aria-expanded="false" data-i18n="shell.languageSwitch" data-i18n-attr="aria-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3c2.6 2.6 4 5.6 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.6-4-9s1.4-6.4 4-9Z" />
+        </svg>
+      </button>
     </header>
     <div class="workbench">
       <aside
         id="sidebar"
         class="workspace-sidebar"
         aria-label="Workspace navigation"
+        data-i18n="shell.workspaceNav"
+        data-i18n-attr="aria-label"
       ></aside>
       <main id="app" aria-live="polite">
-        <p class="loading">Opening your workspace…</p>
+        <p class="loading" data-i18n="shell.loading">Opening your workspace…</p>
       </main>
     </div>
   </body>

@@ -40,6 +40,9 @@ pub struct ViewRequest {
     pub request_id: String,
     pub datasource: String,
     pub statements: Vec<String>,
+    /// Optional label for the query, shown in the history list and on the result page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 pub struct UiClient {
