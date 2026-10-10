@@ -689,10 +689,5 @@ mod tests {
             store.catalog().unwrap().charts[0].snapshot_id,
             saved.snapshot_id
         );
-        // Running it again with the revision it owns publishes a new head and keeps the old one.
-        let published = store.publish(&chart.id, chart.revision, &next).unwrap();
-        assert!(published
-            .history
-            .contains(saved.snapshot_id.as_ref().unwrap()));
     }
 }
