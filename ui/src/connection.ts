@@ -1,11 +1,12 @@
 import { api } from "./api";
 import { button, element, message } from "./components";
+import { t } from "./i18n";
 
 /** An open workspace is activity, even when its cached result no longer needs polling. */
 export function keepConnectionAlive(): void {
   const notice = element("div", "connection-notice");
   const text = element("span");
-  const retry = button("Retry", "button secondary");
+  const retry = button(t("common.retry"), "button secondary");
   notice.setAttribute("role", "status");
   notice.hidden = true;
   notice.append(text, retry);
@@ -19,7 +20,7 @@ export function keepConnectionAlive(): void {
         notice.hidden = true;
       })
       .catch((error: unknown) => {
-        text.textContent = "SQLX connection lost";
+        text.textContent = t("connection.lost");
         notice.title = message(error);
         notice.hidden = false;
         throw error;

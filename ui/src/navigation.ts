@@ -38,7 +38,7 @@ export function startNavigation(
       url.origin !== location.origin ||
       url.hash ||
       url.search ||
-      !/^\/(?:$|(?:setup|result|datasource)\/[^/]+$)/.test(url.pathname)
+      !/^\/(?:$|(?:setup|result|datasource|dashboard)\/[^/]+$|(?:dashboards|datasources|results|setups)$)/.test(url.pathname)
     )
       return;
     event.preventDefault();

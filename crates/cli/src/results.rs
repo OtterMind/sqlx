@@ -40,6 +40,9 @@ pub struct Metadata {
     pub datasource_id: String,
     pub datasource_name: String,
     pub statements: Vec<String>,
+    /// What the person called this query; the history list shows it instead of the SQL.
+    #[serde(default)]
+    pub description: Option<String>,
     pub created_at: u64,
     pub status: String,
     pub duration_ms: u64,
@@ -90,6 +93,18 @@ impl ResultStore {
         statements: Vec<String>,
         origin: &str,
     ) -> Result<Self> {
+        Self::create_described(parent, id, source_id, source_name, statements, origin, None)
+    }
+    /// Same as create, with a human title for the query.
+    pub fn create_described(
+        parent: &Path,
+        id: &str,
+        source_id: String,
+        source_name: String,
+        statements: Vec<String>,
+        origin: &str,
+        description: Option<String>,
+    ) -> Result<Self> {
         uuid::Uuid::parse_str(id)?;
         let dir = parent.join(id);
         fs::create_dir_all(&dir)?;
@@ -100,6 +115,7 @@ impl ResultStore {
                 datasource_id: source_id,
                 datasource_name: source_name,
                 statements,
+                description: description.filter(|value| !value.trim().is_empty()),
                 created_at: now(),
                 status: "queued".into(),
                 duration_ms: 0,
@@ -366,8 +382,10 @@ impl ResultStore {
         self.persist()
     }
     pub fn page(&self, statement: usize, result: usize, offset: u64, limit: usize) -> Result<Page> {
-        if !(1..=200).contains(&limit) {
-            bail!("page limit must be between 1 and 200");
+        // Any page size is allowed: a page ends at the row count or at the byte budget below, so a
+        // large limit cannot make a single response grow without bound.
+        if limit == 0 {
+            bail!("page limit must be at least 1");
         }
         let table = self
             .metadata
@@ -410,6 +428,34 @@ impl ResultStore {
             page.next_offset += 1;
         }
         Ok(page)
+    }
+    /// Copy completed rows to an independent durable snapshot. The source is unchanged.
+    pub fn copy_snapshot(&self, parent: &Path, id: &str) -> Result<()> {
+        uuid::Uuid::parse_str(id)?;
+        if self.metadata.status != "completed" || self.metadata.tables.iter().any(|t| !t.complete) {
+            bail!("Only completed results can be saved as a dataset");
+        }
+        let dir = parent.join(id);
+        fs::create_dir(&dir)?;
+        restrict(&dir, true)?;
+        for table in &self.metadata.tables {
+            if table.columns.is_empty() {
+                continue;
+            }
+            for ext in ["jsonl", "idx"] {
+                let name = format!("{}-{}.{}", table.statement, table.result, ext);
+                let target = dir.join(&name);
+                fs::copy(self.dir.join(name), &target)?;
+                restrict(&target, false)?;
+                File::open(&target)?.sync_all()?;
+            }
+        }
+        let mut meta = self.metadata.clone();
+        meta.result_id = id.into();
+        meta.origin = "analytics".into();
+        meta.snapshot = None;
+        meta.refresh = None;
+        atomic_write(&dir.join("metadata.json"), &serde_json::to_vec(&meta)?)
     }
     pub fn expired(&self) -> bool {
         self.expired_after(RETENTION_SECONDS)

@@ -10,13 +10,12 @@ import type {
   ConnectionTest,
   ResultRefresh,
 } from "./types";
+import { t } from "../src/i18n";
 export * from "./types";
 
 export class ServiceUnavailableError extends Error {
   constructor() {
-    super(
-      "Cannot reach the local SQLX service. Retry the connection. If it has stopped, run sqlx ui --no-open and open its URL in this tab.",
-    );
+    super(t("connection.lost"));
     this.name = "ServiceUnavailableError";
   }
 }
@@ -44,7 +43,7 @@ export async function api<T>(
     const value = await response.json().catch(() => null);
     throw new Error(
       value?.error?.message ??
-        `The local request failed (HTTP ${response.status}).`,
+        t("app.error.request", { status: response.status }),
     );
   }
   return (await response.json()) as T;

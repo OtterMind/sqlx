@@ -4,6 +4,10 @@ The CLI launches a separately downloadable `sqlx-ui` process on loopback. Fronte
 
 SQLX 0.1.3 adds saved datasources to the default workbench sidebar and home page. Selecting one shows its nonsecret settings and offers explicit connection testing and editing. Editing reuses the existing credential form and stale-edit protection; a successful save updates the sidebar. Completed/cancelled setup tasks no longer occupy the pending connection-request list.
 
+## Language
+
+The interface ships with English and Simplified Chinese. The picker in the top bar stores the choice under `sqlx.ui.locale`; without a stored choice the UI follows `navigator.languages` and falls back to English. A blocking head script applies the language before the first paint, and switching re-renders the current page in place. Catalogues are JSON under `src/i18n/locales/`; English is the typed source of truth, so `t()` rejects unknown keys at build time and both catalogues must keep the same key set. Adding a language means adding one catalogue and one entry in `locales`.
+
 ## Commands
 
 - `datasource add --ui ...` creates a prefilled setup request without prompting for or accepting a password in the command. `--username-env` can prefill a known username.

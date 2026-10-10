@@ -7,6 +7,7 @@
   font-synthesis: none;
   --text: #29313d;
   --muted: #6a7483;
+  --faint: #8b93a1;
   --background: #f6f7f9;
   --surface: #fff;
   --subtle: #f7f8fa;
@@ -17,6 +18,174 @@
   --success: #278360;
   --error: #c44343;
   --error-bg: #fff4f3;
+}
+
+/* Analytics shares the workbench shell and its light/dark palette. */
+.analytics-page { min-width: 0; }
+.analytics-object-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 360px)); gap: 16px; margin-top: 24px; }
+.analytics-object { position: relative; cursor: pointer; color: var(--text); padding: 24px; }
+.analytics-object-main { display: block; text-decoration: none; color: inherit; }
+.analytics-object .muted { color: var(--faint); }
+.analytics-object h2 { margin: 0 0 10px; font-size: 18px; }
+/* Edit and delete sit in the card's top-right corner and only appear on hover. */
+.analytics-object .card-actions { position: absolute; top: 12px; right: 12px; }
+.analytics-object .card-actions .result-icon { background: var(--surface); }
+.dataset-intro { max-width: 920px; margin: 22px 0 16px; padding: 20px 24px; }
+.dataset-intro h2 { margin: 0 0 10px; font-size: 16px; }
+.dataset-intro p { margin: 7px 0 0; line-height: 1.65; }
+.workspace-overview .entry-count { margin-left: auto; }
+.dashboard-title { min-width: 0; }
+.dashboard-back { display: inline-block; color: var(--muted); font-size: 12px; text-decoration: none; margin-bottom: 6px; }
+.dashboard-back:hover { color: var(--accent); }
+.dashboard-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.dashboard-heading h1 { font-size: 26px; letter-spacing: -.6px; }
+.dashboard-actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
+
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; overflow: hidden; }
+.chart-card-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 24px; }
+.chart-card-heading h2 { margin: 0; font-size: 14px; font-weight: 650; flex: 1; }
+/* The grip is the card's only drag handle; it stays visible so the affordance is discoverable. */
+.chart-card-grip { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: grab; }
+.chart-card-grip svg { width: 16px; height: 16px; pointer-events: none; }
+.chart-card-grip:hover { color: var(--text); background: var(--subtle); }
+.chart-card-grip:focus-visible { outline: 1px solid var(--accent); }
+.grid-stack-item.ui-draggable-dragging .chart-card-grip, .chart-card-grip:active { cursor: grabbing; }
+/* Card actions appear on hover only; they share the result toolbar's 24px icon hit area. */
+.card-actions { display: flex; align-items: center; gap: 4px; }
+.chart-card .card-actions { flex: none; }
+.card-actions .result-icon svg { width: 15px; height: 15px; }
+.card-actions .result-icon { width: 22px; height: 22px; }
+@media (hover: hover) {
+  /* Hidden actions keep their space so revealing them never reflows the card. */
+  .card-actions-hidden { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s ease; }
+}
+/* One quiet provenance line per card: query · type · snapshot · rows. */
+.card-meta { margin: 8px 0 0; color: var(--faint); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-meta.error { color: var(--error); }
+.chart-canvas { min-height: 30px; width: 100%; flex: 1; min-width: 0; overflow: hidden; margin-top: 8px; }
+/* Table charts scroll inside their card instead of growing it. */
+.chart-canvas .result-set { height: 100%; }
+.chart-canvas:has(.stat-value) { display: flex; flex-direction: column; justify-content: center; }
+.stat-value { font-size: clamp(24px, 3vw, 42px); font-weight: 650; line-height: 1.15; letter-spacing: -1px; overflow-wrap: anywhere; }
+.stat-unit { color: var(--muted); margin-top: 8px; }
+/* Header status chip: transient success, persistent error; the min-height keeps the grid still. */
+.dashboard-status { min-height: 18px; margin-top: 6px; }
+.status-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.status-chip.error { color: var(--error); }
+.status-chip .chip-action { border: 0; background: none; color: var(--accent); font-size: 12px; padding: 0; cursor: pointer; text-decoration: underline; }
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 56px 24px; text-align: center; }
+.empty-state p { margin: 0; }
+.dashboard-presenting .workspace-sidebar, .dashboard-presenting .topbar { display: none; }
+.dashboard-presenting .workbench { display: block; }
+.dashboard-presenting main { width: 100%; height: 100vh; }
+.dashboard-presenting .chart-card-heading { cursor: default; }
+/* Presentation is read-only: the grip and its affordance disappear with the editing actions. */
+.dashboard-presenting .chart-card-grip { display: none; }
+.dashboard-presenting .ui-resizable-handle { display: none !important; }
+.dashboard-presenting .card-actions { display: none; }
+.analytics-dialog { width: min(520px, calc(100vw - 24px)); background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 24px; }
+.analytics-dialog .field { margin-bottom: 12px; }
+.chart-editor { width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: 16px; padding: 0; background: var(--surface); color: var(--text); display: flex; flex-direction: column; overflow: hidden; }
+.chart-editor::backdrop, .analytics-dialog::backdrop { background: #15172d80; }
+.editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+.editor-heading h2 { margin: 0; font-size: 18px; }
+/* Both dialog actions stay together on the right. */
+.editor-heading-actions { display: flex; align-items: center; gap: 10px; }
+.editor-heading-actions .button { margin: 0; }
+/* Small config column, big views column: three views over one snapshot. */
+.editor-form { display: grid; grid-template-columns: minmax(240px, 280px) minmax(0, 1fr); flex: 1; min-height: 0; }
+.editor-config { padding: 18px 20px; min-height: 0; overflow: auto; border-right: 1px solid var(--line); }
+.editor-config .field { margin-bottom: 12px; }
+.editor-views-pane { min-width: 0; min-height: 0; padding: 16px 20px; display: flex; flex-direction: column; overflow: hidden; }
+.editor-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.editor-tabs .tab { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 13px; padding: 8px 12px; cursor: pointer; }
+.editor-tabs .tab:hover { color: var(--text); }
+.editor-tabs .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.chart-preview-canvas { flex: 1; min-height: 200px; width: 100%; overflow: hidden; }
+.chart-preview-canvas[hidden], .editor-sql-pane[hidden] { display: none; }
+/* The result set never stretches its container: it fills the space and scrolls inside it. */
+.result-set { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.result-set .table-viewport { flex: 1; min-height: 0; overflow: auto; }
+.editor-sql-pane { flex: 1; min-height: 0; overflow: auto; }
+/* Y bindings: one select per metric, extra ones removable. */
+.metric-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.metric-row { display: flex; align-items: flex-end; gap: 6px; }
+.metric-row .field { flex: 1; margin: 0; }
+/* "More settings" keeps advanced options out of the default view. */
+.editor-more { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.editor-more summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.editor-more-body { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+.metric-details { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.metric-details legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
+.metric-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metric-detail .field { margin: 0; }
+.editor-sql-pane { display: flex; flex-direction: column; gap: 12px; }
+.query-picker { display: flex; align-items: flex-end; gap: 8px; }
+.query-picker .field { flex: 1; margin: 0; }
+.query-sql { display: flex; flex-direction: column; gap: 10px; }
+.query-run { display: flex; justify-content: flex-start; }
+
+
+/* Icon plus label buttons in the dashboard header. */
+.icon-text { display: inline-flex; align-items: center; gap: 6px; }
+.icon-text svg { width: 15px; height: 15px; }
+/* Overflow menu anchored under its trigger. */
+.menu { z-index: 60; min-width: 168px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px #0003; }
+.menu-item { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--selection); }
+.menu-item.danger { color: var(--error); }
+
+.sql-editor { font: 12px/1.7 ui-monospace, Menlo, monospace; width: 100%; min-height: 120px; resize: vertical; background: var(--subtle); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 12px; }
+.dataset-table { padding: 12px; }
+.analytics-table-scroll { overflow: auto; max-height: calc(100% - 40px); }
+.dataset-table .analytics-table-scroll { max-height: 450px; }
+.analytics-table { border-collapse: collapse; width: 100%; font-size: 11px; white-space: nowrap; }
+.analytics-table th, .analytics-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+.analytics-table th { position: sticky; top: 0; background: var(--surface); }
+/* Result-set paging: first/prev, numbered pages with ellipses, next/last, page size and range. */
+/* The whole paging block sits at the right edge of the table. */
+.table-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; padding-top: 10px; }
+.table-controls .button { padding: 4px 8px; font-size: 11px; }
+.table-controls > .muted { white-space: nowrap; }
+.table-pager { display: flex; align-items: center; gap: 4px; flex: none; }
+.page-numbers { display: flex; align-items: center; gap: 2px; }
+.page-number { min-width: 26px; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.page-number:hover { color: var(--text); background: var(--subtle); }
+.page-number.active { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.page-gap { color: var(--faint); font-size: 11px; padding: 0 2px; }
+.table-page-size { display: flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; color: var(--muted); font-size: 11px; }
+/* The size picker is inline, so it must not inherit the full-width control sizing. */
+.table-page-size { display: flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; color: var(--muted); font-size: 11px; }
+/* Presets and a custom size in one dropdown, as used by the desktop client. */
+.size-picker { position: relative; }
+.size-trigger { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--text); font-size: 11px; cursor: pointer; }
+.size-trigger::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg) translateY(-2px); }
+.size-trigger:hover { border-color: var(--muted); }
+.size-trigger[aria-expanded="true"] { border-color: var(--accent); }
+.size-panel { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 40; width: 168px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0004; }
+.size-panel[hidden] { display: none; }
+.size-options { max-height: 220px; overflow: auto; }
+.size-option { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text); font-size: 12px; text-align: left; cursor: pointer; }
+.size-option:hover, .size-option:focus-visible { background: var(--subtle); }
+.size-option.active { color: var(--accent); background: var(--selection); }
+.size-option.active::after { content: "✓"; font-size: 11px; }
+.size-separator { height: 1px; margin: 4px 0; background: var(--line); }
+.size-custom { width: 100%; height: 28px; padding: 0 8px; font-size: 12px; }
+.size-custom-row { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+.size-custom-row .size-tick { color: var(--accent); font-size: 11px; visibility: hidden; }
+.size-custom-row.active .size-tick { visibility: visible; }
+.size-custom.active { border-color: var(--accent); color: var(--accent); }
+
+.result-set-feedback { margin: 6px 0 0; text-align: right; }
+@media (max-width: 700px) {
+  .dashboard-heading { flex-direction: column; gap: 0; }
+  .dashboard-actions { padding: 0 0 16px; }
+  .chart-editor { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
+  .editor-form { grid-template-columns: minmax(0, 1fr); }
+  .editor-config { max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .chart-preview-canvas { height: 260px; }
+  .chart-card { padding: 12px; }
+  .analytics-object-list { grid-template-columns: minmax(0, 1fr); }
 }
 * {
   box-sizing: border-box;
@@ -60,14 +229,6 @@ a {
 .mark {
   width: 23px;
   height: 23px;
-  color: var(--accent);
-}
-.workspace-link {
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 12px;
-}
-.workspace-link:hover {
   color: var(--accent);
 }
 main {
@@ -215,6 +376,11 @@ main {
 .page-heading {
   margin-bottom: 20px;
 }
+/* Title on the left, its primary action on the right, always on one row. */
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.page-header .page-heading { margin-bottom: 20px; min-width: 0; }
+.page-actions { display: flex; align-items: center; gap: 8px; padding-top: 2px; flex: none; }
+.page-header + .analytics-object-list { margin-top: 4px; }
 h1,
 h2,
 p {
@@ -275,31 +441,53 @@ h2 {
   gap: 16px;
   padding-top: 16px;
 }
+/* One control geometry everywhere: same height, padding, radius and focus ring. */
 .field {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .field label {
   display: block;
-  margin-bottom: 6px;
+  margin: 0;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 500;
 }
 input,
-select {
+select,
+textarea {
   width: 100%;
-  height: 34px;
-  padding: 6px 10px;
+  height: 32px;
+  padding: 0 10px;
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 6px;
+  font-size: 13px;
+}
+textarea {
+  height: auto;
+  padding: 10px;
+}
+/* Native arrows differ per platform, so the select draws its own chevron. */
+select {
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b93a1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 14px;
 }
 input:hover,
-select:hover {
+select:hover,
+textarea:hover {
   border-color: var(--muted);
 }
-input:focus,
-select:focus {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--selection);
   border-color: var(--accent);
 }
@@ -309,6 +497,9 @@ fieldset {
   border: 0;
   min-width: 0;
 }
+input:disabled,
+select:disabled,
+textarea:disabled,
 fieldset:disabled input,
 fieldset:disabled select {
   background: var(--subtle);
@@ -464,6 +655,13 @@ summary:hover {
   resize: vertical;
   margin: 8px 0 0;
 }
+.result-table-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
 .result-card {
   display: flex;
   flex-direction: column;
@@ -592,22 +790,6 @@ summary:hover {
   border-top: 1px solid var(--line);
   flex-shrink: 0;
 }
-.page-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.page-controls select {
-  height: 28px;
-  width: auto;
-  font-size: 11px;
-  padding: 3px 7px;
-}
-.page-controls .button {
-  min-height: 28px;
-  font-size: 11px;
-  padding: 3px 10px;
-}
 .empty-state {
   padding: 56px 20px;
   color: var(--muted);
@@ -711,6 +893,7 @@ summary:hover {
   color-scheme: dark;
   --text: #c5d1de;
   --muted: #8c99a8;
+  --faint: #6d7987;
   --background: #1c2128;
   --surface: #22272e;
   --subtle: #272e37;
@@ -767,9 +950,6 @@ summary:hover {
   .pagination {
     flex-wrap: wrap;
   }
-  .page-controls {
-    margin-left: auto;
-  }
   .home-entry {
     gap: 10px;
   }
@@ -793,7 +973,9 @@ summary:hover {
   padding: 12px 8px;
 }
 .workspace-overview {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 9px 12px;
   color: var(--text);
   text-decoration: none;
@@ -808,21 +990,48 @@ summary:hover {
 .sidebar-section {
   margin-top: 20px;
 }
+/* The saved boards sit directly under the Dashboards link, indented so the list stays scannable. */
+.sidebar-dashboards {
+  margin-top: 2px;
+  padding-left: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.sidebar-dashboards > .muted {
+  padding: 2px 10px 6px;
+}
+.sidebar-dashboards .sidebar-entry {
+  padding: 6px 10px;
+}
+/* Dashboard rows follow the same scale as every other sidebar entry. */
 .sidebar-section .section-heading {
   border: 0;
-  padding: 0 10px 8px;
+  padding: 0 10px 6px;
 }
+/* One type scale across the sidebar: 14px names and labels, 13px details, 12px counts. */
+.sidebar-entry,
+.workspace-overview { font-size: 14px; }
+.sidebar-entry .entry-name { font-size: 14px; }
+.sidebar-entry .entry-context,
+.sidebar-entry .entry-time { font-size: 13px; }
+.workspace-overview .entry-count { font-size: 12px; }
+/* Sidebar section labels are overview links; the text keeps its muted label look until hovered. */
+.sidebar-overview { text-decoration: none; color: inherit; border-radius: 5px; padding: 7px 12px; }
+.sidebar-overview:hover { background: var(--selection); }
+.sidebar-overview:hover h2 { color: var(--text); }
+.sidebar-overview[aria-current="page"] h2 { color: var(--accent); }
 .sidebar-section h2 {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--muted);
   font-weight: 500;
 }
 .sidebar-section .entry-count {
   margin-left: auto;
+  font-size: 12px;
 }
 .sidebar-section > .muted {
   padding: 0 10px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .sidebar-entry {
   display: block;
@@ -841,7 +1050,6 @@ summary:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
 }
 .entry-context {
   display: flex;
@@ -851,6 +1059,8 @@ summary:hover {
 .sidebar-entry .entry-context {
   margin-top: 3px;
   gap: 8px;
+  /* Descriptions sit a step below the entry name instead of matching the body text. */
+  color: var(--faint);
 }
 .sidebar-entry .status,
 .entry-time {
@@ -901,9 +1111,29 @@ summary:hover {
   padding: 4px 8px;
 }
 
-.theme-toggle svg {
+.theme-toggle svg,
+#language-toggle svg {
   width: 17px;
   height: 17px;
+}
+/* The language picker mirrors the theme toggle and opens its menu under the topbar. */
+#language-toggle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  color: var(--text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+#language-toggle:hover {
+  color: var(--accent);
+}
+.language-menu {
+  z-index: 60;
+  min-width: 140px;
 }
 .theme-sun {
   display: none;
@@ -937,16 +1167,11 @@ summary:hover {
     font-size: 10px;
     gap: 4px;
   }
-  .topbar:has(.connection-notice:not([hidden])) .workspace-link {
-    display: none;
-  }
 }
 
 /* Toolbar sizing adapted from Chat2DB ResultSetToolbar/style.ts. */
 .results-page .result-card { border-radius:0; }
 .result-command-bar { display:flex; align-items:center; justify-content:flex-end; height:34px; flex-shrink:0; border-bottom:1px solid var(--line); background:var(--surface); padding:0 4px; }
-.result-status-bar > .page-controls { margin-left:auto; gap:3px; flex-shrink:0; }
-.result-status-bar select { height:26px; padding:0 6px; font-size:12px; }
 .result-command-bar .refresh-controls { margin:0; height:34px; gap:0; padding:0 4px; flex-shrink:0; }
 .result-command-bar .refresh-controls > .muted { display:none; }
 .result-command-bar .refresh-button { border:0; height:24px; }
@@ -961,6 +1186,8 @@ summary:hover {
 .result-icon:hover:not(:disabled) { color:var(--text); background:var(--subtle); }
 .result-icon:disabled { cursor:default; opacity:.35; }
 .result-icon:focus-visible { outline:1px solid var(--accent); }
-.result-status-bar { height:34px; display:flex; align-items:center; padding:0 8px; gap:16px; flex-shrink:0; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
 .results-page .data-table tbody td, .results-page .data-table tbody th { height:28px; padding:0 8px; }
 .results-page .data-table .cell-value { display:block; width:100%; height:27px; line-height:26px; min-height:26px; padding:0; }
+/* Dialog footer: actions on the right. */
+.dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 20px; }
+

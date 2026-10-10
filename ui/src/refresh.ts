@@ -1,6 +1,7 @@
 import { refreshResult } from "../sdk/client";
 import type { ResultMetadata } from "../sdk/types";
 import { button, choiceMenu, element, message, svgIcon } from "./components";
+import { t } from "./i18n";
 
 /** The browser owns the interval; the service owns each explicitly started execution. */
 export function refreshControls(
@@ -13,12 +14,12 @@ export function refreshControls(
   const refresh = button("", "button secondary refresh-main");
   const caption = element("span");
   refresh.append(svgIcon("M20 11a8 8 0 1 0-2.3 6 M20 4v7h-7"), caption);
-  refresh.setAttribute("aria-label", "Refresh data");
+  refresh.setAttribute("aria-label", t("refresh.button"));
   const interval = choiceMenu(
-    "Auto refresh interval",
+    t("refresh.interval"),
     [0, 5, 10, 30, 60].map((seconds) => [
       String(seconds),
-      seconds ? `Every ${seconds}s` : "Manual refresh",
+      seconds ? t("refresh.every", { seconds }) : t("refresh.manual"),
     ]),
     () => {
       clear();
@@ -60,10 +61,10 @@ export function refreshControls(
     const automatic = interval.value !== "0";
     group.classList.toggle("auto-refresh", automatic);
     caption.hidden = !automatic;
-    caption.textContent = automatic ? `${interval.value}s` : "";
+    caption.textContent = automatic ? t("refresh.seconds", { seconds: interval.value }) : "";
     refresh.title = automatic
-      ? `Refresh now · Auto refresh every ${interval.value}s`
-      : "Refresh now";
+      ? t("refresh.nowAuto", { seconds: interval.value })
+      : t("refresh.now");
   }
   function schedule() {
     if (
@@ -88,14 +89,16 @@ export function refreshControls(
     renderButton();
     feedback.hidden = false;
     feedback.className = "feedback error refresh-feedback";
-    feedback.textContent = `${previous ? "Previous refresh failed" : "Refresh failed"}: ${error} Auto refresh is off. Showing the last successful result.`;
+    feedback.textContent = previous
+      ? t("refresh.failedPrevious", { error })
+      : t("refresh.failed", { error });
   }
   function update(meta: ResultMetadata) {
     const previous = latest === undefined;
     latest = meta;
     if (meta.refresh?.request_id === unresolvedRequest)
       unresolvedRequest = undefined;
-    updated.textContent = `Updated ${new Date(meta.created_at * 1000 + meta.duration_ms).toLocaleTimeString()}`;
+    updated.textContent = t("refresh.updated", { time: new Date(meta.created_at * 1000 + meta.duration_ms).toLocaleTimeString() });
     if (
       meta.refresh &&
       meta.refresh.status !== "running" &&
@@ -103,7 +106,7 @@ export function refreshControls(
     ) {
       observedCompletion = meta.refresh.request_id;
       if (meta.refresh.status === "completed") feedback.hidden = true;
-      else stop(meta.refresh.error ?? "Refresh did not finish.", previous);
+      else stop(meta.refresh.error ?? t("refresh.unfinished"), previous);
     }
     renderButton();
     if (busy()) clear();

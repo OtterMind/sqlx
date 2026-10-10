@@ -1,3 +1,5 @@
+pub mod analytics;
+pub mod analytics_command;
 pub mod components;
 pub mod drivers;
 pub mod execution;

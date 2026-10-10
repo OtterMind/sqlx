@@ -146,6 +146,7 @@ fn call(params: Value, root: &Path, manifest: &str, local: &Option<PathBuf>) -> 
                     request_id: uuid::Uuid::new_v4().to_string(),
                     datasource: source.id,
                     statements,
+                    description: None,
                 },
             )?;
             result["url"] = client

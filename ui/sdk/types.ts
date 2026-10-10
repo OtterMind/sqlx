@@ -81,6 +81,8 @@ export interface ResultMetadata {
   result_id: string;
   datasource_id: string;
   datasource_name: string;
+  /** Optional label given when the query was submitted. */
+  description?: string | null;
   statements: string[];
   created_at: number;
   status:
