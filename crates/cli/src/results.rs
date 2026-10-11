@@ -447,7 +447,12 @@ impl ResultStore {
                 let target = dir.join(&name);
                 fs::copy(self.dir.join(name), &target)?;
                 restrict(&target, false)?;
-                File::open(&target)?.sync_all()?;
+                // Flushing means FlushFileBuffers on Windows, which needs a writable handle;
+                // a read-only one fails with "Access is denied" (os error 5).
+                fs::OpenOptions::new()
+                    .write(true)
+                    .open(&target)?
+                    .sync_all()?;
             }
         }
         let mut meta = self.metadata.clone();
