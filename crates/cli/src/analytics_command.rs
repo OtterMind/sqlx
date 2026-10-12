@@ -41,8 +41,8 @@ pub enum ChartCommand {
         datasource: String,
         /// One complete SELECT; repeat for several statements.
         #[arg(
-            long = "sql",
-            alias = "command",
+            long = "command",
+            alias = "sql",
             required = true,
             allow_hyphen_values = true
         )]

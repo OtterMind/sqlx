@@ -13,6 +13,7 @@ SQLX 0.1.20 documents the analytics workspace and corrects the TLS default in th
 
 - The import response's `total` is explained: it counts the stored connections plus the document's entries, including the ones reported in `skipped`.
 - `references/cli.md` records that installing the Skill into an existing directory SQLX does not manage fails with `skill destination already exists and is not managed by SQLX` instead of overwriting another tool's files.
+- `sqlx analytics chart add` takes `--command`, matching `sqlx sql execute`; `--sql` still works as an alias, so existing scripts and examples keep running.
 
 ## Upgrading
 

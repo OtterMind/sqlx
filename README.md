@@ -281,7 +281,7 @@ Each `connection` is the same object `--connection-stdin` accepts. `merge` (the 
 | Show or change settings | `sqlx setting list`, `sqlx setting set preview-rows 20`, `sqlx setting set results-dir ~/sqlx-results` |
 | Return a large result inline | `sqlx sql execute --datasource dev --command "SELECT …" --full` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
-| Create a chart and place it on a dashboard | `sqlx analytics chart add --name revenue --datasource dev --sql "SELECT month, SUM(revenue) AS revenue FROM sales GROUP BY month" --type line --x month --y revenue --run --dashboard "Sales"` |
+| Create a chart and place it on a dashboard | `sqlx analytics chart add --name revenue --datasource dev --command "SELECT month, SUM(revenue) AS revenue FROM sales GROUP BY month" --type line --x month --y revenue --run --dashboard "Sales"` (as everywhere else, `--sql` is accepted as an alias) |
 | Run a saved chart's SQL again | `sqlx analytics chart run revenue` |
 | List or delete charts and dashboards | `sqlx analytics list`, `sqlx analytics dashboard add --name "Sales"`, `sqlx analytics remove chart revenue` |
 | Serve MCP over stdio | `sqlx mcp` |
