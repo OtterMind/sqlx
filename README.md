@@ -190,12 +190,12 @@ sqlx datasource setup-status --request-id <request-id>
 
 To edit an existing connection and keep its saved password unless you replace it: `sqlx datasource update --id dev --ui`.
 
-TLS verifies the database certificate by default. A database in a local container usually does not serve a certificate your machine trusts, and then the connection fails with `invalid peer certificate: UnknownIssuer` (MySQL), `error performing TLS handshake` (PostgreSQL) or a closed connection (Oracle). Disable the transport explicitly for such a connection:
+Connections do not use TLS unless you ask for it: `--tls` defaults to `disable`. Add `--tls verify-full` to verify the database certificate; a database that serves no certificate your machine trusts then fails with `invalid peer certificate: UnknownIssuer` (MySQL), `error performing TLS handshake` (PostgreSQL) or a closed connection (Oracle), which is the usual case for a local container. Either choice is also available as an update:
 
 ```sh
 sqlx datasource add --name dev --type mysql --host 127.0.0.1 --port 3306 --database app \
-  --username-env DB_USER --password-env DB_PASSWORD --tls disable
-sqlx datasource update --id dev --tls disable
+  --username-env DB_USER --password-env DB_PASSWORD          # no TLS, the default
+sqlx datasource update --id dev --tls verify-full             # verify the server certificate
 ```
 
 ### Credentials
@@ -259,6 +259,8 @@ Each `connection` is the same object `--connection-stdin` accepts. `merge` (the 
 
 `--dry-run` validates and reports without storing anything, `--strict` refuses the whole document when any entry is invalid, and `--file <path>` reads the document from a file for callers that cannot pipe stdin. The store is written once, so an import is never half applied.
 
+`total` counts every connection the import considered: the connections already stored plus the document's entries, including the ones it skipped. With one stored connection and two entries, one of them invalid, the response reports `total: 3`, `added: 1` and one `skipped` entry.
+
 ### Commands
 
 | Operation | Command |
@@ -279,6 +281,9 @@ Each `connection` is the same object `--connection-stdin` accepts. `merge` (the 
 | Show or change settings | `sqlx setting list`, `sqlx setting set preview-rows 20`, `sqlx setting set results-dir ~/sqlx-results` |
 | Return a large result inline | `sqlx sql execute --datasource dev --command "SELECT …" --full` |
 | Local workbench | `sqlx ui`, `sqlx ui status`, `sqlx ui stop` |
+| Create a chart and place it on a dashboard | `sqlx analytics chart add --name revenue --datasource dev --sql "SELECT month, SUM(revenue) AS revenue FROM sales GROUP BY month" --type line --x month --y revenue --run --dashboard "Sales"` |
+| Run a saved chart's SQL again | `sqlx analytics chart run revenue` |
+| List or delete charts and dashboards | `sqlx analytics list`, `sqlx analytics dashboard add --name "Sales"`, `sqlx analytics remove chart revenue` |
 | Serve MCP over stdio | `sqlx mcp` |
 | Install the Skill | `sqlx skill install --target codex`, `--target claude`, `--target dsh` or `--target pi` |
 | Install to another skill directory | `sqlx skill install --path /path/to/skills/sqlx` |
@@ -312,7 +317,7 @@ sqlx sql execute --datasource dev --command "SELECT id, name FROM users ORDER BY
 
 SQLX executes once and returns a local URL. The page loads the results automatically, supports multiple result sets and pagination, and preserves exact values. Reloading, paging or reopening the page reads the cached result; **Refresh** on the page reruns the original SQL batch against the database, so any writes in that batch run again. A successful refresh replaces the displayed snapshot at the same URL; a failure keeps the previous result and does not roll back database changes. Results are retained locally for 24 hours.
 
-`sqlx ui` opens the local workbench, `sqlx ui status` and `sqlx ui stop` inspect or stop the service, and `--no-open` returns a link without launching a browser. Pages are reachable only on the machine running SQLX, load an HttpOnly browser session automatically, and the service stays up until `sqlx ui stop`.
+`sqlx ui` opens the local workbench, `sqlx ui status` and `sqlx ui stop` inspect or stop the service, and `--no-open` returns a link without launching a browser. The workbench also renders the charts and dashboards created with `sqlx analytics` (see [Local analytics](docs/analytics.md)); that command needs no running service. Pages are reachable only on the machine running SQLX, load an HttpOnly browser session automatically, and the service stays up until `sqlx ui stop`.
 
 Typing the password into the page keeps credentials out of the conversation, but it does not isolate them from an agent that can read files or control the browser as the same operating-system user. See [the local UI design](docs/local-ui.md) for the interface and storage boundaries.
 
@@ -348,7 +353,7 @@ The [database references](skills/sqlx/references/) explain each SQL operation's 
 
 | Symptom | What to do |
 |---|---|
-| `invalid peer certificate: UnknownIssuer`, `error performing TLS handshake` | The database serves no certificate your machine trusts (common in local containers); add `--tls disable` to that connection |
+| `invalid peer certificate: UnknownIssuer`, `error performing TLS handshake` | The connection asks for TLS verification and the database serves no certificate your machine trusts (common in local containers); drop `--tls verify-full` (the default is `disable`) |
 | `sqlx: command not found` | The install directory is missing from PATH: `~/.local/bin` (macOS, Linux) or `%LOCALAPPDATA%\Programs\SQLX` (Windows) |
 | The first query seems stuck downloading | Run `sqlx prefetch <component>` first; after an interruption, rerunning reuses installed components |
 | Switching the UI plugin version fails | Run `sqlx ui stop` first, then `sqlx ui plugin remove` |

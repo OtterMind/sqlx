@@ -1,6 +1,6 @@
 ---
 name: sqlx
-description: Manage encrypted database connections and execute SQL with the OtterMind SQLX CLI. Use for MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis, MongoDB, SQLite, DuckDB, H2, Presto, Hive, Kylin, XuguDB, Db2, Informix, SUNDB, and GBase 8s connection checks, queries, DDL, and schema inspection. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
+description: Manage encrypted database connections, execute SQL and build the charts and dashboards the local UI renders with the OtterMind SQLX CLI. Use for MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Redis, MongoDB, SQLite, DuckDB, H2, Presto, Hive, Kylin, XuguDB, Db2, Informix, SUNDB, and GBase 8s connection checks, queries, DDL, schema inspection, charts and dashboards. This skill targets OtterMind/sqlx, not the Rust SQLx migration CLI.
 metadata:
   cli-compat: ">=0.1.15, <0.2.0"
 ---
@@ -24,6 +24,7 @@ sqlx sql execute --datasource <id> --command "SELECT 1" --command "SELECT 2"
 | Before any statement that is not clearly read-only, including `--view`, manual Refresh and automatic refresh | `references/approval.md` |
 | Execution semantics, output fields, partial or unknown outcomes, retries | `references/execution.md` |
 | Reading more rows of a large result, stored results, preview size and retention | `references/results.md` |
+| Creating, running or removing charts and dashboards, and where their snapshots live | `references/analytics.md` |
 | A first command is waiting on a download, or components are prefetched | `references/downloads.md` |
 | Writing SQL for the connected engine | the recipe of that engine, below |
 
