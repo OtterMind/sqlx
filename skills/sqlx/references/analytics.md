@@ -6,14 +6,14 @@ A chart owns the read-only SQL it runs, the datasource it runs against and the s
 sqlx analytics list
 sqlx analytics dashboard add --name "Sales" --description "Monthly revenue by region"
 sqlx analytics chart add --name "Monthly revenue" --datasource dev \
-  --sql "SELECT month, SUM(revenue) AS revenue FROM sales GROUP BY month" \
+  --command "SELECT month, SUM(revenue) AS revenue FROM sales GROUP BY month" \
   --type line --x month --y revenue --run --dashboard "Sales"
 sqlx analytics chart run "Monthly revenue"
 sqlx analytics remove chart "Monthly revenue"
 ```
 
-- `--name`, `--datasource` and at least one `--sql` are required. `--datasource` and every id-taking command accept a name or an id; an ambiguous name is an error, so ask the user or pass the id.
-- `--sql` may repeat; the editor edits the first statement, and `chart run` executes all of them exactly as `sqlx sql execute` would.
+- `--name`, `--datasource` and at least one `--command` are required (`--sql` is accepted as an alias, exactly as in `sqlx sql execute`). `--datasource` and every id-taking command accept a name or an id; an ambiguous name is an error, so ask the user or pass the id.
+- `--command` may repeat; the editor edits the first statement, and `chart run` executes all of them exactly as `sqlx sql execute` would.
 - `--run` executes the SQL immediately and publishes the snapshot the chart renders. Without it the chart is saved as a draft with no snapshot; the workbench shows it as pending until the user runs it.
 - `--dashboard <name|id>` places the new chart at the bottom of that dashboard; `--dashboard` also accepts a dashboard that already exists.
 - `--type` accepts `column`, `bar`, `line`, `arealine`, `scatter`, `pie`, `ringpie`, `rosepie`, `funnel`, `wordcloud`, `statistics`, `combo` or `table`.
@@ -22,7 +22,7 @@ sqlx analytics remove chart "Monthly revenue"
 
 ## What the commands guarantee
 
-- SQL passes the same read-only check as `sqlx sql execute`: a write, `SELECT INTO`, a locking read or several statements in one `--sql` are rejected before anything is stored.
+- SQL passes the same read-only check as `sqlx sql execute`: a write, `SELECT INTO`, a locking read or several statements in one `--command` are rejected before anything is stored.
 - `chart run` never replaces a snapshot with a failure. A run whose SQL fails keeps the chart's previous snapshot and reports the database error; the snapshot the chart already had stays readable.
 - A chart that is already running the same SQL twice is deduplicated per request, and a chart edited between publication attempts is refused instead of overwriting the newer edit.
 - `remove chart` detaches the chart from every dashboard first and then deletes it. `remove dashboard` deletes the dashboard together with the charts placed on it.
