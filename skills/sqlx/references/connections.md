@@ -47,7 +47,7 @@ For structured non-interactive input, `--connection-stdin` reads one connection 
 ```
 
 - `database_type` accepts `mysql`, `mariadb`, `tidb`, `postgresql` (`postgres`/`pgsql`), `cockroachdb` (`cockroach`/`crdb`), `yugabytedb` (`yugabyte`/`yb`), `oracle`, `sqlserver` (`mssql`), `clickhouse`, `trino`, `starrocks` and `doris`.
-- `tls` is `verify-full` (the default) or `disable`.
+- `tls` is `disable` (the default, so a plain local or container database connects on the first try) or `verify-full`, which verifies the server certificate and fails with `invalid peer certificate: UnknownIssuer` when the database serves none your machine trusts.
 - `service` is the Oracle service name; other engines leave it empty.
 - `properties` carries optional vendor connection properties, for example a driver timeout.
 - `password` may be empty when the engine accepts one, such as a local test fixture, or when the credentials come from environment variables at execution time.

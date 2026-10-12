@@ -42,6 +42,8 @@ After installing or updating, follow the target agent's discovery or reload mech
 
 The main executable can install this Skill with `sqlx skill install`; when the Skill was installed first, it is already usable and that command is not a bootstrap prerequisite. Explicit `--path` names the complete skill folder, such as `<agent-skills>/sqlx`.
 
+A target directory that already exists without a SQLX record is left alone: the command fails with `skill destination already exists and is not managed by SQLX` instead of overwriting another tool's files. Ask the user before replacing it, or install to a directory SQLX manages with `--path`.
+
 ## Check for an update
 
 ```sh
