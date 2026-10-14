@@ -1,5 +1,7 @@
 # SQLX
 
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/ottermind/sqlx)
+
 Connect to MySQL, MariaDB, TiDB, GreatSQL, OceanBase, PostgreSQL, CockroachDB, YugabyteDB, openGauss, Oracle, SQL Server, ClickHouse, Trino, Presto, StarRocks, Apache Doris, TDengine, Dameng, KingbaseES, Apache Kylin, XuguDB, IBM Db2, IBM Informix, SUNDB, GBase 8s, Redis and MongoDB, or open a local SQLite, DuckDB or H2 file, from your terminal or from your agent. Connections are saved encrypted, one invocation runs one or more statements or commands, and the results come back complete and structured.
 
 ## Quick start
