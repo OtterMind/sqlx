@@ -127,11 +127,19 @@ fn plan(requested: &[String], platform: &str) -> Result<Vec<(String, String)>> {
     }
     Ok(plan)
 }
+/// Notified before each component is fetched, with the component name and its position in the plan.
+pub type ComponentObserver<'a> = &'a mut dyn FnMut(&str, usize);
+
 /// Download every requested component and report what happened.
 ///
 /// The returned flag is false when at least one component could not be installed, so the
 /// command exits non-zero while still reporting each component on stdout.
-pub fn run(root: &Path, manifest: &str, requested: &[String]) -> Result<(Value, bool)> {
+pub fn run(
+    root: &Path,
+    manifest: &str,
+    requested: &[String],
+    mut observer: Option<ComponentObserver<'_>>,
+) -> Result<(Value, bool)> {
     let platform = platform()?;
     let plan = plan(requested, &platform)?;
     let manager = Components::new(root.to_path_buf(), manifest.to_owned());
@@ -140,7 +148,10 @@ pub fn run(root: &Path, manifest: &str, requested: &[String]) -> Result<(Value, 
     let (mut downloaded, mut reused) = (0usize, 0usize);
     let mut failed = Vec::new();
     let mut results = Vec::new();
-    for (name, platform) in &plan {
+    for (index, (name, platform)) in plan.iter().enumerate() {
+        if let Some(observer) = observer.as_deref_mut() {
+            observer(name, index);
+        }
         let asset = match manager.asset(&manifest, name, platform) {
             Ok(asset) => asset,
             Err(error) => {

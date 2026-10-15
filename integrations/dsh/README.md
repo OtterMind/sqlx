@@ -37,10 +37,15 @@ row to the profile's bundle stack; no profile file edits are needed. Remove it w
 | `sqlx_sql_execute` | Execute statements, return the table-shaped result with a preview (`full` returns every row) | yes |
 | `sqlx_results_rows` | Read one page of a stored result; read-only | no |
 | `sqlx_sql_view` | Execute once, return a local result-page URL | yes |
-| `sqlx_prefetch` | Download `mysql`, `postgres`, `oracle`, `sqlserver`, `ui`, `skill` or `all` | downloads only |
+| `sqlx_prefetch` | Download components ahead of a first query (`all` fetches every one) | downloads only |
 
 The two execution tools describe the authorization rule themselves: run them only after the user
 authorized that exact operation and scope. Results are never replayed automatically.
+
+Unlike the MCP server, these definitions carry no approval metadata: `defineTool` has no annotation
+field, so the rule above is a description the model is asked to follow rather than something dsh
+enforces. A deployment that needs an enforced prompt can gate the two execution tools from a
+`tools/pre-execute` handler.
 
 ## Credentials
 

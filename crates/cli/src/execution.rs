@@ -328,8 +328,31 @@ pub fn run(
         action,
         statements,
         out,
+        Observer::new(),
     )
 }
+/// Hooks a caller attaches to one execution.
+pub struct Observer<'a> {
+    /// Cancels the running execution when it is triggered; Ctrl-C triggers it as well.
+    pub cancel: CancellationToken,
+    /// Called once per worker event, before the event reaches the result writer.
+    pub event: Option<&'a mut dyn FnMut(&Event)>,
+}
+impl Observer<'_> {
+    /// An execution that only Ctrl-C can stop and that nothing observes.
+    pub fn new() -> Self {
+        Self {
+            cancel: CancellationToken::new(),
+            event: None,
+        }
+    }
+}
+impl Default for Observer<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Run an execution and write its result to `output`.
 ///
 /// The CLI passes stdout; the MCP server passes a buffer so protocol output stays clean. Both
@@ -345,6 +368,7 @@ pub fn run_to<W: Write>(
     action: Action,
     statements: Vec<String>,
     out: Output,
+    observer: Observer<'_>,
 ) -> Result<bool> {
     let connection = source.connection.clone();
     let writer_options = output::writer_options(
@@ -362,15 +386,25 @@ pub fn run_to<W: Write>(
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
+    let Observer { cancel, mut event } = observer;
     runtime.block_on(async move {
-        let cancel = CancellationToken::new();
         let signal = cancel.clone();
         let signal_task = tokio::spawn(async move {
             let _ = tokio::signal::ctrl_c().await;
             signal.cancel();
         });
         let mut writer = output::Writer::new(output, writer_options);
-        let result = prepared.execute(|event| writer.event(event), cancel).await;
+        let result = prepared
+            .execute(
+                |worker_event| {
+                    if let Some(observer) = event.as_deref_mut() {
+                        observer(&worker_event);
+                    }
+                    writer.event(worker_event)
+                },
+                cancel,
+            )
+            .await;
         signal_task.abort();
         let success = match result {
             Ok(success) => {

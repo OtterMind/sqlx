@@ -9,6 +9,7 @@ pub mod plugins;
 pub mod prefetch;
 pub mod results;
 pub mod settings;
+pub mod skill;
 pub mod storage;
 pub mod ui;
 pub mod usage;
