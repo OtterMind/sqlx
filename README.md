@@ -63,7 +63,7 @@ export PATH="$HOME/.local/bin:$PATH"
 sqlx --version
 ```
 
-The installer verifies the release manifest, `SHA256SUMS` and the downloaded archive before installing. It uses the same user-level location as the platform installers and installs the Skill into `./sqlx`; `--target codex`, `--target claude`, `--target dsh`, `--target pi` or `--target <directory>` place the Skill somewhere else. Node.js is needed only by the installer, never by the CLI.
+The installer verifies the release manifest, `SHA256SUMS` and the downloaded archive before installing. It uses the same user-level location as the platform installers and installs the Skill into `./sqlx`, which no agent watches: `--target codex`, `--target claude`, `--target dsh`, `--target pi` or `--target <directory>` place the Skill where it is actually discovered, and `--cli-only` installs the CLI alone. Any other first argument is run as a SQLX command instead of installing, so `npx -y @ottermind/sqlx@latest mcp` starts the MCP server. Node.js is needed only by the installer, never by the CLI.
 
 ### Updates
 
@@ -85,6 +85,10 @@ All four are ready as soon as they are installed: the plugin or extension instal
 itself when it is missing, so you never install it separately. Codex and Claude additionally
 require the CLI to meet the plugin's minimum version and refuse to start an older incompatible MCP
 server silently.
+
+Each of them also leaves the Skill installed, because the CLI alone gives an agent the tools but
+none of the engine knowledge. A plugin installs the Skill into that agent's own directory on first
+launch when it is not there yet, and says so on stderr while it does.
 
 ### Codex
 
@@ -122,6 +126,29 @@ Plugins belong to a profile: install it into the profile you use, then restart d
 ```sh
 pi install npm:@ottermind/sqlx-pi
 ```
+
+### Any other MCP client
+
+A client with no plugin system takes the server straight from the published package. It installs
+the `sqlx` CLI itself on first use, so this is the whole setup:
+
+```json
+{
+  "mcpServers": {
+    "sqlx": {
+      "command": "npx",
+      "args": ["-y", "@ottermind/sqlx@latest", "mcp"]
+    }
+  }
+}
+```
+
+Point `command` at an installed binary instead to start without `npx`; a GUI application often has
+no `~/.local/bin` on its `PATH`, so give the absolute path (`~/.local/bin/sqlx` on macOS and Linux,
+`%LOCALAPPDATA%\Programs\SQLX\sqlx.exe` on Windows) and keep `"args": ["mcp"]`.
+
+Such a client receives no Skill, so its agent runs the tools without the engine recipes. Install it
+where the client reads instructions from with `sqlx skill install --path <directory>`.
 
 ### Skill only
 

@@ -34,6 +34,8 @@ row to the profile's bundle stack; no profile file edits are needed. Remove it w
 | `sqlx_datasource_list` | List saved datasources (no secrets) | no |
 | `sqlx_datasource_show` | Show one datasource by UUID or unique name | no |
 | `sqlx_datasource_test` | Test connectivity; executes no SQL | no |
+| `sqlx_datasource_setup` | Start adding a datasource the user finishes in a browser page; returns that page's URL | adds a connection |
+| `sqlx_datasource_setup_status` | Report the outcome of a browser setup; read-only | no |
 | `sqlx_sql_execute` | Execute statements, return the table-shaped result with a preview (`full` returns every row) | yes |
 | `sqlx_results_rows` | Read one page of a stored result; read-only | no |
 | `sqlx_sql_view` | Execute once, return a local result-page URL | yes |

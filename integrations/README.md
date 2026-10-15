@@ -28,6 +28,8 @@ harnesses started from a GUI, where `~/.local/bin` is normally missing from `PAT
 | `sqlx_datasource_list` | List saved datasources (no secrets) | read-only |
 | `sqlx_datasource_show` | Show one datasource | read-only |
 | `sqlx_datasource_test` | Test connectivity | read-only |
+| `sqlx_datasource_setup` | Start adding a datasource in a local browser page, where the user types the credentials | may add a datasource; ask the user first |
+| `sqlx_datasource_setup_status` | Report the outcome of that setup | no |
 | `sqlx_sql_execute` | Execute statements, return the table-shaped result with a preview | may modify data; ask the user first |
 | `sqlx_results_rows` | Read one page of a stored result | no |
 | `sqlx_sql_view` | Execute once and return a local result-page URL | may modify data; ask the user first |

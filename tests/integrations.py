@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -28,6 +29,12 @@ if [ "$1" = "--version" ]; then
 fi
 if [ "$1" = "mcp" ]; then
   printf 'mcp:%s\\n' "$FAKE_SQLX_VERSION"
+  exit 0
+fi
+if [ "$1" = "skill" ] && [ "$2" = "install" ]; then
+  printf '%s\\n' "$*" >> "$FAKE_SQLX_SKILL_LOG"
+  # A real install prints JSON on stdout; the launcher must keep that off the MCP stream.
+  printf '{"success":true}\\n'
   exit 0
 fi
 exit 64
@@ -88,7 +95,17 @@ def run(agent: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return run_launcher(launcher(agent), env)
 
 
+def native_shim_versions() -> None:
+    """The native shims carry the CLI release they are verified against, as the plugins carry theirs."""
+    for package, relative in (("dsh", "lib/index.js"), ("pi", "extensions/sqlx.ts")):
+        manifest = ROOT / "integrations" / package / "package.json"
+        version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
+        source = (manifest.parent / relative).read_text(encoding="utf-8")
+        assert f'CLI_MIN_VERSION = "{version}"' in source, (package, version)
+
+
 def main() -> None:
+    native_shim_versions()
     if os.name == "nt":
         print("Plugin launcher black-box tests skipped on Windows")
         return
@@ -103,20 +120,45 @@ def main() -> None:
         for agent in ("codex", "claude"):
             runtime = runtime_metadata(agent)
             expected = runtime["cli_min_version"]
+            home = root / f"{agent}-home"
+            skill_dir = home / (".agents" if agent == "codex" else ".claude") / "skills" / "sqlx"
+            skill_log = root / f"{agent}-skill.log"
             common = os.environ.copy()
             common.update(
                 {
-                    "HOME": str(root / f"{agent}-home"),
+                    "HOME": str(home),
                     "SQLX_INSTALL_DIR": str(root / f"{agent}-install"),
                     "PATH": f"{fake_bin}:/usr/bin:/bin",
                     # Far ahead of any release, so a version bump cannot collide with this fake.
                     "FAKE_SQLX_VERSION": "0.1.99",
+                    "FAKE_SQLX_SKILL_LOG": str(skill_log),
                 }
             )
-            (root / f"{agent}-home").mkdir()
+            home.mkdir()
             result = run(agent, common)
             assert result.returncode == 0, (agent, result.stderr)
             assert result.stdout.strip() == "mcp:0.1.99", (agent, result.stdout)
+
+            # An existing CLI still leaves the agent without the Skill, so the launcher installs it,
+            # in the background and with stdout kept off the MCP stream.
+            deadline = time.time() + 10
+            while not skill_log.exists() and time.time() < deadline:
+                time.sleep(0.05)
+            assert skill_log.exists(), (agent, result.stderr)
+            assert skill_log.read_text(encoding="utf-8").strip() == f"skill install --target {agent}", (
+                agent,
+                skill_log.read_text(encoding="utf-8"),
+            )
+
+            # An installed Skill is left alone.
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("---\nname: sqlx\n---\n", encoding="utf-8")
+            skill_log.unlink()
+            result = run(agent, common)
+            assert result.returncode == 0, (agent, result.stderr)
+            assert result.stdout.strip() == "mcp:0.1.99", (agent, result.stdout)
+            time.sleep(0.5)
+            assert not skill_log.exists(), (agent, "an installed Skill must not be reinstalled")
 
             old_dir = root / f"{agent}-old-bin"
             install = root / f"{agent}-upgrade"
