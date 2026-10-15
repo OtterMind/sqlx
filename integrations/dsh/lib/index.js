@@ -20,7 +20,7 @@ const VERSION_TIMEOUT_MS = 30_000;
 const INSTALL_TIMEOUT_MS = 600_000;
 // The CLI release this extension is verified against. tests/integrations.py keeps it in step with
 // the package version, and an older CLI is replaced rather than used silently.
-const CLI_MIN_VERSION = "0.1.20";
+const CLI_MIN_VERSION = "0.1.21";
 // The connection settings a browser setup accepts; credentials are typed into the page instead.
 const CONNECTION_ARGUMENTS = [
   ["--type", "database_type"],

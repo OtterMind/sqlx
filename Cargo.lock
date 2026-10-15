@@ -2438,7 +2438,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "ottermind-sqlx"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3447,7 +3447,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-driver-duckdb"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3458,7 +3458,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-driver-mongodb"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3470,7 +3470,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-driver-mysql"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3482,7 +3482,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-driver-postgres"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3500,7 +3500,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-driver-redis"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3512,7 +3512,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-driver-sqlite"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3523,7 +3523,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-protocol"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "serde",
@@ -3532,7 +3532,7 @@ dependencies = [
 
 [[package]]
 name = "sqlx-ui"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "axum",
