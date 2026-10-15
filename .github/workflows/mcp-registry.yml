@@ -14,6 +14,10 @@ on:
       version:
         description: Published release to re-publish, without the leading v (for example 0.1.21)
         required: true
+      skip_image:
+        description: The image for this version is already in ghcr.io; publish only the entry
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -54,6 +58,9 @@ jobs:
             server.json > server.tmp
           mv server.tmp server.json
       - name: Publish the image
+        # A release always builds its image. A manual re-publish may already have pushed it, which
+        # is also the way to finish an entry whose image went up while the token could not.
+        if: github.event_name == 'release' || inputs.skip_image != true
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
