@@ -29,16 +29,22 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.event.release.tag_name || format('v{0}', inputs.version) }}
+          # The entry and the image definition are maintained on the default branch. They are not
+          # read from the tag: a release cut before they existed has neither, which is exactly the
+          # case this workflow was added for.
+          ref: ${{ github.event.repository.default_branch }}
       - name: Resolve the release
         id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ github.event.release.tag_name || inputs.version }}"
           version="${version#v}"
           case "${version}" in
             ''|*[!0-9.]*) echo "invalid release version: ${version}" >&2; exit 1 ;;
           esac
-          test "$(git describe --tags --exact-match HEAD)" = "v${version}"
+          # The image downloads this release's Linux binary, so the release has to exist first.
+          gh release view "v${version}" --json tagName --jq .tagName > /dev/null
           echo "version=${version}" >> "$GITHUB_OUTPUT"
       - name: Point server.json at this release
         run: |
