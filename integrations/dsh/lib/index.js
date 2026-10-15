@@ -59,11 +59,33 @@ async function resolveExecutable() {
   return executable;
 }
 async function run(args) {
-  const { stdout } = await execFileAsync(await resolveExecutable(), args, {
-    maxBuffer: MAX_BUFFER,
-    env: process.env,
-  });
-  return JSON.parse(stdout);
+  try {
+    const { stdout } = await execFileAsync(await resolveExecutable(), args, {
+      maxBuffer: MAX_BUFFER,
+      env: process.env,
+    });
+    return JSON.parse(stdout);
+  } catch (error) {
+    // SQLX exits non-zero when a statement failed but still prints the complete structured result
+    // (`success: false` plus `results[].error` and `skipped`) to stdout. Return that JSON instead
+    // of the opaque "Command failed" error; fall back to a structured process error only when
+    // stdout is not JSON.
+    const stdout = typeof error?.stdout === "string" ? error.stdout : "";
+    const stderr = typeof error?.stderr === "string" ? error.stderr : "";
+    try {
+      return JSON.parse(stdout);
+    } catch {
+      return {
+        success: false,
+        error: {
+          code: "sqlx.process-error",
+          message: error instanceof Error ? error.message : String(error),
+          stdout,
+          stderr,
+        },
+      };
+    }
+  }
 }
 function text(value) {
   return [{ type: "text", text: JSON.stringify(value, null, 2) }];
@@ -75,7 +97,8 @@ function apply(ctx) {
     parameters: {},
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute() {
-      return (await run(["datasource", "list"])).data;
+      const value = await run(["datasource", "list"]);
+      return value?.data ?? value;
     },
   }));
   ctx.tools.register(defineTool({
@@ -84,7 +107,8 @@ function apply(ctx) {
     parameters: { id: { type: "string", required: true, description: "Datasource UUID or unique name" } },
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute(args) {
-      return (await run(["datasource", "show", "--id", args.id])).data;
+      const value = await run(["datasource", "show", "--id", args.id]);
+      return value?.data ?? value;
     },
   }));
   ctx.tools.register(defineTool({
@@ -148,9 +172,9 @@ function apply(ctx) {
   }));
   ctx.tools.register(defineTool({
     name: "sqlx_prefetch",
-    description: "Download the SQLX components that would otherwise be fetched during a first query or page: mysql, postgres, oracle, sqlserver, ui, skill or all.",
+    description: "Download the SQLX components that would otherwise be fetched during a first query or page, for example mysql, postgres, oracle, sqlserver, clickhouse, dameng or kingbase. Pass all to fetch every component; run sqlx prefetch --help for the complete list the CLI accepts.",
     parameters: {
-      components: { type: "array", items: { type: "string" }, required: true, description: "mysql, postgres, oracle, sqlserver, ui, skill or all" },
+      components: { type: "array", items: { type: "string" }, required: true, description: "Component names to download, for example mysql, postgres, oracle, sqlserver, clickhouse, dameng or kingbase; all fetches every component" },
     },
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute(args) {

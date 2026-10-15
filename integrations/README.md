@@ -36,6 +36,14 @@ harnesses started from a GUI, where `~/.local/bin` is normally missing from `PAT
 Write-capable tools are marked `destructiveHint` in MCP and say so in their descriptions, so a
 harness that gates destructive tools (Codex does by default) asks the user before running them.
 
+A running tool call can be stopped. `sqlx mcp` keeps reading while it works, so
+`notifications/cancelled` reaches the call it names and stops the worker behind it; the call then
+answers with `success: false`, `worker.incomplete` and the note that an in-flight write may have
+completed, which is why it must not be replayed. A client that sends a `progressToken` with the call
+receives `notifications/progress` for every statement it runs and every component `sqlx_prefetch`
+downloads, so a first query that waits on a download is visibly working instead of apparently hung.
+A client that sends neither keeps today's behaviour.
+
 ## Credentials
 
 Store credentials in the SQLX data directory (`sqlx datasource add --connection-stdin`, or the

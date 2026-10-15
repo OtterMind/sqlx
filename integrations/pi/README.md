@@ -34,10 +34,15 @@ Add `-l` to install into the project (`./.pi/settings.json`) instead of the user
 | `sqlx_sql_execute` | Execute statements, return the table-shaped result with a preview (`full` returns every row) | yes |
 | `sqlx_results_rows` | Read one page of a stored result; read-only | no |
 | `sqlx_sql_view` | Execute once, return a local result-page URL | yes |
-| `sqlx_prefetch` | Download `mysql`, `postgres`, `oracle`, `sqlserver`, `ui`, `skill` or `all` | downloads only |
+| `sqlx_prefetch` | Download components ahead of a first query (`all` fetches every one) | downloads only |
 
 The two execution tools describe the authorization rule themselves: run them only after the user
 authorized that exact operation and scope. Results are never replayed automatically.
+
+Every tool also declares the same MCP tool annotations as the MCP server (`readOnlyHint`,
+`destructiveHint`, `openWorldHint`), which a pi permission extension can use to decide which calls to
+confirm. pi gained the `annotations` field in 0.99.0; an older pi ignores it, so the description rule
+above remains the whole of the protection there.
 
 ## Credentials
 

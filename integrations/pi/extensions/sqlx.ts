@@ -63,11 +63,34 @@ async function resolveExecutable(): Promise<string> {
 }
 
 async function sqlx(args: string[]): Promise<any> {
-	const { stdout } = await execFileAsync(await resolveExecutable(), args, {
-		maxBuffer: MAX_BUFFER,
-		env: process.env,
-	});
-	return JSON.parse(stdout);
+	try {
+		const { stdout } = await execFileAsync(await resolveExecutable(), args, {
+			maxBuffer: MAX_BUFFER,
+			env: process.env,
+		});
+		return JSON.parse(stdout);
+	} catch (error) {
+		// SQLX exits non-zero when a statement failed but still prints the complete structured
+		// result (`success: false` plus `results[].error` and `skipped`) to stdout. Return that
+		// JSON instead of the opaque "Command failed" error; fall back to a structured process
+		// error only when stdout is not JSON.
+		const failure = (error ?? {}) as { stdout?: unknown; stderr?: unknown; message?: unknown };
+		const stdout = typeof failure.stdout === "string" ? failure.stdout : "";
+		const stderr = typeof failure.stderr === "string" ? failure.stderr : "";
+		try {
+			return JSON.parse(stdout);
+		} catch {
+			return {
+				success: false,
+				error: {
+					code: "sqlx.process-error",
+					message: typeof failure.message === "string" ? failure.message : String(error),
+					stdout,
+					stderr,
+				},
+			};
+		}
+	}
 }
 function result(value: unknown) {
 	return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
@@ -79,8 +102,10 @@ export default function (pi: ExtensionAPI) {
 		label: "SQLX datasources",
 		description: "List the saved OtterMind SQLX datasources with their non-secret connection settings.",
 		parameters: Type.Object({}),
+		annotations: { readOnlyHint: true, openWorldHint: false },
 		async execute() {
-			return result((await sqlx(["datasource", "list"])).data);
+			const value = await sqlx(["datasource", "list"]);
+			return result(value?.data ?? value);
 		},
 	});
 
@@ -92,8 +117,10 @@ export default function (pi: ExtensionAPI) {
 		parameters: Type.Object({
 			id: Type.String({ description: "Datasource UUID or unique name" }),
 		}),
+		annotations: { readOnlyHint: true, openWorldHint: false },
 		async execute(_toolCallId, params) {
-			return result((await sqlx(["datasource", "show", "--id", params.id])).data);
+			const value = await sqlx(["datasource", "show", "--id", params.id]);
+			return result(value?.data ?? value);
 		},
 	});
 
@@ -104,6 +131,7 @@ export default function (pi: ExtensionAPI) {
 		parameters: Type.Object({
 			id: Type.String({ description: "Datasource UUID or unique name" }),
 		}),
+		annotations: { readOnlyHint: true, openWorldHint: true },
 		async execute(_toolCallId, params) {
 			return result(await sqlx(["datasource", "test", "--id", params.id]));
 		},
@@ -125,6 +153,7 @@ export default function (pi: ExtensionAPI) {
 				}),
 			),
 		}),
+		annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
 		async execute(_toolCallId, params) {
 			const args = ["sql", "execute", "--datasource", params.datasource];
 			if (params.full) args.push("--full");
@@ -144,6 +173,7 @@ export default function (pi: ExtensionAPI) {
 				description: "Complete SQL statements, executed in order on one connection",
 			}),
 		}),
+		annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
 		async execute(_toolCallId, params) {
 			const args = ["sql", "execute", "--datasource", params.datasource, "--view", "--no-open"];
 			for (const statement of params.statements) args.push("--command", statement);
@@ -163,6 +193,7 @@ export default function (pi: ExtensionAPI) {
 			offset: Type.Optional(Type.Number({ description: "First row to return" })),
 			limit: Type.Optional(Type.Number({ description: "Rows to return, 50 by default" })),
 		}),
+		annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
 		async execute(_toolCallId, params) {
 			const args = ["results", "rows", "--id", params.id];
 			if (params.statement !== undefined) args.push("--statement", String(params.statement));
@@ -177,12 +208,14 @@ export default function (pi: ExtensionAPI) {
 		name: "sqlx_prefetch",
 		label: "SQLX prefetch",
 		description:
-			"Download the SQLX components that would otherwise be fetched during a first query or page: mysql, postgres, oracle, sqlserver, ui, skill or all.",
+			"Download the SQLX components that would otherwise be fetched during a first query or page, for example mysql, postgres, oracle, sqlserver, clickhouse, dameng or kingbase. Pass all to fetch every component; run sqlx prefetch --help for the complete list the CLI accepts.",
 		parameters: Type.Object({
 			components: Type.Array(Type.String(), {
-				description: "mysql, postgres, oracle, sqlserver, ui, skill or all",
+				description:
+					"Component names to download, for example mysql, postgres, oracle, sqlserver, clickhouse, dameng or kingbase; all fetches every component",
 			}),
 		}),
+		annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
 		async execute(_toolCallId, params) {
 			return result(await sqlx(["prefetch", ...params.components]));
 		},
