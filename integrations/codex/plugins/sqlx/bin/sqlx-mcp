@@ -92,6 +92,32 @@ binary_name() {
     *) printf 'sqlx' ;;
   esac
 }
+skill_directory() {
+  case "$agent_target" in
+    codex) printf '%s/.agents/skills/sqlx' "${HOME:-}" ;;
+    claude) printf '%s/.claude/skills/sqlx' "${HOME:-}" ;;
+    *) printf '' ;;
+  esac
+}
+# The agent needs the Skill to write engine-correct SQL, and installing the CLI alone is the common
+# case, so the Skill is checked on every launch rather than only when the CLI is missing. The
+# install runs in the background with its stdout on stderr, because stdout carries the MCP protocol
+# and a slow or failed install must not delay or break the server.
+ensure_skill() {
+  skill_dir=$(skill_directory)
+  if [ -z "$skill_dir" ] || [ -f "$skill_dir/SKILL.md" ]; then
+    return 0
+  fi
+  echo "SQLX is installing its Skill into $skill_dir; it is ready for the next session." >&2
+  "$1" skill install --target "$agent_target" >&2 &
+  return 0
+}
+launch() {
+  sqlx_binary=$1
+  shift
+  ensure_skill "$sqlx_binary"
+  exec "$sqlx_binary" mcp "$@"
+}
 if [ -n "${SQLX_BIN:-}" ]; then
   actual_version=$(cli_version "$SQLX_BIN" || true)
   if [ -z "$actual_version" ]; then
@@ -102,23 +128,23 @@ if [ -n "${SQLX_BIN:-}" ]; then
     echo "SQLX_BIN has SQLX $actual_version; this plugin requires SQLX >= $minimum_cli_version" >&2
     exit 78
   fi
-  exec "$SQLX_BIN" mcp "$@"
+  launch "$SQLX_BIN" "$@"
 fi
 installed="$(install_directory)/$(binary_name)"
 
 if compatible "$installed"; then
-  exec "$installed" mcp "$@"
+  launch "$installed" "$@"
 fi
 
 path_sqlx=$(command -v sqlx 2>/dev/null || true)
 if [ -n "$path_sqlx" ] && compatible "$path_sqlx"; then
-  exec "$path_sqlx" mcp "$@"
+  launch "$path_sqlx" "$@"
 fi
 
 echo "SQLX plugin requires CLI >= $minimum_cli_version; preparing the compatible CLI" >&2
 SQLX_VERSION="$minimum_cli_version" npx -y @ottermind/sqlx@latest --target "$agent_target" >&2 || true
 if compatible "$installed"; then
-  exec "$installed" mcp "$@"
+  launch "$installed" "$@"
 fi
 echo "SQLX CLI is missing or incompatible; install SQLX >= $minimum_cli_version and start the plugin again." >&2
 exit 127

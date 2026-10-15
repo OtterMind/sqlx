@@ -20,15 +20,17 @@ function temporary() {
 }
 
 test("parses the documented arguments", () => {
-  assert.deepEqual(parseArgs([]), { target: undefined, help: false });
-  assert.deepEqual(parseArgs(["--target", "codex"]), { target: "codex", help: false });
-  assert.deepEqual(parseArgs(["--target=claude"]), { target: "claude", help: false });
-  assert.deepEqual(parseArgs(["--target", "./tools/sqlx"]), { target: "./tools/sqlx", help: false });
-  assert.deepEqual(parseArgs(["--help"]), { target: undefined, help: true });
-  assert.deepEqual(parseArgs(["-h"]), { target: undefined, help: true });
+  assert.deepEqual(parseArgs([]), { target: undefined, help: false, cliOnly: false });
+  assert.deepEqual(parseArgs(["--target", "codex"]), { target: "codex", help: false, cliOnly: false });
+  assert.deepEqual(parseArgs(["--target=claude"]), { target: "claude", help: false, cliOnly: false });
+  assert.deepEqual(parseArgs(["--target", "./tools/sqlx"]), { target: "./tools/sqlx", help: false, cliOnly: false });
+  assert.deepEqual(parseArgs(["--help"]), { target: undefined, help: true, cliOnly: false });
+  assert.deepEqual(parseArgs(["-h"]), { target: undefined, help: true, cliOnly: false });
+  assert.deepEqual(parseArgs(["--cli-only"]), { target: undefined, help: false, cliOnly: true });
   // A path that starts with a dash stays a value instead of becoming an option.
-  assert.deepEqual(parseArgs(["--target", "--weird"]), { target: "--weird", help: false });
+  assert.deepEqual(parseArgs(["--target", "--weird"]), { target: "--weird", help: false, cliOnly: false });
   assert.match(HELP, /--target <codex\|claude\|dsh\|pi\|path>/);
+  assert.match(HELP, /--cli-only/);
 });
 
 test("rejects unusable arguments", () => {

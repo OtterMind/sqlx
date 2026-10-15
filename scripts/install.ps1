@@ -40,4 +40,5 @@ try {
     Move-Item -Force $staged $destination
     Write-Output "Installed $actualVersion to $destination"
     Write-Output "Add $installDir to PATH, then run: sqlx init"
+    Write-Output "Using an agent? Install the Skill where it looks for one: sqlx skill install --target codex|claude|dsh|pi"
 } finally { Remove-Item -Recurse -Force $temporary }

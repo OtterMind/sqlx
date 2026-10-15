@@ -5,7 +5,8 @@
 // SQLX_BIN selects a specific executable; otherwise the plugin uses the first `sqlx` on PATH or the
 // official user-level installation, and installs the CLI once when neither exists, so adding the
 // plugin is the only setup step.
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -17,6 +18,18 @@ const inject = ["tools"];
 const MAX_BUFFER = 64 * 1024 * 1024;
 const VERSION_TIMEOUT_MS = 30_000;
 const INSTALL_TIMEOUT_MS = 600_000;
+// The CLI release this extension is verified against. tests/integrations.py keeps it in step with
+// the package version, and an older CLI is replaced rather than used silently.
+const CLI_MIN_VERSION = "0.1.20";
+// The connection settings a browser setup accepts; credentials are typed into the page instead.
+const CONNECTION_ARGUMENTS = [
+  ["--type", "database_type"],
+  ["--host", "host"],
+  ["--port", "port"],
+  ["--database", "database"],
+  ["--service", "service"],
+  ["--tls", "tls"],
+];
 let executable;
 
 function installedPath() {
@@ -28,34 +41,88 @@ function installedPath() {
       : join(homedir(), ".local", "bin");
   return join(directory, process.platform === "win32" ? "sqlx.exe" : "sqlx");
 }
-async function works(candidate) {
-  try {
-    await execFileAsync(candidate, ["--version"], { timeout: VERSION_TIMEOUT_MS, env: process.env });
-    return true;
-  } catch {
-    return false;
+function olderThan(version, minimum) {
+  const left = version.split(".").map(Number);
+  const right = minimum.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) {
+      return left[index] < right[index];
+    }
   }
+  return false;
+}
+/// The version an executable reports, or null when it is not a runnable OtterMind SQLX.
+async function versionOf(candidate) {
+  try {
+    const { stdout } = await execFileAsync(candidate, ["--version"], {
+      timeout: VERSION_TIMEOUT_MS,
+      env: process.env,
+    });
+    const match = /^sqlx (\d+\.\d+\.\d+) \(OtterMind\/sqlx\)$/m.exec(stdout ?? "");
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+function compatible(version) {
+  return version !== null && !olderThan(version, CLI_MIN_VERSION);
+}
+/// The agent needs the Skill to write engine-correct SQL, and a working CLI is the common case, so
+/// the Skill is installed on first use rather than only when the CLI is missing. It runs detached:
+/// a tool call must not wait for it, and the next session picks it up.
+function ensureSkill(binary) {
+  if (existsSync(join(homedir(), ".agents", "skills", "sqlx", "SKILL.md"))) {
+    return;
+  }
+  const child = spawn(binary, ["skill", "install", "--target", "dsh"], {
+    detached: true,
+    stdio: "ignore",
+    env: process.env,
+  });
+  child.unref();
 }
 async function resolveExecutable() {
   if (executable) {
     return executable;
   }
-  for (const candidate of [process.env.SQLX_BIN, "sqlx", installedPath()].filter(Boolean)) {
-    if (await works(candidate)) {
+  // An explicit override is honoured or refused; it is never passed over for another CLI, because
+  // silently running a different binary than the one the user named is worse than failing.
+  const override = process.env.SQLX_BIN?.trim();
+  if (override) {
+    const version = await versionOf(override);
+    if (version === null) {
+      throw new Error(`SQLX_BIN does not point to a runnable OtterMind SQLX CLI: ${override}`);
+    }
+    if (olderThan(version, CLI_MIN_VERSION)) {
+      throw new Error(`SQLX_BIN has SQLX ${version}; this extension requires SQLX >= ${CLI_MIN_VERSION}`);
+    }
+    executable = override;
+    ensureSkill(executable);
+    return executable;
+  }
+  for (const candidate of ["sqlx", installedPath()]) {
+    if (compatible(await versionOf(candidate))) {
       executable = candidate;
+      ensureSkill(executable);
       return executable;
     }
   }
   await execFileAsync("npx", ["-y", "@ottermind/sqlx@latest", "--target", "dsh"], {
     maxBuffer: MAX_BUFFER,
     timeout: INSTALL_TIMEOUT_MS,
-    env: process.env,
+    env: { ...process.env, SQLX_VERSION: CLI_MIN_VERSION },
   });
   const installed = installedPath();
-  if (!(await works(installed))) {
-    throw new Error(`sqlx is not installed and installing it did not create ${installed}`);
+  const version = await versionOf(installed);
+  if (!compatible(version)) {
+    throw new Error(
+      version
+        ? `SQLX ${version} at ${installed} is older than the required ${CLI_MIN_VERSION}`
+        : `sqlx is not installed and installing it did not create ${installed}`,
+    );
   }
   executable = installed;
+  ensureSkill(executable);
   return executable;
 }
 async function run(args) {
@@ -118,6 +185,37 @@ function apply(ctx) {
     output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
     async execute(args) {
       return await run(["datasource", "test", "--id", args.id]);
+    },
+  }));
+  ctx.tools.register(defineTool({
+    name: "sqlx_datasource_setup",
+    description: "Start adding a SQLX datasource that the user finishes in a local browser page, and return that page's url. The connection carries no credentials: the user types the username and password there, so they never enter this conversation. Give the user the complete URL, then poll sqlx_datasource_setup_status with the returned request_id until it reports the outcome.",
+    parameters: {
+      name: { type: "string", required: true, description: "Name for the new datasource" },
+      connection: { type: "object", required: true, description: "Connection settings without credentials: database_type, host, port, database, service, tls, properties" },
+    },
+    output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
+    async execute(args) {
+      const command = ["datasource", "add", "--ui", "--no-open", "--name", args.name];
+      for (const [flag, key] of CONNECTION_ARGUMENTS) {
+        const value = args.connection?.[key];
+        if (value !== undefined && value !== null && value !== "") {
+          command.push(flag, String(value));
+        }
+      }
+      for (const [key, value] of Object.entries(args.connection?.properties ?? {})) {
+        command.push("--property", `${key}=${value}`);
+      }
+      return await run(command);
+    },
+  }));
+  ctx.tools.register(defineTool({
+    name: "sqlx_datasource_setup_status",
+    description: "Report the outcome of a setup started by sqlx_datasource_setup, without retrieving credentials. Read-only: it never contacts the database again.",
+    parameters: { request_id: { type: "string", required: true, description: "Setup request UUID from the sqlx_datasource_setup response" } },
+    output: { schema: { type: "object", additionalProperties: true, properties: {} }, render: (_args, value) => text(value) },
+    async execute(args) {
+      return await run(["datasource", "setup-status", "--request-id", args.request_id]);
     },
   }));
   ctx.tools.register(defineTool({

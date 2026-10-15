@@ -34,6 +34,7 @@
   },
   "type": "module",
   "bin": {
+    "sqlx": "bin/sqlx.mjs",
     "sqlx-install": "bin/sqlx-install.mjs"
   },
   "engines": {

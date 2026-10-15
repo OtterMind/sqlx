@@ -25,6 +25,7 @@ const EXPECTED_FILES = [
   "package/NOTICE",
   "package/README.md",
   "package/bin/sqlx-install.mjs",
+  "package/bin/sqlx.mjs",
   "package/package.json",
   "package/src/args.mjs",
   "package/src/cli.mjs",
@@ -256,6 +257,29 @@ test("packs, installs and refuses what it must refuse", async (t) => {
       });
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /Usage:/);
+    });
+
+    await t.test("runs a command through the package's default binary", async () => {
+      // `npx @ottermind/sqlx <command>` is the one-line configuration an MCP client uses.
+      const result = await runNpm(["exec", "--yes", `--package=${tarball}`, "--", "sqlx", "--version"], {
+        cwd: root,
+        env: environment(realVersion, { SQLX_BIN: CLI }),
+      });
+      assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stdout, /OtterMind\/sqlx/);
+    });
+
+    await t.test("still installs when the package's own binary is invoked without a command", async () => {
+      // npm resolves a command to the binary of the same name, so this is what the README's
+      // `npx -y @ottermind/sqlx@latest` runs.
+      const directory = project(root, "default-binary");
+      const result = await runNpm(["exec", "--yes", `--package=${tarball}`, "--", "sqlx"], {
+        cwd: directory,
+        env: environment(realVersion),
+      });
+      assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.equal(await readVersion(path.join(root, "bin", CLI_NAME)), realVersion);
+      assert.ok(fs.existsSync(path.join(directory, "sqlx", "SKILL.md")));
     });
 
     await t.test("installs the CLI and the Skill from the packed tarball", async () => {

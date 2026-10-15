@@ -527,7 +527,11 @@ fn run(cli: Cli) -> Result<bool> {
                 let index = sources
                     .iter()
                     .position(|s| s.id == id || s.name == id)
-                    .context("datasource not found")?;
+                    .with_context(|| {
+                        format!(
+                            "no datasource is named or identified by \"{id}\"; run `sqlx datasource list` to see the saved ones"
+                        )
+                    })?;
                 if let Some(name) = name {
                     validate_name(&name)?;
                     if sources

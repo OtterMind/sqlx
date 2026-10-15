@@ -161,7 +161,13 @@ impl Store {
         values
             .into_iter()
             .find(|v| v.id == id || v.name == id)
-            .ok_or_else(|| anyhow!("datasource not found"))
+            .ok_or_else(|| {
+                // A caller that only reads "not found" cannot tell whether to list the saved ones or
+                // to ask the user for a new connection, so the message carries the next step.
+                anyhow!(
+                    "no datasource is named or identified by \"{id}\"; run `sqlx datasource list` to see the saved ones, and ask the user to add a connection with `sqlx datasource add --ui` when it is missing"
+                )
+            })
     }
 }
 pub fn regular(path: &Path) -> Result<()> {

@@ -4,6 +4,13 @@ export const HELP = `Install or update the SQLX CLI and its agent Skill.
 
 Usage:
   npx -y @ottermind/sqlx@latest [--target <codex|claude|dsh|pi|path>]
+  npx -y @ottermind/sqlx@latest <command> [args...]
+
+Without a command this installs the CLI. With one it runs that SQLX command,
+installing the CLI first when it is missing, so an MCP client can be configured
+with it directly:
+
+  {"command": "npx", "args": ["-y", "@ottermind/sqlx@latest", "mcp"]}
 
 Options:
   --target <codex|claude|dsh|pi|path>
@@ -13,6 +20,8 @@ Options:
                                 select the user-level Skill directory of that
                                 agent; any other value is used as the Skill
                                 directory.
+  --cli-only                    Install or update the CLI and leave the Skill
+                                alone.
   -h, --help                    Show this help and exit.
 
 The CLI is installed to its official user-level location:
@@ -36,11 +45,15 @@ Examples:
 `;
 
 export function parseArgs(argv) {
-  const options = { target: undefined, help: false };
+  const options = { target: undefined, help: false, cliOnly: false };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") {
       options.help = true;
+      continue;
+    }
+    if (argument === "--cli-only") {
+      options.cliOnly = true;
       continue;
     }
     if (argument === "--target" || argument.startsWith("--target=")) {

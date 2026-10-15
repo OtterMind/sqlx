@@ -39,10 +39,20 @@ function pathHint(directory) {
   ];
 }
 
-function report(progress, log) {
+function report(progress, log, options) {
   log.log(`SQLX ${progress.cli.version}`);
   log.log(`  CLI    ${progress.cli.path} (${progress.cli.action})`);
-  log.log(`  Skill  ${progress.skill.path}${progress.skill.version ? ` (${progress.skill.version})` : ""}`);
+  log.log(
+    progress.skill
+      ? `  Skill  ${progress.skill.path}${progress.skill.version ? ` (${progress.skill.version})` : ""}`
+      : "  Skill  not installed (--cli-only)",
+  );
+  if (progress.skill && !options.target) {
+    // Without --target the Skill lands in the current directory, where no agent discovers it, and
+    // an agent without the Skill has the tools but none of the engine knowledge.
+    log.log("         no agent looks there; install it where yours does:");
+    log.log("         npx -y @ottermind/sqlx@latest --target claude|codex|dsh|pi");
+  }
   log.log(`  Data   ${progress.data.path} (${progress.data.created ? "created" : "already initialized"})`);
   const directory = path.dirname(progress.cli.path);
   const entries = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
@@ -60,18 +70,20 @@ async function install(options, cwd, log) {
   const version = targetVersion();
   const platform = platformName();
   const binary = path.join(cli.cliDirectory(), cli.binaryName());
-  const skillTarget = resolveSkillTarget(options.target, cwd);
+  const skillTarget = options.cliOnly ? null : resolveSkillTarget(options.target, cwd);
   const progress = { cli: null, skill: null, data: null };
 
   // Refuse an unusable Skill destination before changing anything else.
-  let stats = null;
-  try {
-    stats = fs.lstatSync(skillTarget);
-  } catch {
-    stats = null;
-  }
-  if (stats?.isSymbolicLink()) {
-    throw new InstallError("skill", `${skillTarget} is a symbolic link; choose another --target`);
+  if (skillTarget !== null) {
+    let stats = null;
+    try {
+      stats = fs.lstatSync(skillTarget);
+    } catch {
+      stats = null;
+    }
+    if (stats?.isSymbolicLink()) {
+      throw new InstallError("skill", `${skillTarget} is a symbolic link; choose another --target`);
+    }
   }
 
   const existing = cli.inspect(binary);
@@ -103,18 +115,20 @@ async function install(options, cwd, log) {
   const dataDirectory = cli.dataDirectory();
   progress.data = { path: dataDirectory, created: cli.initializeData(binary, dataDirectory) };
 
-  try {
-    const result = cli.installSkill(binary, skillTarget);
-    progress.skill = { path: skillTarget, version: result?.version ?? null };
-  } catch (error) {
-    throw new InstallError(
-      "skill",
-      `${error.message}\nThe CLI at ${binary} (${progress.cli.version}) is installed and usable; fix the Skill destination and run the command again to finish the Skill step.`,
-      { cause: error },
-    );
+  if (skillTarget !== null) {
+    try {
+      const result = cli.installSkill(binary, skillTarget);
+      progress.skill = { path: skillTarget, version: result?.version ?? null };
+    } catch (error) {
+      throw new InstallError(
+        "skill",
+        `${error.message}\nThe CLI at ${binary} (${progress.cli.version}) is installed and usable; fix the Skill destination and run the command again to finish the Skill step.`,
+        { cause: error },
+      );
+    }
   }
 
-  report(progress, log);
+  report(progress, log, options);
   return 0;
 }
 
