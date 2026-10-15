@@ -65,15 +65,21 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          # Only amd64 is built: a registry client that needs another architecture can run this one
-          # under the emulation it already has, and building both would need QEMU here.
-          docker build \
+          # The registry rejects a package whose tag does not resolve to an index containing
+          # linux/amd64 ("failed to fetch OCI image: no child with platform linux/amd64 in index"),
+          # and `docker push` sends the single manifest a `docker build` produced instead of an
+          # index. buildx pushes an index even for one platform.
+          #
+          # Only amd64 is built: a client on another architecture runs it under the emulation it
+          # already has, and building both would need QEMU here.
+          docker buildx build \
+            --platform linux/amd64 \
             --build-arg "SQLX_VERSION=${VERSION}" \
             --tag "ghcr.io/ottermind/sqlx:${VERSION}" \
             --tag ghcr.io/ottermind/sqlx:latest \
             --file sqlx-mcp.Dockerfile \
+            --push \
             .
-          docker push --all-tags ghcr.io/ottermind/sqlx
       - name: Publish to the MCP Registry
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
