@@ -44,6 +44,39 @@ pub fn status(manager: &Components) -> Result<Value> {
         json!({"installations":records(manager)?.into_iter().map(|i|{let missing=!i.path.exists();json!({"path":i.path,"version":i.version,"missing":missing,"intact":!missing&&files(&i.path).is_ok_and(|f|f==i.files)})}).collect::<Vec<_>>()}),
     )
 }
+/// Reads the `cli-compat` range an installed Skill declares in its frontmatter.
+fn compat_of(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path.join("SKILL.md")).ok()?;
+    text.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("cli-compat:")
+            .map(|value| value.trim().trim_matches('"').to_owned())
+    })
+}
+/// Managed Skills whose `cli-compat` range excludes this CLI.
+///
+/// The CLI, the Skill and a harness plugin each update on their own, so updating the CLI can leave
+/// behind a Skill that was written for a different one. A Skill whose range still admits this CLI
+/// is left alone, and one whose range cannot be read is not guessed about.
+pub fn incompatible(manager: &Components, cli_version: &str) -> Result<Vec<Value>> {
+    let Ok(version) = semver::Version::parse(cli_version) else {
+        return Ok(vec![]);
+    };
+    Ok(records(manager)?
+        .into_iter()
+        .filter_map(|installation| {
+            let cli_compat = compat_of(&installation.path)?;
+            let requirement = semver::VersionReq::parse(&cli_compat).ok()?;
+            (!requirement.matches(&version)).then(|| {
+                json!({
+                    "path": installation.path,
+                    "version": installation.version,
+                    "cli_compat": cli_compat,
+                })
+            })
+        })
+        .collect())
+}
 /// Canonicalize the nearest existing ancestor and re-append the missing tail, so a
 /// record stays addressable after its directory was deleted (for example under /tmp).
 fn resolved_path(path: &Path) -> PathBuf {
@@ -227,6 +260,52 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("codex, claude, dsh, pi"), "{error}");
+    }
+    #[test]
+    fn incompatible_reports_only_the_skills_that_exclude_this_cli() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let manager = Components::new(root.clone(), "unused".into());
+        let stale = root.join("skills/stale");
+        let current = root.join("skills/current");
+        let unreadable = root.join("skills/unreadable");
+        for (path, compat) in [
+            (&stale, Some(">=0.1.20, <0.2.0")),
+            (&current, Some(">=0.1.15, <0.2.0")),
+            (&unreadable, None),
+        ] {
+            fs::create_dir_all(path).unwrap();
+            let frontmatter = compat.map_or_else(String::new, |compat| {
+                format!("metadata:\n  cli-compat: \"{compat}\"\n")
+            });
+            fs::write(
+                path.join("SKILL.md"),
+                format!("---\nname: sqlx\n{frontmatter}---\n"),
+            )
+            .unwrap();
+        }
+        let entry = |path: PathBuf, version: &str| Installation {
+            path,
+            version: version.into(),
+            files: BTreeMap::new(),
+        };
+        atomic_write(
+            &root.join("skill-installs.json"),
+            &serde_json::to_vec_pretty(&[
+                entry(stale.clone(), "0.1.20"),
+                entry(current.clone(), "0.1.15"),
+                entry(unreadable.clone(), "0.1.15"),
+            ])
+            .unwrap(),
+        )
+        .unwrap();
+        let outdated = incompatible(&manager, "0.1.19").unwrap();
+        assert_eq!(outdated.len(), 1, "{outdated:?}");
+        assert_eq!(outdated[0]["path"], json!(stale));
+        assert_eq!(outdated[0]["cli_compat"], ">=0.1.20, <0.2.0");
+        // Every range admits 0.1.20, and the one without a range is never guessed about.
+        assert!(incompatible(&manager, "0.1.20").unwrap().is_empty());
+        assert!(incompatible(&manager, "not a version").unwrap().is_empty());
     }
     #[test]
     fn remove_forgets_one_record_and_keeps_its_files() {

@@ -1,6 +1,7 @@
 mod import;
-mod skill;
-use sqlx_core::{components, drivers, execution, mcp, plugins, prefetch, storage, ui, updates};
+use sqlx_core::{
+    components, drivers, execution, mcp, plugins, prefetch, skill, storage, ui, updates,
+};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -385,7 +386,25 @@ fn run(cli: Cli) -> Result<bool> {
             let updater = updates::Updater::new(cli.update_dir, cli.update_release_base)?;
             let value = match command {
                 UpdateCommand::Check => updater.check(false)?,
-                UpdateCommand::Install { version } => updater.install(version.as_deref())?,
+                UpdateCommand::Install { version } => {
+                    let mut value = updater.install(version.as_deref())?;
+                    // The three update paths are independent, so a finished CLI update can leave a
+                    // Skill behind that was written for another CLI. Reporting is all that happens
+                    // here: the executable is already replaced and the command must still succeed.
+                    let installed = value["to_version"].as_str().unwrap_or_default().to_owned();
+                    let outdated = skill::incompatible(
+                        &components::Components::new(root.clone(), String::new()),
+                        &installed,
+                    )
+                    .unwrap_or_default();
+                    if !outdated.is_empty() {
+                        value["next"] = json!(
+                            "Run `sqlx skill update`: the Skills in `outdated_skills` were written for another CLI version."
+                        );
+                    }
+                    value["outdated_skills"] = json!(outdated);
+                    value
+                }
                 UpdateCommand::Status => updater.status()?,
                 UpdateCommand::BackgroundCheck => {
                     updater.check(true)?;
@@ -403,7 +422,7 @@ fn run(cli: Cli) -> Result<bool> {
             return Ok(true);
         }
         Commands::Prefetch { components } => {
-            let (report, complete) = prefetch::run(&root, &cli.manifest, &components)?;
+            let (report, complete) = prefetch::run(&root, &cli.manifest, &components, None)?;
             print(report);
             return Ok(complete);
         }
