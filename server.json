@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.OtterMind/sqlx",
+  "title": "SQLX",
+  "description": "Run SQL on 30+ databases through saved, encrypted connections; credentials stay local.",
+  "version": "0.1.21",
+  "websiteUrl": "https://github.com/OtterMind/sqlx",
+  "repository": {
+    "url": "https://github.com/OtterMind/sqlx",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/ottermind/sqlx:0.1.21",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

@@ -150,6 +150,13 @@ no `~/.local/bin` on its `PATH`, so give the absolute path (`~/.local/bin/sqlx` 
 Such a client receives no Skill, so its agent runs the tools without the engine recipes. Install it
 where the client reads instructions from with `sqlx skill install --path <directory>`.
 
+SQLX is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as
+`io.github.OtterMind/sqlx`, which points at a container image for clients that install from there:
+`docker run -i --rm ghcr.io/ottermind/sqlx:latest`. A container reaches only the SQL-execution path
+— the credential page, the result page and the local workbench are served on the container's own
+`127.0.0.1`, and the data directory lives inside it, so mount a volume at `/root/.sqlx` to keep
+saved connections. Prefer the package above when the user should type credentials or read results.
+
 ### Skill only
 
 ```sh
