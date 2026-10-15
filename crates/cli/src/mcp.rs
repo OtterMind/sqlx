@@ -12,7 +12,7 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
-use sqlx_protocol::{Action, Event};
+use sqlx_protocol::{Action, Connection, Event};
 use std::{
     collections::BTreeMap,
     io::{BufRead, Write},
@@ -264,6 +264,46 @@ fn call(
                 progress,
                 cancel,
             )?
+        }
+        "sqlx_datasource_setup" => {
+            let name = string_arg(&arguments, "name")?;
+            let connection: Connection = serde_json::from_value(
+                arguments
+                    .get("connection")
+                    .cloned()
+                    .context("missing connection object")?,
+            )
+            .context("connection must be the object `--connection-stdin` accepts")?;
+            let client =
+                ui::UiClient::start(root.to_path_buf(), manifest.to_owned(), local.clone())?;
+            let mut result = client.post(
+                "/api/setups",
+                &ui::SetupRequest {
+                    name,
+                    source_id: None,
+                    connection,
+                },
+            )?;
+            result["url"] = client
+                .page(
+                    &format!(
+                        "/setup/{}",
+                        result["request_id"]
+                            .as_str()
+                            .context("missing request id")?
+                    ),
+                    false,
+                )?
+                .into();
+            result
+        }
+        "sqlx_datasource_setup_status" => {
+            let request_id = string_arg(&arguments, "request_id")?;
+            uuid::Uuid::parse_str(&request_id)
+                .context("request_id must be a setup request UUID")?;
+            let client = ui::UiClient::existing(root)?
+                .context("local UI is not running; the setup request has expired")?;
+            client.get(&format!("/api/setups/{request_id}/status"))?
         }
         "sqlx_sql_execute" => {
             let source = datasource_arg(root, &arguments)?;
@@ -521,6 +561,38 @@ fn tools() -> Vec<Value> {
             "annotations": {"readOnlyHint": true, "openWorldHint": true},
         }),
         json!({
+            "name": "sqlx_datasource_setup",
+            "title": "Add a SQLX datasource in the browser",
+            "description": "Start adding a datasource the user finishes in a local browser page, and return that page's `url`. The connection object carries no credentials: the user types the username and password there, so they never enter this conversation. Give the user the complete URL, then call sqlx_datasource_setup_status with the returned `request_id` until it reports the outcome.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name for the new datasource"},
+                    "connection": {
+                        "type": "object",
+                        "description": "Connection settings without credentials, in the shape --connection-stdin accepts: database_type, host, port, database, service, tls, properties",
+                        "required": ["database_type"],
+                        "additionalProperties": true,
+                    },
+                },
+                "required": ["name", "connection"],
+                "additionalProperties": false,
+            },
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "openWorldHint": true},
+        }),
+        json!({
+            "name": "sqlx_datasource_setup_status",
+            "title": "Read a browser setup request",
+            "description": "Report the outcome of a setup started by sqlx_datasource_setup, without retrieving credentials. Read-only: it never contacts the database again.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"request_id": {"type": "string", "description": "Setup request UUID from the sqlx_datasource_setup response"}},
+                "required": ["request_id"],
+                "additionalProperties": false,
+            },
+            "annotations": {"readOnlyHint": true, "openWorldHint": false},
+        }),
+        json!({
             "name": "sqlx_sql_execute",
             "title": "Execute SQL with SQLX",
             "description": "Execute one or more complete SQL statements through SQLX and return the table-shaped result: `results[].cols`, `rows` and `count` per statement. A result set larger than the preview is stored under `results[].file` and read with sqlx_results_rows. Each statement is a separate driver statement and the batch stops at the first error. Statements may modify data: only call this after the user authorized that exact operation and scope. Results are never replayed automatically.",
@@ -627,6 +699,8 @@ mod tests {
                 "sqlx_datasource_list",
                 "sqlx_datasource_show",
                 "sqlx_datasource_test",
+                "sqlx_datasource_setup",
+                "sqlx_datasource_setup_status",
                 "sqlx_sql_execute",
                 "sqlx_sql_view",
                 "sqlx_results_rows",
@@ -638,7 +712,10 @@ mod tests {
             assert!(annotations["readOnlyHint"].is_boolean(), "{tool}");
             assert_eq!(tool["inputSchema"]["type"], "object", "{tool}");
         }
-        let execute = &tools[3];
+        let execute = tools
+            .iter()
+            .find(|tool| tool["name"] == "sqlx_sql_execute")
+            .expect("sqlx_sql_execute is declared");
         assert_eq!(execute["annotations"]["readOnlyHint"], false);
         assert_eq!(execute["annotations"]["destructiveHint"], true);
         assert!(
@@ -684,7 +761,7 @@ mod tests {
             .map(str::to_owned)
             .collect();
         server.sort();
-        assert_eq!(server.len(), 7);
+        assert_eq!(server.len(), 9);
         for (label, source) in [
             (
                 "dsh tools",
