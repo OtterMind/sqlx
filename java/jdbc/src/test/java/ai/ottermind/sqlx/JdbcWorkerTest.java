@@ -1,11 +1,50 @@
 package ai.ottermind.sqlx;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import java.io.*;
+import java.nio.file.*;
 import java.sql.*;
+import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class JdbcWorkerTest {
+    @Test void windowsCanonicalDriverPaths() {
+        assertEquals("C:\\Users\\测试 用户\\hive-jdbc.jar", JdbcWorker.windowsDriverPath("\\\\?\\C:\\Users\\测试 用户\\hive-jdbc.jar"));
+        assertEquals("\\\\server\\share\\驱动 文件\\hive-jdbc.jar", JdbcWorker.windowsDriverPath("\\\\?\\UNC\\server\\share\\驱动 文件\\hive-jdbc.jar"));
+        for (String path : List.of("C:\\drivers\\hive.jar", "\\\\server\\share\\hive.jar", "/tmp/drivers/hive.jar", "drivers/hive.jar")) {
+            assertEquals(path, JdbcWorker.windowsDriverPath(path));
+        }
+    }
+    @Test void loadsDriverFromCanonicalPath(@TempDir Path temp) throws Exception {
+        org.h2.Driver.load();
+        Path directory = Files.createDirectory(temp.resolve("JDBC 驱动 #1"));
+        Path original = Path.of(org.h2.Driver.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Path jar = Files.copy(original, directory.resolve("h2.jar")).toRealPath();
+        List<String> paths = new ArrayList<>(List.of(jar.toString()));
+        if (File.separatorChar == '\\') paths.add("\\\\?\\" + jar);
+        for (String path : paths) {
+            ObjectMapper json = new ObjectMapper();
+            var request = json.createObjectNode();
+            request.put("protocol_version", 1).put("action", "execute").put("driver_class", "org.h2.Driver");
+            request.putArray("driver_jars").add(path);
+            request.putArray("statements").add("SELECT 42 AS answer");
+            request.putObject("connection").put("database_type", "h2").put("database", temp.resolve("fixture").toString()).put("tls", "disable");
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            ClassLoader context = Thread.currentThread().getContextClassLoader();
+            try {
+                assertTrue(new JdbcWorker(new PrintStream(bytes, true, "UTF-8")).run(request), bytes.toString("UTF-8"));
+            } finally {
+                Thread.currentThread().setContextClassLoader(context);
+            }
+            var events = bytes.toString("UTF-8").lines().map(line -> {
+                try { return json.readTree(line); } catch (IOException e) { throw new UncheckedIOException(e); }
+            }).toList();
+            assertTrue(events.stream().anyMatch(event -> event.path("event").asText().equals("row") && event.path("values").get(0).asText().equals("42")), events.toString());
+            assertEquals("complete", events.get(events.size()-1).path("event").asText());
+            assertTrue(events.get(events.size()-1).path("success").asBoolean());
+        }
+    }
     @Test void completeValuesAndDuplicateLabels() throws Exception {
         ByteArrayOutputStream bytes=new ByteArrayOutputStream();
         JdbcWorker worker=new JdbcWorker(new PrintStream(bytes,true,"UTF-8"));
