@@ -1,0 +1,20 @@
+{
+  "name": "ottermind",
+  "interface": {
+    "displayName": "OtterMind"
+  },
+  "plugins": [
+    {
+      "name": "sqlx",
+      "source": {
+        "source": "local",
+        "path": "./plugins/sqlx"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
