@@ -66,6 +66,12 @@ public final class JdbcWorker {
         }
     }
     private static boolean boundary(char value) { return !(Character.isLetterOrDigit(value) || value == '.'); }
+    /** Rust canonical paths use the Windows verbatim prefix, which Java's Path parser rejects. */
+    static String windowsDriverPath(String path) {
+        if (path.startsWith("\\\\?\\UNC\\")) return "\\\\" + path.substring(8);
+        if (path.startsWith("\\\\?\\")) return path.substring(4);
+        return path;
+    }
     boolean run(JsonNode request) throws IOException {
         JsonNode config = request.path("connection");
         JsonNode sql = request.path("statements");
@@ -76,7 +82,9 @@ public final class JdbcWorker {
             if (!Set.of("test", "execute").contains(request.path("action").asText())) throw new IllegalArgumentException("invalid action");
             URL[] jars = new URL[request.path("driver_jars").size()];
             for (int i=0; i<jars.length; i++) {
-                Path p = Path.of(request.path("driver_jars").get(i).asText()).toRealPath();
+                String path = request.path("driver_jars").get(i).asText();
+                if (File.separatorChar == '\\') path = windowsDriverPath(path);
+                Path p = Path.of(path).toRealPath();
                 if (!Files.isRegularFile(p)) throw new IllegalArgumentException("driver JAR is missing");
                 jars[i] = p.toUri().toURL();
             }
