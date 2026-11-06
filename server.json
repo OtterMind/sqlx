@@ -3,7 +3,7 @@
   "name": "io.github.OtterMind/sqlx",
   "title": "SQLX",
   "description": "Run SQL on 30+ databases through saved, encrypted connections; credentials stay local.",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "websiteUrl": "https://github.com/OtterMind/sqlx",
   "repository": {
     "url": "https://github.com/OtterMind/sqlx",
@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/ottermind/sqlx:0.1.21",
+      "identifier": "ghcr.io/ottermind/sqlx:0.1.22",
       "transport": {
         "type": "stdio"
       }

@@ -1,3 +1,16 @@
+SQLX 0.1.22 fixes JDBC driver loading on Windows, including Hive connections.
+
+## Windows JDBC connections
+
+- Hive and the other JDBC engines now accept the `\\?\` driver paths produced by Windows. Connections can load the JDBC driver instead of failing before reaching the database.
+- Local drive paths and UNC network paths are supported, including paths containing Chinese characters and spaces.
+
+## Upgrading
+
+Run `sqlx update check` and `sqlx update install` to install 0.1.22. The updated JDBC worker is downloaded from the new release when a JDBC connection is next used.
+
+**Full Changelog**: https://github.com/OtterMind/sqlx/compare/v0.1.21...v0.1.22
+
 SQLX 0.1.21 makes every integration deliver the Skill, runs the browser connection setup through tools, and lets a client with no plugin system start the server in one line.
 
 ## A running call can be stopped

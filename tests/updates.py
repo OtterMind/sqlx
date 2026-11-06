@@ -14,7 +14,7 @@ import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT = "0.1.21"
+CURRENT = "0.1.22"
 NEXT = "0.1.99"
 SUFFIX = ".exe" if os.name == "nt" else ""
 NAME = "sqlx" + SUFFIX

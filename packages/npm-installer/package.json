@@ -1,6 +1,6 @@
 {
   "name": "@ottermind/sqlx",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "Install or update the SQLX database CLI and its agent Skill.",
   "keywords": [
     "sqlx",

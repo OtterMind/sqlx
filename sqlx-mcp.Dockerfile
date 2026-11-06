@@ -11,7 +11,7 @@ FROM ubuntu:24.04
 
 LABEL io.modelcontextprotocol.server.name="io.github.OtterMind/sqlx"
 
-ARG SQLX_VERSION=0.1.21
+ARG SQLX_VERSION=0.1.22
 ARG TARGETARCH
 
 RUN set -eux; \
