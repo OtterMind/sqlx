@@ -1,0 +1,85 @@
+name: Sign Windows executables
+
+on:
+  workflow_call:
+    inputs:
+      artifact_id:
+        type: string
+        required: true
+    outputs:
+      artifact_id:
+        description: Signed Windows executables artifact ID
+        value: ${{ jobs.sign.outputs.artifact_id }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sign:
+    if: >-
+      github.repository == 'OtterMind/sqlx' &&
+      ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: [self-hosted, macOS, ARM64, sqlx-windows-signing]
+    timeout-minutes: 40
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Create isolated signing workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          work_dir=$(mktemp -d "${RUNNER_TEMP}/sqlx-windows-sign.XXXXXX")
+          mkdir "${work_dir}/input" "${work_dir}/output"
+          echo "path=${work_dir}" >> "${GITHUB_OUTPUT}"
+      - name: Download unsigned executables from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ inputs.artifact_id }}
+          path: ${{ steps.workspace.outputs.path }}/input
+          merge-multiple: true
+      - name: Sign the SQLX executables
+        shell: bash
+        timeout-minutes: 30
+        env:
+          WORK_DIR: ${{ steps.workspace.outputs.path }}
+          WINDOWS_SIGN_SCRIPT: ${{ vars.WINDOWS_SIGN_SCRIPT }}
+        run: |
+          set -euo pipefail
+          test -n "${WINDOWS_SIGN_SCRIPT}" && test -x "${WINDOWS_SIGN_SCRIPT}"
+          expected=(
+            sqlx.exe sqlx-driver-mysql.exe sqlx-driver-postgres.exe
+            sqlx-driver-redis.exe sqlx-driver-mongodb.exe sqlx-driver-sqlite.exe
+            sqlx-driver-duckdb.exe sqlx-ui.exe
+          )
+          test "$(find "${WORK_DIR}/input" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = "${#expected[@]}"
+          for name in "${expected[@]}"; do
+            input="${WORK_DIR}/input/${name}"
+            test -f "${input}" && test -s "${input}" && test ! -L "${input}"
+          done
+          for name in "${expected[@]}"; do
+            output="${WORK_DIR}/output/${name}"
+            cp "${WORK_DIR}/input/${name}" "${output}"
+            "${WINDOWS_SIGN_SCRIPT}" --alg SHA-256 "${output}"
+            shasum -a 256 "${output}"
+          done
+      - name: Upload signed executables
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signed-windows-exes
+          path: ${{ steps.workspace.outputs.path }}/output/*.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Remove signing workspace
+        if: always()
+        shell: bash
+        env:
+          WORK_DIR: ${{ steps.workspace.outputs.path }}
+        run: |
+          if [ -n "${WORK_DIR}" ]; then
+            rm -rf "${WORK_DIR}"
+          fi
