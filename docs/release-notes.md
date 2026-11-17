@@ -1,3 +1,17 @@
+SQLX 0.1.23 adds digital signatures to the Windows CLI, native database workers and local UI.
+
+## Signed Windows executables
+
+- All eight SQLX Windows executables now carry SHA-256 Authenticode signatures and trusted timestamps, including the driver workers started by database commands.
+- Windows can validate the executable publisher before starting a worker. Environments with WDAC publisher restrictions still need their IT policy to allow the signing publisher.
+- The bundled Java runtime retains its vendor signatures.
+
+## Upgrading
+
+Run `sqlx update check` and `sqlx update install` to install 0.1.23. Update the Windows runtime components as well when replacing an offline installation; the offline installer preserves the existing encrypted connections and data directory.
+
+**Full Changelog**: https://github.com/OtterMind/sqlx/compare/v0.1.22...v0.1.23
+
 SQLX 0.1.22 fixes JDBC driver loading on Windows, including Hive connections.
 
 ## Windows JDBC connections
